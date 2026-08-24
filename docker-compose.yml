@@ -1,0 +1,94 @@
+services:
+  # MongoDB Database
+  mongo:
+    image: mongo:7
+    container_name: spoon-mongo
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - spoon-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Backend API Server
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: spoon-backend
+    restart: unless-stopped
+    environment:
+      - MONGO_URL=mongodb://mongo:27017
+      - DATABASE_NAME=${DATABASE_NAME:-spoon_chat}
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - spoon-network
+    volumes:
+      # Mount media outputs from agent for serving videos
+      - media_data:/app/media
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # Frontend (React + Nginx)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: spoon-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    environment:
+      - BACKEND_URL=http://backend:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - spoon-network
+
+  # AI Agent Service
+  agent:
+    build:
+      context: ./agent
+      dockerfile: Dockerfile
+    container_name: spoon-agent
+    restart: unless-stopped
+    environment:
+      - AGENT_WS_URL=ws://backend:8000/ws/agent
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - DEFAULT_LLM_PROVIDER=${DEFAULT_LLM_PROVIDER:-gemini}
+      - DEFAULT_MODEL=${DEFAULT_MODEL:-gemini-2.5-pro}
+      - GEMINI_MAX_TOKENS=${GEMINI_MAX_TOKENS:-20000}
+      - MANIM_ALLOW_LATEX=${MANIM_ALLOW_LATEX:-1}
+      - MANIM_MCP_SERVER_SCRIPT=/app/manim-mcp-server/src/manim_server.py
+      # Optional: OpenAI/Anthropic keys if you want to use those providers
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - spoon-network
+    volumes:
+      # Persist generated videos
+      - media_data:/app/manim-mcp-server/src/media/outputs
+
+networks:
+  spoon-network:
+    driver: bridge
+
+volumes:
+  mongo_data:
+  media_data:
+
