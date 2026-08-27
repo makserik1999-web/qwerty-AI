@@ -17,6 +17,7 @@ sha256 of `build_manim_system_prompt(True, "Kazakh (қазақ тілі)")`:
 | baseline, before Task 2 | `0cf849266f9ae68e4081397abd3309eaa7ec0a002b5cbe79224fe99506fcb045` |
 | after Task 2 | `0cf849266f9ae68e4081397abd3309eaa7ec0a002b5cbe79224fe99506fcb045` |
 | after Task 3 | `0cf849266f9ae68e4081397abd3309eaa7ec0a002b5cbe79224fe99506fcb045` |
+| after Task 4 | `0cf849266f9ae68e4081397abd3309eaa7ec0a002b5cbe79224fe99506fcb045` |
 
 The value is pinned in `agent/check.sh` as `EXPECTED_PROMPT_SHA256`, so every
 run re-verifies it.
@@ -145,6 +146,76 @@ completeness:
 
 ---
 
+## Task 4 - nodes and graph
+
+Created:
+
+- **`anyq/nodes.py`** - `ScienceVideoState`, `classify_intent`,
+  `route_after_intent`, `_SIMPLE_ARITH_RE`, `_heuristic_video_needed`,
+  `decide_video_needed`, `route_after_video_needed`, `reject_non_science`,
+  `educator_answer`, `generate_manim_script`, `format_output`. Moved verbatim
+  (288 lines, asserted identical).
+- **`anyq/graph.py`** - `build_app`, `app = build_app()`, `run_once`. Moved
+  verbatim (46 lines, asserted identical).
+
+`science_manim_graph_agent.py`: 441 -> 41 lines. It now re-exports exactly the
+six names the task lists - `app`, `run_once`, `_detect_language`,
+`DEFAULT_OUTPUT_LANGUAGE`, `_latex_toolchain_healthy`, `ScienceVideoState` -
+and keeps the `if __name__ == "__main__":` REPL block verbatim, so
+`python science_manim_graph_agent.py` still behaves as before.
+
+`_SIMPLE_ARITH_RE` is dead code (see the bug list) but sits inside the moved
+region, so it moved with the nodes rather than being deleted.
+
+### The silent-Kazakh check, done explicitly
+
+The worry was: if the re-export chain breaks, `agent_ws_client` swallows the
+ImportError and every user silently gets Kazakh. Two things were verified.
+
+1. **It cannot happen any more.** Task 1 moved `_friendly_failure_text` into
+   `anyq/language.py`, where `_detect_language` is a direct import rather than
+   a `try:`-wrapped import from `science_manim_graph_agent`. Deleting the
+   re-export line from the shim and re-running still produced the *Russian*
+   message for Russian input.
+2. **A broken re-export fails loudly.** Removing
+   `from anyq.language import _detect_language` from the shim on purpose made
+   `check.sh` print `FAIL  _detect_language is importable` and exit 1. The line
+   was then restored and the checks pass again.
+
+Note this means the premise in the task ("agent_ws_client imports them from
+science_manim_graph_agent inside try/except") no longer holds - that import was
+removed in Task 1. The shim still re-exports both names as required.
+
+Breakages during Task 4: none in the code. One in my own negative test:
+
+  [task 4] сломалось: the first negative test reported PASS when it should
+  have failed → причина: my test patched the shim with an LF-terminated
+  pattern while the file is CRLF, so the deletion silently did nothing →
+  починил: split on the actual line terminator; the retried test failed
+  correctly, and the shim was restored from a backup copy.
+
+### Final layout
+
+```
+agent/
+  science_manim_graph_agent.py   41   thin shim + CLI entry point
+  agent_ws_client.py            185   websocket wrapper
+  check.sh                            all checks
+  anyq/
+    __init__.py                   7
+    config.py                    59   every os.getenv + load_dotenv
+    prompts.py                  361   API reference + system/rewrite/repair prompts
+    language.py                 150   language, fonts, user-facing messages
+    llm_client.py                55   llm, retry wrapper
+    script_guard.py             124   fence/JSON helpers + Manim script guards
+    vision.py                   138   Gemini image analysis
+    render.py                   114   MCP render + repair loop
+    nodes.py                    324   graph steps + ScienceVideoState
+    graph.py                     68   wiring, app, run_once
+```
+
+---
+
 ## Bugs and oddities found - NOT fixed
 
 Recorded per rule 5. None of these were touched.
@@ -184,3 +255,62 @@ Recorded per rule 5. None of these were touched.
    exist in that module. It is never evaluated at runtime so behaviour is
    unchanged, but `typing.get_type_hints()` on it would now raise where it
    previously resolved. Kept verbatim per the no-rename rule.
+
+
+---
+
+## ВОПРОСЫ - choices I made that you may want to overrule
+
+1. **`_RENDER_REPAIR_ATTEMPTS` lives in two places.** Task 1 said every
+   `os.getenv` read belongs in `anyq/config.py`; Task 3 said `anyq/render.py`
+   should hold `_RENDER_REPAIR_ATTEMPTS`. I kept the `os.getenv` call in
+   `config.py` and re-exported the name from `render.py`, so
+   `anyq.render._RENDER_REPAIR_ATTEMPTS` resolves and the "all env reads in one
+   file" rule survives. If you want the `getenv` itself in `render.py`, say so.
+
+2. **`render_attempt` on the failure path.** I read "номер попытки, на которой
+   рендер удался" as success-only, so the failure return is byte-identical to
+   before and carries no `render_attempt` key at all. The alternative - report
+   how many attempts were burned - would change the failure return too, which
+   the task told me not to touch.
+
+3. **`render_attempt: int` was added to `ScienceVideoState`.** If
+   `spoon_ai`'s `StateGraph` filters state updates against the TypedDict, the
+   key would be dropped without this. I could not verify either way:
+   `spoon-ai-sdk` is not installed in this environment, so `check.sh` exercises
+   `render_video` directly rather than through a real graph run.
+
+4. **`from __future__ import annotations` in `vision.py` and `render.py`**
+   instead of importing `ScienceVideoState`. It keeps the moved code byte-for-
+   byte and avoids a runtime dependency on `anyq.nodes`. Now that
+   `ScienceVideoState` lives in `anyq/nodes.py` and nodes imports neither
+   module, a real `from anyq.nodes import ScienceVideoState` would also work
+   without a cycle - I picked the lighter option.
+
+5. **The shim's namespace shrank.** As instructed it re-exports six names.
+   Everything else that used to be an attribute of `science_manim_graph_agent`
+   (`MANIM_API_REFERENCE`, `_REJECT_MESSAGES`, `llm`, `_llm_chat`,
+   `_strip_code_fences`, `render_video`, `analyze_image_with_gemini`, ...) is
+   now only on its `anyq.*` module. Nothing in this repo imported them from
+   there - I grepped - but an outside script might.
+
+6. **The CLI REPL stayed in the shim** rather than moving to `anyq/graph.py`,
+   because moving it would change what `python science_manim_graph_agent.py`
+   does. Say the word if you want it in `graph.py` with a `python -m` entry.
+
+7. **`check.sh` stubs `spoon_ai` when it is missing.** In your venv it will use
+   the real package. The stub exists so the checks exercise our own import
+   graph instead of being skipped; it prints a NOTE whenever it kicks in.
+   Worth re-running `agent/check.sh` in the real venv before trusting it.
+
+8. **`check.sh` is stored with LF endings**, like the existing `start.sh`. With
+   this repo's `core.autocrlf=true`, a Windows working tree gets CRLF for both.
+   That is a pre-existing repo condition (`start.sh` already has it), so I did
+   not add a `.gitattributes` - it would be outside the task.
+
+9. **Commits are on branch `refactor/anyq-package`, not `main`.** Task 1 was
+   also uncommitted when this run started, so it got its own commit
+   (`b302210`) rather than being folded into the Task 2 commit.
+
+10. **`NOTES.md` is at the repo root** next to `PROJECT_MEMORY.md`;
+    `check.sh` is in `agent/` because it has to run from there.
