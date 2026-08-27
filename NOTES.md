@@ -16,6 +16,7 @@ sha256 of `build_manim_system_prompt(True, "Kazakh (қазақ тілі)")`:
 |---|---|
 | baseline, before Task 2 | `0cf849266f9ae68e4081397abd3309eaa7ec0a002b5cbe79224fe99506fcb045` |
 | after Task 2 | `0cf849266f9ae68e4081397abd3309eaa7ec0a002b5cbe79224fe99506fcb045` |
+| after Task 3 | `0cf849266f9ae68e4081397abd3309eaa7ec0a002b5cbe79224fe99506fcb045` |
 
 The value is pinned in `agent/check.sh` as `EXPECTED_PROMPT_SHA256`, so every
 run re-verifies it.
@@ -92,6 +93,55 @@ stub to a temp dir and puts it on `PYTHONPATH`, so the import graph of *our*
 modules is still exercised rather than skipped; it prints a NOTE when it does.
 
 Breakages during Task 2: none.
+
+---
+
+## Task 3 - vision and render
+
+Created:
+
+- **`anyq/vision.py`** - `_guess_image_mime_type`, `_analyze_one_image_sync`,
+  `analyze_image_with_gemini`. Moved verbatim (111 lines, asserted identical).
+- **`anyq/render.py`** - `_error_tail`, `render_video`, and
+  `_RENDER_REPAIR_ATTEMPTS`. Diffed against the previous file: the only
+  difference is the one line the task authorises (see below).
+
+`science_manim_graph_agent.py`: 636 -> 441 lines. Dropped `mimetypes`, `time`,
+`json`, `os`, `Tuple` and `from spoon_ai.tools.mcp_tool import MCPTool` - every
+consumer of those moved out. Everything moved is re-imported, so the module
+namespace is unchanged.
+
+### The one authorised behaviour change
+
+`render_video` now reports which attempt produced the video:
+
+```python
+        if payload.get("status") == "ok":
+            return {
+                "video_path": str(payload.get("video_path") or ""),
+                "mcp_raw_result": raw,
+                "render_error": "",
+                "render_attempt": attempt + 1,      # <- added
+            }
+```
+
+`render_attempt` is `1` when the first render succeeds, `2` when the first
+repair succeeds, and so on. The failure return is untouched: it still yields
+`{"video_path": "", "mcp_raw_result": "", "render_error": last_error}` with no
+`render_attempt` key. `render_attempt: int` was added to `ScienceVideoState`
+so the key is declared where the rest of the state lives.
+
+`check.sh` grew a `[render]` section that drives `render_video` against a fake
+MCP tool and a fake `_llm_chat`, asserting `render_attempt == 1` on a
+first-try success, `== 2` after one repair, and absent on total failure.
+
+Breakages during Task 3: none in the code. One in my tooling, recorded for
+completeness:
+
+  [task 3] сломалось: check.sh got a literal newline inside a Python string
+  when I generated it → причина: the backslash escapes in my generator script
+  did not survive to the file → починил: rebuilt that section line-by-line
+  with no escape sequences, and normalised check.sh back to LF endings.
 
 ---
 

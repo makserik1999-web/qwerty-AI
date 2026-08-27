@@ -10,16 +10,11 @@ This agent:
 """
 
 import asyncio
-import json
-import os
 import re
-import mimetypes
-import time
-from typing import Any, Dict, Optional, TypedDict, List, Tuple
+from typing import Any, Dict, Optional, TypedDict, List
 
 from spoon_ai.graph import END, StateGraph
 from spoon_ai.schema import Message
-from spoon_ai.tools.mcp_tool import MCPTool
 
 # Environment, language helpers, prompt text, the LLM client and the Manim
 # script guards now live in the anyq package.
@@ -38,7 +33,6 @@ from anyq.config import (  # noqa: F401 - re-exported
     MANIM_MCP_SERVER_SCRIPT,
     _LLM_RETRIES,
     _LLM_RETRY_BASE_DELAY,
-    _RENDER_REPAIR_ATTEMPTS,
 )
 from anyq.language import (  # noqa: F401 - re-exported
     _FONT_PREFERENCES,
@@ -65,6 +59,11 @@ from anyq.prompts import (  # noqa: F401 - re-exported
     REWRITE_WITHOUT_LATEX_SYSTEM_PROMPT,
     build_manim_system_prompt,
 )
+from anyq.render import (  # noqa: F401 - re-exported
+    _RENDER_REPAIR_ATTEMPTS,
+    _error_tail,
+    render_video,
+)
 from anyq.script_guard import (  # noqa: F401 - re-exported
     _CODE_FENCE_RE,
     _TEX_CALL_RE,
@@ -76,6 +75,11 @@ from anyq.script_guard import (  # noqa: F401 - re-exported
     _safe_json_loads,
     _strip_code_fences,
     _tex_contains_cyrillic,
+)
+from anyq.vision import (  # noqa: F401 - re-exported
+    _analyze_one_image_sync,
+    _guess_image_mime_type,
+    analyze_image_with_gemini,
 )
 
 
@@ -106,123 +110,11 @@ class ScienceVideoState(TypedDict, total=False):
     video_path: str
     mcp_raw_result: str
     render_error: str
+    render_attempt: int
 
     # output
     final_text: str
     final_video_path: str
-
-
-def _guess_image_mime_type(path: str) -> str:
-    mime, _ = mimetypes.guess_type(path)
-    if mime:
-        return mime
-    return "image/jpeg"
-
-
-def _analyze_one_image_sync(*, image_path: str, user_q: str, api_key: str, model: str) -> Tuple[str, str]:
-    """
-    Synchronous helper that calls Gemini with (text + image).
-    """
-    from google import genai
-    from google.genai import types
-
-    mime_type = _guess_image_mime_type(image_path)
-    with open(image_path, "rb") as f:
-        img_bytes = f.read()
-
-    prompt = (
-        "Analyze the provided image for helping answer the user's question.\n"
-        "IMPORTANT: the image may contain student highlights/annotations.\n\n"
-        "Return ONLY valid JSON with keys:\n"
-        '- "summary": string (1-2 sentences)\n'
-        '- "highlighted_or_annotated": string\n'
-        '- "extracted_text": string\n'
-        '- "science_subject_guess": string\n'
-        '- "question_focus_guess": string\n'
-        f"User question: {user_q}"
-    )
-
-    contents = [
-        types.Part.from_text(text=prompt),
-        types.Part.from_bytes(data=img_bytes, mime_type=mime_type),
-    ]
-
-    with genai.Client(api_key=api_key) as client:
-        # Same transient-error retry as _llm_chat, but this call is synchronous
-        # (it already runs in a worker thread via asyncio.to_thread).
-        for attempt in range(_LLM_RETRIES + 1):
-            try:
-                resp = client.models.generate_content(model=model, contents=contents)
-                break
-            except Exception as exc:  # noqa: BLE001 - re-raised below
-                if attempt >= _LLM_RETRIES or not _is_transient_llm_error(exc):
-                    raise
-                delay = _LLM_RETRY_BASE_DELAY * (2 ** attempt)
-                print(
-                    f"[vision] transient error (attempt {attempt + 1}/{_LLM_RETRIES + 1}), "
-                    f"retrying in {delay:.0f}s: {exc}",
-                    flush=True,
-                )
-                time.sleep(delay)
-
-    text = getattr(resp, "text", None) or ""
-    payload = _safe_json_loads(text)
-    if not payload:
-        return (text.strip(), text.strip())
-
-    image_context = (
-        f"Image summary: {payload.get('summary','')}\n"
-        f"Student highlights: {payload.get('highlighted_or_annotated','')}\n"
-        f"Extracted text: {payload.get('extracted_text','')}\n"
-        f"Focus guess: {payload.get('question_focus_guess','')}\n"
-    ).strip()
-
-    return (image_context, json.dumps(payload, ensure_ascii=False))
-
-
-async def analyze_image_with_gemini(state: ScienceVideoState) -> Dict[str, Any]:
-    """Optional first step: analyze an image with Gemini."""
-    image_paths: List[str] = []
-    if state.get("image_paths"):
-        image_paths = [p.strip() for p in (state.get("image_paths") or []) if str(p).strip()]
-    elif state.get("image_path"):
-        image_paths = [str(state.get("image_path") or "").strip()]
-
-    if not image_paths:
-        return {}
-
-    if DOC_SNIPPET_MODE == "1":
-        return {"image_context": "(stub)", "image_analysis_json": "{}"}
-
-    for p in image_paths:
-        if not os.path.exists(p):
-            raise FileNotFoundError(f"Image file not found: {p}")
-
-    api_key = GEMINI_API_KEY
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY is required for image analysis")
-
-    user_q = (state.get("user_message") or "").strip()
-    model = GEMINI_VISION_MODEL
-
-    tasks = [
-        asyncio.to_thread(_analyze_one_image_sync, image_path=p, user_q=user_q, api_key=api_key, model=model)
-        for p in image_paths
-    ]
-    results = await asyncio.gather(*tasks)
-
-    contexts: List[str] = []
-    jsons: List[str] = []
-    for idx, (ctx, js) in enumerate(results, start=1):
-        contexts.append(f"[Image {idx}: {image_paths[idx-1]}]\n{ctx}".strip())
-        jsons.append(js)
-
-    combined_context = "\n\n".join([c for c in contexts if c.strip()]).strip()
-    return {
-        "image_context": combined_context,
-        "image_analysis_json": jsons[0] if jsons else "",
-        "image_analysis_jsons": jsons,
-    }
 
 
 async def classify_intent(state: ScienceVideoState) -> Dict[str, Any]:
@@ -459,93 +351,6 @@ class Demo(Scene):
 
     script = _ensure_unicode_font(script)
     return {"manim_script": script}
-
-
-def _error_tail(text: str, limit: int = 400) -> str:
-    """Last part of an error - the actual exception lives at the end."""
-    s = (text or "").strip()
-    return s[-limit:] if len(s) > limit else s
-
-
-async def render_video(state: ScienceVideoState) -> Dict[str, Any]:
-    script = (state.get("manim_script") or "").strip()
-    if not script:
-        raise ValueError("manim_script is required")
-
-    server_script_path = MANIM_MCP_SERVER_SCRIPT
-    if not server_script_path:
-        raise RuntimeError(
-            "Missing MANIM_MCP_SERVER_SCRIPT environment variable."
-        )
-
-    python_exe = MANIM_MCP_PYTHON
-    env: Dict[str, str] = {}
-    if MANIM_EXECUTABLE:
-        env["MANIM_EXECUTABLE"] = MANIM_EXECUTABLE
-
-    tool = MCPTool(
-        name="manim_mcp",
-        description="Render Manim animation via MCP",
-        mcp_config={
-            "command": python_exe,
-            "args": [server_script_path],
-            "env": env,
-            "connection_timeout": 300,
-            "max_retries": 2,
-        },
-    )
-
-    # Render, and if Manim rejects the script, feed the error back to the model
-    # and let it repair the script. Most failures are a single wrong keyword or
-    # a hallucinated API, which the model fixes when shown the traceback.
-    last_error = ""
-    for attempt in range(_RENDER_REPAIR_ATTEMPTS + 1):
-        raw = await tool.call_mcp_tool("execute_manim_code", manim_code=script)
-        payload = _safe_json_loads(raw)
-
-        if payload.get("status") == "ok":
-            return {
-                "video_path": str(payload.get("video_path") or ""),
-                "mcp_raw_result": raw,
-                "render_error": "",
-            }
-
-        last_error = str(payload.get("stderr") or payload.get("error") or raw)
-        if attempt >= _RENDER_REPAIR_ATTEMPTS:
-            break
-
-        print(
-            f"[render] failed (attempt {attempt + 1}/{_RENDER_REPAIR_ATTEMPTS + 1}), "
-            f"asking model to repair: {_error_tail(last_error)}",
-            flush=True,
-        )
-
-        repaired = await _llm_chat(
-            [
-                Message(
-                    role="system",
-                    content=RENDER_REPAIR_SYSTEM_PROMPT,
-                ),
-                Message(
-                    role="user",
-                    content=(
-                        f"ERROR:\n{_error_tail(last_error, 2000)}\n\n"
-                        f"SCRIPT:\n{script}"
-                    ),
-                ),
-            ]
-        )
-        fixed = _strip_code_fences(repaired.content)
-        if not fixed:
-            break
-        if fixed.split("\n")[0].strip() != "from manim import *":
-            fixed = "from manim import *\n\n" + fixed
-        script = _ensure_unicode_font(fixed)
-
-    # Repair exhausted: do NOT raise. Returning the error lets format_output
-    # show a friendly message instead of aborting the graph with a traceback.
-    print(f"[render] giving up after repair attempts: {_error_tail(last_error)}", flush=True)
-    return {"video_path": "", "mcp_raw_result": "", "render_error": last_error}
 
 
 async def format_output(state: ScienceVideoState) -> Dict[str, Any]:

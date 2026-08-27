@@ -105,7 +105,8 @@ import agent_ws_client as W
 print("  PASS  import agent_ws_client")
 import anyq.config, anyq.language, anyq.prompts
 import anyq.llm_client, anyq.script_guard
-print("  PASS  import anyq.{config,language,prompts,llm_client,script_guard}")
+import anyq.vision, anyq.render
+print("  PASS  import anyq.{config,language,prompts,llm_client,script_guard,vision,render}")
 
 print("[re-exports from science_manim_graph_agent]")
 check_true("app is importable", hasattr(A, "app"))
@@ -149,6 +150,63 @@ check("_contains_forbidden_manim('Checkmark()') is True",
       _contains_forbidden_manim("Checkmark()"), True)
 check("_contains_forbidden_manim('Circle()') is False",
       _contains_forbidden_manim("Circle()"), False)
+
+print("[render]")
+import asyncio as _asyncio
+
+import anyq.render as R
+
+
+class _FakeTool:
+    """Stands in for MCPTool: replies with a queued JSON payload per call."""
+
+    _replies = []
+
+    def __init__(self, *a, **k):
+        pass
+
+    async def call_mcp_tool(self, name, manim_code=None):
+        return _FakeTool._replies.pop(0)
+
+
+class _FakeResp:
+    content = "from manim import *"
+
+
+async def _fake_llm_chat(messages, **kwargs):
+    return _FakeResp()
+
+
+_saved = (R.MCPTool, R.MANIM_MCP_SERVER_SCRIPT, R._llm_chat)
+R.MCPTool = _FakeTool
+R.MANIM_MCP_SERVER_SCRIPT = "/nonexistent/manim_server.py"
+R._llm_chat = _fake_llm_chat
+OK = '{"status": "ok", "video_path": "/tmp/v.mp4"}'
+BAD = '{"status": "error", "stderr": "boom"}'
+try:
+    _FakeTool._replies = [OK]
+    res = _asyncio.run(R.render_video({"manim_script": "from manim import *"}))
+    check("render_attempt == 1 when the first render succeeds", res.get("render_attempt"), 1)
+    check("video_path is returned on success", res.get("video_path"), "/tmp/v.mp4")
+    check("render_error is empty on success", res.get("render_error"), "")
+
+    _FakeTool._replies = [BAD, OK]
+    res = _asyncio.run(R.render_video({"manim_script": "from manim import *"}))
+    check("render_attempt == 2 when the repaired script succeeds", res.get("render_attempt"), 2)
+
+    _FakeTool._replies = [BAD] * (R._RENDER_REPAIR_ATTEMPTS + 1)
+    res = _asyncio.run(R.render_video({"manim_script": "from manim import *"}))
+    check_true("render_error is set when every attempt fails",
+               bool(res.get("render_error")), repr(res))
+    check("video_path is empty when every attempt fails", res.get("video_path"), "")
+    check_true("render_attempt is absent when every attempt fails",
+               "render_attempt" not in res, repr(res))
+finally:
+    R.MCPTool, R.MANIM_MCP_SERVER_SCRIPT, R._llm_chat = _saved
+
+check_true("ScienceVideoState declares render_attempt",
+           "render_attempt" in A.ScienceVideoState.__annotations__,
+           repr(sorted(A.ScienceVideoState.__annotations__)))
 
 print("[prompt integrity]")
 from anyq.prompts import build_manim_system_prompt
