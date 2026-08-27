@@ -14,7 +14,6 @@ import json
 import os
 import re
 import shutil
-import sys
 import mimetypes
 import subprocess
 import tempfile
@@ -26,11 +25,43 @@ from spoon_ai.llm import LLMManager
 from spoon_ai.schema import Message
 from spoon_ai.tools.mcp_tool import MCPTool
 
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except Exception:
-    pass
+# Environment, language helpers and prompt text now live in the anyq package.
+# Importing anyq.config is also what calls load_dotenv().
+# DEFAULT_OUTPUT_LANGUAGE, _detect_language, MANIM_API_REFERENCE, _LANGUAGE_NAMES,
+# _KAZAKH_ONLY_CHARS and _FONT_PREFERENCES are re-exported from here for the
+# modules that import them from science_manim_graph_agent (e.g. agent_ws_client).
+from anyq.config import (  # noqa: F401 - re-exported
+    DEFAULT_OUTPUT_LANGUAGE,
+    DOC_SNIPPET_MODE,
+    GEMINI_API_KEY,
+    GEMINI_VISION_MODEL,
+    MANIM_ALLOW_LATEX,
+    MANIM_EXECUTABLE,
+    MANIM_MCP_PYTHON,
+    MANIM_MCP_SERVER_SCRIPT,
+    _LLM_RETRIES,
+    _LLM_RETRY_BASE_DELAY,
+    _RENDER_REPAIR_ATTEMPTS,
+)
+from anyq.language import (  # noqa: F401 - re-exported
+    _FONT_PREFERENCES,
+    _KAZAKH_ONLY_CHARS,
+    _LANGUAGE_NAMES,
+    _REJECT_MESSAGES,
+    _RENDER_FALLBACK_MESSAGES,
+    _detect_language,
+    _language_name,
+    _pick_unicode_font,
+    _resolve_output_language,
+)
+from anyq.prompts import (  # noqa: F401 - re-exported
+    MANIM_API_REFERENCE,
+    RENDER_REPAIR_SYSTEM_PROMPT,
+    REWRITE_CYRILLIC_IN_TEX_SYSTEM_PROMPT,
+    REWRITE_FORBIDDEN_HELPERS_SYSTEM_PROMPT,
+    REWRITE_WITHOUT_LATEX_SYSTEM_PROMPT,
+    build_manim_system_prompt,
+)
 
 
 class ScienceVideoState(TypedDict, total=False):
@@ -67,12 +98,6 @@ class ScienceVideoState(TypedDict, total=False):
 
 
 llm = LLMManager()
-
-# Gemini intermittently returns 503 UNAVAILABLE ("experiencing high demand").
-# A single failure otherwise aborts the whole graph, so retry transient errors
-# with exponential backoff before giving up.
-_LLM_RETRIES = int(os.getenv("GEMINI_RETRY_ATTEMPTS", "3"))
-_LLM_RETRY_BASE_DELAY = float(os.getenv("GEMINI_RETRY_BASE_DELAY", "2"))
 
 _TRANSIENT_LLM_MARKERS = (
     "503",
@@ -114,87 +139,6 @@ async def _llm_chat(messages, **kwargs):
             )
             await asyncio.sleep(delay)
     raise last_exc  # pragma: no cover - loop always returns or raises
-
-# ============== Output language ==============
-# Explanations and all on-screen wording follow the user's language;
-# Kazakh is the product default.
-DEFAULT_OUTPUT_LANGUAGE = (os.getenv("DEFAULT_OUTPUT_LANGUAGE", "kk") or "kk").strip().lower()
-
-_LANGUAGE_NAMES = {
-    "kk": "Kazakh (қазақ тілі)",
-    "ru": "Russian (русский язык)",
-    "en": "English",
-}
-
-# Letters unique to Kazakh Cyrillic - distinguish Kazakh from Russian input.
-_KAZAKH_ONLY_CHARS = set("әғқңөұүһі")
-
-
-def _detect_language(text: str) -> Optional[str]:
-    low = (text or "").lower()
-    if any(ch in _KAZAKH_ONLY_CHARS for ch in low):
-        return "kk"
-    if any("Ѐ" <= ch <= "ӿ" for ch in low):
-        return "ru"
-    return None
-
-
-def _resolve_output_language(state: "ScienceVideoState") -> str:
-    """Explicit choice > language of the question > configured default."""
-    explicit = str(state.get("output_language") or "").strip().lower()
-    if explicit in _LANGUAGE_NAMES:
-        return explicit
-    detected = _detect_language(str(state.get("user_message") or ""))
-    if detected:
-        return detected
-    return DEFAULT_OUTPUT_LANGUAGE if DEFAULT_OUTPUT_LANGUAGE in _LANGUAGE_NAMES else "kk"
-
-
-def _language_name(code: str) -> str:
-    return _LANGUAGE_NAMES.get(code, _LANGUAGE_NAMES["kk"])
-
-
-# ============== Fonts ==============
-# Manim's default font does not reliably cover Kazakh Cyrillic (ә ғ қ ң ө ұ ү һ і),
-# which renders as missing-glyph boxes. Pick a font that does.
-_FONT_PREFERENCES = (
-    "Arial Unicode MS",
-    "Noto Sans",
-    "DejaVu Sans",
-    "PT Sans",
-    "Helvetica",
-    "Arial",
-    "Verdana",
-)
-
-_cached_font: Optional[str] = None
-
-
-def _pick_unicode_font() -> str:
-    global _cached_font
-    if _cached_font:
-        return _cached_font
-
-    override = os.getenv("MANIM_TEXT_FONT", "").strip()
-    if override:
-        _cached_font = override
-        return _cached_font
-
-    available = set()
-    try:
-        import manimpango
-
-        available = set(manimpango.list_fonts())
-    except Exception:
-        pass
-
-    for font in _FONT_PREFERENCES:
-        if font in available:
-            _cached_font = font
-            return _cached_font
-
-    _cached_font = "DejaVu Sans"
-    return _cached_font
 
 
 _CODE_FENCE_RE = re.compile(r"^```[a-zA-Z0-9_-]*\n|\n```$", re.MULTILINE)
@@ -295,19 +239,19 @@ async def analyze_image_with_gemini(state: ScienceVideoState) -> Dict[str, Any]:
     if not image_paths:
         return {}
 
-    if os.getenv("DOC_SNIPPET_MODE") == "1":
+    if DOC_SNIPPET_MODE == "1":
         return {"image_context": "(stub)", "image_analysis_json": "{}"}
 
     for p in image_paths:
         if not os.path.exists(p):
             raise FileNotFoundError(f"Image file not found: {p}")
 
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    api_key = GEMINI_API_KEY
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY is required for image analysis")
 
     user_q = (state.get("user_message") or "").strip()
-    model = os.getenv("GEMINI_VISION_MODEL", "gemini-2.5-pro")
+    model = GEMINI_VISION_MODEL
 
     tasks = [
         asyncio.to_thread(_analyze_one_image_sync, image_path=p, user_q=user_q, api_key=api_key, model=model)
@@ -335,7 +279,7 @@ async def classify_intent(state: ScienceVideoState) -> Dict[str, Any]:
         raise ValueError("user_message is required")
     img_ctx = (state.get("image_context") or "").strip()
 
-    if os.getenv("DOC_SNIPPET_MODE") == "1":
+    if DOC_SNIPPET_MODE == "1":
         return {"is_science": True, "subject": "physics", "intent_reason": "(stub)"}
 
     resp = await _llm_chat(
@@ -403,25 +347,6 @@ def route_after_video_needed(state: ScienceVideoState) -> str:
     return "video" if state.get("video_needed") else "no_video"
 
 
-_REJECT_MESSAGES = {
-    "kk": (
-        "Мен тек ғылыми тақырыптар бойынша оқу бейнелерін жасай аламын "
-        "(математика, физика, химия, биология, информатика, инженерия, статистика).\n\n"
-        "Сұрауыңызды ғылыми ұғым ретінде қайта тұжырымдаңыз."
-    ),
-    "ru": (
-        "Я могу создавать обучающие видео только по научным темам "
-        "(математика, физика, химия, биология, информатика, инженерия, статистика).\n\n"
-        "Пожалуйста, переформулируйте запрос как научное понятие."
-    ),
-    "en": (
-        "I can help create educational videos only for scientific topics "
-        "(math, physics, chemistry, biology, CS, engineering, statistics).\n\n"
-        "Please rephrase your request as a scientific concept."
-    ),
-}
-
-
 async def reject_non_science(state: ScienceVideoState) -> Dict[str, Any]:
     language = _resolve_output_language(state)
     msg = _REJECT_MESSAGES.get(language, _REJECT_MESSAGES["kk"])
@@ -433,7 +358,7 @@ async def educator_answer(state: ScienceVideoState) -> Dict[str, Any]:
     subject = (state.get("subject") or "science").strip()
     img_ctx = (state.get("image_context") or "").strip()
 
-    if os.getenv("DOC_SNIPPET_MODE") == "1":
+    if DOC_SNIPPET_MODE == "1":
         return {"educator_text": f"(stub educator explanation for {subject})"}
 
     language = _resolve_output_language(state)
@@ -519,7 +444,7 @@ def _latex_is_available() -> bool:
 
 
 def _latex_toolchain_healthy() -> bool:
-    if os.getenv("MANIM_ALLOW_LATEX") != "1":
+    if MANIM_ALLOW_LATEX != "1":
         return False
 
     env = os.environ.copy()
@@ -559,222 +484,13 @@ Test $x^2$
         return False
 
 
-MANIM_API_REFERENCE = '''
-=== MANIM COMMUNITY v0.19 API REFERENCE ===
-
-CRITICAL RULES:
-1. NEVER use deprecated methods like get_sides(), get_point_from_angle() with arguments
-2. ALWAYS use simple, well-tested patterns shown below
-3. NEVER use Checkmark, Exmark, Cross, wait_for_input, input(), breakpoint()
-4. Use reliable patterns, and keep animations under 150 lines
-
-=== WORKING EXAMPLES ===
-
-EXAMPLE 1: Basic Shapes and Text
-```python
-from manim import *
-
-class BasicShapes(Scene):
-    def construct(self):
-        # Title
-        title = Text("Basic Shapes", font_size=48)
-        self.play(Write(title))
-        self.wait(0.5)
-        self.play(title.animate.to_edge(UP))
-        
-        # Create shapes
-        circle = Circle(radius=1, color=BLUE, fill_opacity=0.5)
-        square = Square(side_length=2, color=RED)
-        triangle = Triangle(color=GREEN, fill_opacity=0.5)
-        
-        # Position shapes
-        circle.shift(LEFT * 3)
-        triangle.shift(RIGHT * 3)
-        
-        # Animate
-        self.play(Create(circle), Create(square), Create(triangle))
-        self.wait(1)
-        self.play(FadeOut(circle), FadeOut(square), FadeOut(triangle), FadeOut(title))
-```
-
-EXAMPLE 2: Mathematical Equations (with LaTeX)
-```python
-from manim import *
-
-class MathEquations(Scene):
-    def construct(self):
-        # Title
-        title = Tex("Pythagorean Theorem", font_size=48)
-        self.play(Write(title))
-        self.wait(0.5)
-        self.play(title.animate.to_edge(UP))
-        
-        # Equation
-        equation = MathTex("a^2", "+", "b^2", "=", "c^2", font_size=64)
-        equation.set_color_by_tex("a", RED)
-        equation.set_color_by_tex("b", GREEN)
-        equation.set_color_by_tex("c", BLUE)
-        
-        self.play(Write(equation))
-        self.wait(1)
-        
-        # Box around equation
-        box = SurroundingRectangle(equation, color=YELLOW, buff=0.3)
-        self.play(Create(box))
-        self.wait(1)
-```
-
-EXAMPLE 3: Graphs and Functions
-```python
-from manim import *
-
-class GraphExample(Scene):
-    def construct(self):
-        # Create axes
-        axes = Axes(
-            x_range=[-4, 4, 1],
-            y_range=[-2, 2, 1],
-            x_length=8,
-            y_length=4,
-            axis_config={"include_numbers": True}
-        )
-        
-        # Plot sine function
-        sine_graph = axes.plot(lambda x: np.sin(x), color=BLUE)
-        sine_label = axes.get_graph_label(sine_graph, label="\\sin(x)")
-        
-        self.play(Create(axes))
-        self.wait(0.5)
-        self.play(Create(sine_graph), Write(sine_label))
-        self.wait(1)
-```
-
-EXAMPLE 4: Transformations
-```python
-from manim import *
-
-class TransformExample(Scene):
-    def construct(self):
-        circle = Circle(color=BLUE, fill_opacity=0.5)
-        square = Square(color=RED, fill_opacity=0.5)
-        
-        self.play(Create(circle))
-        self.wait(0.5)
-        self.play(Transform(circle, square))
-        self.wait(0.5)
-        self.play(circle.animate.scale(2))
-        self.wait(0.5)
-        self.play(circle.animate.shift(RIGHT * 2))
-        self.wait(1)
-```
-
-EXAMPLE 5: Right Triangle with Labels
-```python
-from manim import *
-
-class RightTriangle(Scene):
-    def construct(self):
-        # Create triangle using vertices
-        A = np.array([-2, -1, 0])
-        B = np.array([2, -1, 0])
-        C = np.array([-2, 1.5, 0])
-        
-        triangle = Polygon(A, B, C, color=WHITE, fill_opacity=0.3)
-        
-        # Create sides as separate lines for labeling
-        side_a = Line(A, C, color=RED)
-        side_b = Line(A, B, color=GREEN)
-        side_c = Line(B, C, color=BLUE)
-        
-        # Labels
-        label_a = MathTex("a", color=RED).next_to(side_a, LEFT)
-        label_b = MathTex("b", color=GREEN).next_to(side_b, DOWN)
-        label_c = MathTex("c", color=BLUE).next_to(side_c, UR, buff=0.1)
-        
-        # Right angle marker
-        right_angle = Square(side_length=0.3, color=WHITE)
-        right_angle.move_to(A + np.array([0.15, 0.15, 0]))
-        
-        # Animate
-        self.play(Create(triangle))
-        self.play(Create(side_a), Create(side_b), Create(side_c))
-        self.play(Write(label_a), Write(label_b), Write(label_c))
-        self.play(Create(right_angle))
-        self.wait(1)
-```
-
-EXAMPLE 6: Moving Dot Along Path
-```python
-from manim import *
-
-class MovingDot(Scene):
-    def construct(self):
-        # Create a circle path
-        circle = Circle(radius=2, color=BLUE)
-        dot = Dot(color=RED).move_to(circle.point_from_proportion(0))
-        
-        self.play(Create(circle))
-        self.add(dot)
-        
-        # Move dot along circle
-        self.play(MoveAlongPath(dot, circle), run_time=3, rate_func=linear)
-        self.wait(1)
-```
-
-EXAMPLE 7: Number Line and ValueTracker
-```python
-from manim import *
-
-class NumberLineExample(Scene):
-    def construct(self):
-        # Create number line
-        number_line = NumberLine(x_range=[-5, 5, 1], include_numbers=True)
-        
-        # Moving dot
-        tracker = ValueTracker(-5)
-        dot = Dot(color=RED)
-        dot.add_updater(lambda d: d.move_to(number_line.n2p(tracker.get_value())))
-        
-        self.play(Create(number_line))
-        self.add(dot)
-        self.play(tracker.animate.set_value(5), run_time=3)
-        self.wait(1)
-```
-
-=== KEY API PATTERNS ===
-- Create shapes: Circle(), Square(), Triangle(), Polygon(), Line(), Arrow(), Dot()
-- Text: Text("text"), Tex("LaTeX"), MathTex("a^2 + b^2")
-- Positioning: .shift(LEFT/RIGHT/UP/DOWN * n), .to_edge(UP/DOWN/LEFT/RIGHT), .move_to(point)
-- Animations: Create(), Write(), FadeIn(), FadeOut(), Transform(), ReplacementTransform()
-- Movement: .animate.shift(), .animate.scale(), .animate.rotate(), MoveAlongPath()
-- Axes: Axes(x_range, y_range), axes.plot(func), axes.get_graph_label()
-- Colors: RED, BLUE, GREEN, YELLOW, WHITE, PURPLE, ORANGE, PINK
-- Waiting: self.wait(seconds)
-
-=== AVOID THESE DEPRECATED/BROKEN PATTERNS ===
-- polygon.get_sides() - BROKEN, use Line() between vertices instead
-- circle.get_point_from_angle(angle) - BROKEN, use circle.point_from_proportion(angle/TAU)
-- get_edge_center() with complex objects - may fail
-- get_corner_in_dir() - BROKEN, don't use
-- get_vertices() with move_to(aligned_edge=...) - BROKEN, use simple positioning
-- Title() - use Text() instead
-- ANY method that requires an argument inside move_to() except basic coordinates
-
-=== SAFE PATTERNS TO USE INSTEAD ===
-- For positioning at corners/vertices: calculate positions manually using np.array coordinates
-- For right angle markers: create a small Square and position it with .move_to(corner_position)
-- For vertex labels: use .next_to(vertex_position, direction) with explicit coordinates
-- ALWAYS use simple, explicit positioning with coordinates like np.array([x, y, 0])
-'''
-
-
 async def generate_manim_script(state: ScienceVideoState) -> Dict[str, Any]:
     q = (state.get("user_message") or "").strip()
     subject = (state.get("subject") or "science").strip()
     educator_text = (state.get("educator_text") or "").strip()
     img_ctx = (state.get("image_context") or "").strip()
 
-    if os.getenv("DOC_SNIPPET_MODE") == "1":
+    if DOC_SNIPPET_MODE == "1":
         return {
             "manim_script": """
 from manim import *
@@ -791,114 +507,7 @@ class Demo(Scene):
     language = _resolve_output_language(state)
     language_name = _language_name(language)
 
-    system_prompt = f"""{MANIM_API_REFERENCE}
-
-You are an expert Manim Community script writer.
-
-INSTRUCTIONS:
-1. Return ONLY valid Python code. No markdown, no explanations.
-2. Must start with: from manim import *
-3. Must define exactly ONE Scene class.
-4. Keep it under 150 lines.
-5. Use ONLY the patterns shown in the API reference above.
-6. Always use reliable patterns - avoid deprecated or obscure methods.
-7. Use full-screen transitions, avoid overlaps.
-
-=== DEPTH OF THE ANIMATION (IMPORTANT) ===
-A. Inside that ONE Scene, animate the full reasoning as MULTIPLE SEQUENTIAL
-   STEPS. Never jump straight to a finished static picture with a formula.
-B. Structure the scene as:
-   - BUILD-UP: introduce the objects one at a time, each with its own
-     self.play(...) call, so the viewer sees the setup being constructed.
-   - TRANSFORMATION: show the actual reasoning/derivation happening - move,
-     rotate, split, recolour, or Transform()/ReplacementTransform() the
-     objects step by step. This is the heart of the animation: each logical
-     step in the explanation gets its own on-screen step.
-   - CONCLUSION: end by stating the result, highlighting the key formula or
-     relationship you have just demonstrated.
-C. Give each step a short caption in the target language via Text(), fading
-   the previous caption out (FadeOut) before showing the next one.
-D. Use MANY self.play(...) calls with self.wait(0.5-1.5) between them, so the
-   animation is paced and readable rather than instantaneous.
-E. Aim for a substantial, detailed animation - typically 8-15 distinct
-   animated steps - while staying inside the line limit and using only the
-   safe patterns from the API reference.
-
-=== LAYOUT AND SCREEN MANAGEMENT (CRITICAL) ===
-Overlapping text is the most common failure. Obey these rules strictly:
-L1. THE SINGLE-CAPTION RULE (MANDATORY - use this pattern).
-    Create the bottom caption ONCE, then keep REUSING that same mobject for
-    every later step by morphing it with Transform. Because only one caption
-    object ever exists, it is structurally impossible for an old caption to be
-    left behind on screen:
-
-        caption = Text("First step", font_size=26).to_edge(DOWN, buff=0.5)
-        self.play(FadeIn(caption))
-        self.wait(1)
-
-        # every later step - reuse the SAME object, never create a second one
-        self.play(Transform(caption, Text("Second step", font_size=26).to_edge(DOWN, buff=0.5)))
-        self.wait(1)
-
-        self.play(Transform(caption, Text("Third step", font_size=26).to_edge(DOWN, buff=0.5)))
-        self.wait(1)
-
-    Rules for this pattern:
-    - Create the caption variable EXACTLY ONCE, before the first step.
-    - For EVERY subsequent step use Transform(caption, Text(...).to_edge(DOWN, buff=0.5)).
-    - NEVER reassign `caption = ...` after it is created.
-    - NEVER call Write()/FadeIn() on a second caption object.
-    - Always give the replacement Text the SAME .to_edge(DOWN, buff=0.5)
-      position and the same font_size, so it stays in the caption zone.
-L2. FALLBACK PATTERN (only if you truly cannot use Transform): if you create a
-    NEW Text per step, then the previous caption MUST be removed BEFORE the new
-    one appears - in the SAME self.play(...) call:
-        self.play(FadeOut(old_caption), FadeIn(new_caption))
-    This applies to EVERY step without exception, including the last step and
-    any branch/skipped step. An old caption must never survive into the next
-    step. Prefer L1 - it is the reliable one.
-L3. FIXED ZONES - never put two things in the same place:
-    - Title: .to_edge(UP)
-    - Explanatory caption: .to_edge(DOWN)
-    - Main diagram / formulas: the centre of the screen
-    Keep captions ALWAYS in the same zone so they never collide.
-L4. NEVER leave multiple objects at the default centre position. Every
-    mobject must be explicitly placed with .to_edge(), .to_corner(),
-    .next_to(other, DIRECTION, buff=0.3), .shift(), .move_to(np.array([x,y,0]))
-    or grouped with VGroup(...).arrange(DOWN, buff=0.4).
-L5. LABELS GO OUTSIDE THEIR SHAPE. Attach a label with
-    .next_to(shape, DIRECTION, buff=0.25) - do not stack two labels on the
-    same shape, and do not place a formula box on top of a filled shape.
-L6. STAY INSIDE THE FRAME. The visible area is about x in [-7, 7] and
-    y in [-4, 4]. Keep every object within it. If a diagram is large, wrap it
-    in a VGroup and call .scale(0.7) and/or .move_to(ORIGIN) so nothing is
-    clipped at the edges.
-L7. LONG TEXT MUST FIT. Use font_size=24-30 for captions, font_size=36-48 for
-    titles. If a sentence is long, shorten it or split it into two shorter
-    captions shown one after another - never let text run off screen or across
-    the diagram.
-L8. When the diagram itself changes (new shapes added), fade out or shift the
-    parts that are no longer needed, so the screen never becomes cluttered.
-8. {"LaTeX is available. Use MathTex/Tex for equations." if allow_latex else "LaTeX NOT available. Use Text() only, not Tex or MathTex."}
-9. NEVER use deprecated methods. Follow the examples exactly.
-
-=== LANGUAGE OF ON-SCREEN TEXT (CRITICAL) ===
-10. EVERY human-readable string shown on screen - titles, labels, captions,
-    axis labels, legends, annotations - MUST be written in {language_name}.
-    Do not leave them in English.
-11. Put ALL natural-language wording inside Text(). NEVER place non-Latin
-    characters (Cyrillic, including Kazakh letters ә ғ қ ң ө ұ ү һ і) inside
-    Tex() or MathTex() - the LaTeX compiler has no Cyrillic support configured
-    and the render WILL fail.
-12. Mathematics stays untranslated and in LaTeX: keep formulas, equations,
-    variables, operators, digits and units in MathTex() with standard notation
-    (e.g. MathTex(r"E_k = \\frac{{mv^2}}{{2}}")). Translate the WORDS around the
-    formula, never the formula itself.
-13. To label a formula, use a separate Text() in {language_name} positioned
-    next to the MathTex() - do not mix the two in one mobject.
-14. Do NOT pass a `font=` argument to Text(); the correct Unicode font is
-    configured globally by the runtime.
-"""
+    system_prompt = build_manim_system_prompt(allow_latex, language_name)
 
     resp = await _llm_chat(
         [
@@ -940,10 +549,7 @@ L8. When the diagram itself changes (new shapes added), fade out or shift the
             [
                 Message(
                     role="system",
-                    content=(
-                        "Rewrite the Manim script without forbidden items.\n"
-                        "MUST NOT use: Checkmark, Exmark, Cross, wait_for_input, input().\n"
-                    ),
+                    content=REWRITE_FORBIDDEN_HELPERS_SYSTEM_PROMPT,
                 ),
                 Message(role="user", content=f"Rewrite:\n\n{script}"),
             ]
@@ -960,7 +566,7 @@ L8. When the diagram itself changes (new shapes added), fade out or shift the
             [
                 Message(
                     role="system",
-                    content="Rewrite without Tex/MathTex. Use Text() instead.\n",
+                    content=REWRITE_WITHOUT_LATEX_SYSTEM_PROMPT,
                 ),
                 Message(role="user", content=f"Rewrite:\n\n{script}"),
             ]
@@ -977,14 +583,7 @@ L8. When the diagram itself changes (new shapes added), fade out or shift the
             [
                 Message(
                     role="system",
-                    content=(
-                        "The Manim script puts Cyrillic text inside Tex()/MathTex(), "
-                        "which cannot compile.\n"
-                        "Move every Cyrillic word into a separate Text() mobject, "
-                        "positioned with .next_to(...).\n"
-                        "Keep all mathematics in MathTex() with untranslated LaTeX "
-                        "notation. Return ONLY Python code.\n"
-                    ),
+                    content=REWRITE_CYRILLIC_IN_TEX_SYSTEM_PROMPT,
                 ),
                 Message(role="user", content=f"Rewrite:\n\n{script}"),
             ]
@@ -999,26 +598,6 @@ L8. When the diagram itself changes (new shapes added), fade out or shift the
     return {"manim_script": script}
 
 
-# How many times to ask the model to repair a script Manim refused to render.
-_RENDER_REPAIR_ATTEMPTS = int(os.getenv("MANIM_REPAIR_ATTEMPTS", "2"))
-
-# Shown when rendering fails even after repair - the user must never see a
-# traceback.
-_RENDER_FALLBACK_MESSAGES = {
-    "kk": (
-        "😔 Кешіріңіз, бұл тақырып бойынша анимацияны әзірге жасай алмадым. "
-        "Басқа тақырыпты байқап көріңізші."
-    ),
-    "ru": (
-        "😔 Модель пока не поддерживает эту тему для анимации. "
-        "Попробуйте, пожалуйста, другую тему."
-    ),
-    "en": (
-        "😔 Sorry, I couldn't animate this topic yet. Please try another one."
-    ),
-}
-
-
 def _error_tail(text: str, limit: int = 400) -> str:
     """Last part of an error - the actual exception lives at the end."""
     s = (text or "").strip()
@@ -1030,16 +609,16 @@ async def render_video(state: ScienceVideoState) -> Dict[str, Any]:
     if not script:
         raise ValueError("manim_script is required")
 
-    server_script_path = os.getenv("MANIM_MCP_SERVER_SCRIPT")
+    server_script_path = MANIM_MCP_SERVER_SCRIPT
     if not server_script_path:
         raise RuntimeError(
             "Missing MANIM_MCP_SERVER_SCRIPT environment variable."
         )
 
-    python_exe = os.getenv("MANIM_MCP_PYTHON", sys.executable)
+    python_exe = MANIM_MCP_PYTHON
     env: Dict[str, str] = {}
-    if os.getenv("MANIM_EXECUTABLE"):
-        env["MANIM_EXECUTABLE"] = os.environ["MANIM_EXECUTABLE"]
+    if MANIM_EXECUTABLE:
+        env["MANIM_EXECUTABLE"] = MANIM_EXECUTABLE
 
     tool = MCPTool(
         name="manim_mcp",
@@ -1082,19 +661,7 @@ async def render_video(state: ScienceVideoState) -> Dict[str, Any]:
             [
                 Message(
                     role="system",
-                    content=(
-                        "You are fixing a Manim Community v0.19 script that failed "
-                        "to render.\n"
-                        "You are given the script and the exact error it produced.\n"
-                        "Return ONLY the corrected, complete Python script - no "
-                        "markdown, no explanation.\n"
-                        "Fix the specific cause of the error (wrong keyword argument, "
-                        "non-existent method, bad parameter). If an API is unreliable, "
-                        "replace that part with a simpler construction using basic "
-                        "shapes, Text, MathTex and Transform.\n"
-                        "Keep the same educational content, the same on-screen "
-                        "language, and exactly ONE Scene class.\n"
-                    ),
+                    content=RENDER_REPAIR_SYSTEM_PROMPT,
                 ),
                 Message(
                     role="user",

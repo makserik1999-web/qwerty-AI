@@ -32,21 +32,18 @@ import re
 import tempfile
 from typing import Any, Dict, Optional, Tuple
 
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except Exception:
-    pass
-
-
-DEFAULT_WS_URL = os.getenv("AGENT_WS_URL", "ws://backend:8000/ws/agent")
-RECONNECT_DELAY_SEC = float(os.getenv("AGENT_WS_RECONNECT_DELAY_SEC", "5"))
-
-# A single video can take minutes to render, during which this connection is
-# idle. The default 20s keepalive closes it mid-render (1011 keepalive ping
-# timeout) and the finished response is lost, so allow long quiet periods.
-WS_PING_INTERVAL_SEC = float(os.getenv("AGENT_WS_PING_INTERVAL_SEC", "600"))
-WS_PING_TIMEOUT_SEC = float(os.getenv("AGENT_WS_PING_TIMEOUT_SEC", "600"))
+# Environment and the user-facing failure message now live in the anyq package.
+# Importing anyq.config is also what calls load_dotenv().
+from anyq.config import (
+    DEFAULT_WS_URL,
+    RECONNECT_DELAY_SEC,
+    WS_PING_INTERVAL_SEC,
+    WS_PING_TIMEOUT_SEC,
+)
+from anyq.language import (  # noqa: F401 - _GENERIC_FAILURE_MESSAGES re-exported
+    _GENERIC_FAILURE_MESSAGES,
+    _friendly_failure_text,
+)
 
 _DATA_URL_RE = re.compile(r"^data:(?P<mime>[^;]+);base64,(?P<b64>.+)$", re.DOTALL)
 
@@ -87,36 +84,6 @@ def _materialize_image_to_tempfile(image_data: str) -> str:
     with os.fdopen(fd, "wb") as f:
         f.write(img_bytes)
     return path
-
-
-# Shown if the pipeline fails for a reason other than rendering (network,
-# quota, upstream outage). The real error goes to the log, never to the user.
-_GENERIC_FAILURE_MESSAGES = {
-    "kk": (
-        "Сәтсіз болды :( Жауапты дәл қазір дайындай алмадым. "
-        "Сәл кейінірек қайта байқап көріңізші."
-    ),
-    "ru": (
-        "Не получилось :( Сейчас не удалось подготовить ответ. "
-        "Попробуйте, пожалуйста, ещё раз чуть позже."
-    ),
-    "en": (
-        "Sorry, I could not prepare an answer right now. "
-        "Please try again in a moment."
-    ),
-}
-
-
-def _friendly_failure_text(user_text: str) -> str:
-    try:
-        from science_manim_graph_agent import (
-            _detect_language,
-            DEFAULT_OUTPUT_LANGUAGE,
-        )
-        lang = _detect_language(user_text) or DEFAULT_OUTPUT_LANGUAGE
-    except Exception:
-        lang = "kk"
-    return _GENERIC_FAILURE_MESSAGES.get(lang, _GENERIC_FAILURE_MESSAGES["kk"])
 
 
 async def process_request(payload: Dict[str, Any]) -> Dict[str, Any]:
