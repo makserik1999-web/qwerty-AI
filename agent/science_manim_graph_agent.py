@@ -13,19 +13,16 @@ import asyncio
 import json
 import os
 import re
-import shutil
 import mimetypes
-import subprocess
-import tempfile
 import time
 from typing import Any, Dict, Optional, TypedDict, List, Tuple
 
 from spoon_ai.graph import END, StateGraph
-from spoon_ai.llm import LLMManager
 from spoon_ai.schema import Message
 from spoon_ai.tools.mcp_tool import MCPTool
 
-# Environment, language helpers and prompt text now live in the anyq package.
+# Environment, language helpers, prompt text, the LLM client and the Manim
+# script guards now live in the anyq package.
 # Importing anyq.config is also what calls load_dotenv().
 # DEFAULT_OUTPUT_LANGUAGE, _detect_language, MANIM_API_REFERENCE, _LANGUAGE_NAMES,
 # _KAZAKH_ONLY_CHARS and _FONT_PREFERENCES are re-exported from here for the
@@ -54,6 +51,12 @@ from anyq.language import (  # noqa: F401 - re-exported
     _pick_unicode_font,
     _resolve_output_language,
 )
+from anyq.llm_client import (  # noqa: F401 - re-exported
+    _TRANSIENT_LLM_MARKERS,
+    _is_transient_llm_error,
+    _llm_chat,
+    llm,
+)
 from anyq.prompts import (  # noqa: F401 - re-exported
     MANIM_API_REFERENCE,
     RENDER_REPAIR_SYSTEM_PROMPT,
@@ -61,6 +64,18 @@ from anyq.prompts import (  # noqa: F401 - re-exported
     REWRITE_FORBIDDEN_HELPERS_SYSTEM_PROMPT,
     REWRITE_WITHOUT_LATEX_SYSTEM_PROMPT,
     build_manim_system_prompt,
+)
+from anyq.script_guard import (  # noqa: F401 - re-exported
+    _CODE_FENCE_RE,
+    _TEX_CALL_RE,
+    _contains_forbidden_manim,
+    _contains_latex_objects,
+    _ensure_unicode_font,
+    _latex_is_available,
+    _latex_toolchain_healthy,
+    _safe_json_loads,
+    _strip_code_fences,
+    _tex_contains_cyrillic,
 )
 
 
@@ -95,69 +110,6 @@ class ScienceVideoState(TypedDict, total=False):
     # output
     final_text: str
     final_video_path: str
-
-
-llm = LLMManager()
-
-_TRANSIENT_LLM_MARKERS = (
-    "503",
-    "unavailable",
-    "overloaded",
-    "high demand",
-    "429",
-    "resource_exhausted",
-    "rate limit",
-    "500",
-    "internal error",
-    "502",
-    "504",
-    "deadline exceeded",
-    "timeout",
-)
-
-
-def _is_transient_llm_error(exc: BaseException) -> bool:
-    msg = str(exc).lower()
-    return any(marker in msg for marker in _TRANSIENT_LLM_MARKERS)
-
-
-async def _llm_chat(messages, **kwargs):
-    """llm.chat() with backoff retry on transient upstream errors."""
-    last_exc: Optional[BaseException] = None
-    for attempt in range(_LLM_RETRIES + 1):
-        try:
-            return await llm.chat(messages, **kwargs)
-        except Exception as exc:  # noqa: BLE001 - re-raised below
-            last_exc = exc
-            if attempt >= _LLM_RETRIES or not _is_transient_llm_error(exc):
-                raise
-            delay = _LLM_RETRY_BASE_DELAY * (2 ** attempt)
-            print(
-                f"[llm] transient error (attempt {attempt + 1}/{_LLM_RETRIES + 1}), "
-                f"retrying in {delay:.0f}s: {exc}",
-                flush=True,
-            )
-            await asyncio.sleep(delay)
-    raise last_exc  # pragma: no cover - loop always returns or raises
-
-
-_CODE_FENCE_RE = re.compile(r"^```[a-zA-Z0-9_-]*\n|\n```$", re.MULTILINE)
-
-
-def _strip_code_fences(text: str) -> str:
-    cleaned = _CODE_FENCE_RE.sub("", (text or "")).strip()
-    lines = [ln.rstrip() for ln in cleaned.splitlines()]
-    while lines and lines[0].strip().lower() in {"python", "py"}:
-        lines.pop(0)
-    return "\n".join(lines).strip()
-
-
-def _safe_json_loads(text: str) -> Dict[str, Any]:
-    try:
-        data = json.loads(text)
-        return data if isinstance(data, dict) else {}
-    except Exception:
-        return {}
 
 
 def _guess_image_mime_type(path: str) -> str:
@@ -393,95 +345,6 @@ async def educator_answer(state: ScienceVideoState) -> Dict[str, Any]:
         ]
     )
     return {"educator_text": resp.content.strip(), "output_language": language}
-
-
-_TEX_CALL_RE = re.compile(r"\b(?:MathTex|Tex)\s*\(((?:[^()]|\([^()]*\))*)\)", re.DOTALL)
-
-
-def _tex_contains_cyrillic(script: str) -> bool:
-    """Cyrillic inside Tex()/MathTex() fails to compile - the TeX template has no
-    Cyrillic support. Words belong in Text() instead."""
-    for match in _TEX_CALL_RE.finditer(script or ""):
-        if any("Ѐ" <= ch <= "ӿ" for ch in match.group(1)):
-            return True
-    return False
-
-
-def _ensure_unicode_font(script: str) -> str:
-    """Force a Kazakh/Cyrillic-capable font globally, so on-screen text never
-    depends on the model remembering to pass font=."""
-    if not script.strip():
-        return script
-    if "Text.set_default(" in script:
-        return script
-
-    font = _pick_unicode_font()
-    directive = f'Text.set_default(font="{font}")'
-
-    lines = script.splitlines()
-    for idx, line in enumerate(lines):
-        if line.strip().startswith("from manim import"):
-            lines.insert(idx + 1, "")
-            lines.insert(idx + 2, directive)
-            return "\n".join(lines)
-
-    return f'from manim import *\n\n{directive}\n\n{script}'
-
-
-def _contains_latex_objects(script: str) -> bool:
-    s = script or ""
-    return ("Tex(" in s) or ("MathTex(" in s)
-
-
-def _contains_forbidden_manim(script: str) -> bool:
-    s = script or ""
-    forbidden = ["Checkmark", "Exmark", "Cross", "wait_for_input", "input(", "breakpoint("]
-    return any(tok in s for tok in forbidden)
-
-
-def _latex_is_available() -> bool:
-    return shutil.which("latex") is not None
-
-
-def _latex_toolchain_healthy() -> bool:
-    if MANIM_ALLOW_LATEX != "1":
-        return False
-
-    env = os.environ.copy()
-    texbin = "/Library/TeX/texbin"
-    if os.path.isdir(texbin):
-        env["PATH"] = f"{texbin}:{env.get('PATH', '')}"
-
-    if shutil.which("latex", path=env.get("PATH")) is None:
-        return False
-    if shutil.which("dvisvgm", path=env.get("PATH")) is None:
-        return False
-
-    tex = r"""
-\documentclass[preview]{standalone}
-\usepackage{amsmath}
-\begin{document}
-Test $x^2$
-\end{document}
-""".strip()
-
-    try:
-        with tempfile.TemporaryDirectory(prefix="latex_check_") as td:
-            tex_path = os.path.join(td, "check.tex")
-            with open(tex_path, "w", encoding="utf-8") as f:
-                f.write(tex)
-
-            cp = subprocess.run(
-                ["latex", "-interaction=nonstopmode", "-halt-on-error", "check.tex"],
-                cwd=td,
-                env=env,
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-            return cp.returncode == 0
-    except Exception:
-        return False
 
 
 async def generate_manim_script(state: ScienceVideoState) -> Dict[str, Any]:
