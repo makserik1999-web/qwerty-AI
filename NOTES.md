@@ -216,6 +216,128 @@ agent/
 
 ---
 
+## Verification against the real spoon-ai-sdk (not the stub)
+
+### Environment
+
+`spoon-ai-sdk` would not install on the host: `bitarray` has no cp313 wheel and
+building it needs MSVC. The full `agent` image was not built either - its
+Dockerfile installs `texlive-*` and `manim`, several GB and many minutes, none
+of which these checks touch. Instead: `python:3.12-slim-bookworm` +
+`agent/requirements.txt` with only `manim` and `ManimPango` removed
+(`manimpango` is imported inside a `try/except` in `_pick_unicode_font`, and
+`manim` is never imported by the agent process at all). Result: **real
+spoon-ai-sdk 0.3.6, fastmcp 2.14.1, mcp 1.25.0, pydantic 2.12.5** - the pinned
+versions. The repo was bind-mounted at `/app`.
+
+Worth knowing: a *loose* `pip install spoon-ai-sdk==0.3.6` resolves a newer
+`fastmcp` and then dies on import:
+
+```
+ImportError: cannot import name 'WSTransport' from 'fastmcp.client.transports'
+  spoon_ai/tools/mcp_tool.py:8
+```
+
+So `fastmcp==2.14.1` in `requirements.txt` is load-bearing, not cosmetic.
+
+### check.sh with the real SDK
+
+31 PASS, `ALL CHECKS PASSED`, exit code 0. `LLMManager()` constructs for real
+(it logs `No API keys found for any provider, falling back to openai`). Prompt
+sha256 recomputed inside the container: unchanged.
+
+### 1. Does the real StateGraph compile?
+
+Yes.
+
+```
+from anyq.graph import app  -> spoon_ai.graph.engine.CompiledGraph
+nodes registered   -> ['educator_text', 'educator_video', 'intent', 'manim_script',
+                       'output', 'reject', 'render', 'video_needed', 'vision']
+parallel_groups    -> {'educate_and_script': ['educator_video', 'manim_script']}
+node_to_group      -> {'educator_video': 'educate_and_script',
+                       'manim_script': 'educate_and_script'}
+```
+
+`build_app()` is also re-callable; a second call compiles a second graph fine.
+
+### 2. Is `render_attempt` filtered out by the TypedDict?
+
+**No. There is no filtering at all.** A probe node returning three keys - one
+declared (`video_path`), one declared by this refactor (`render_attempt`), and
+one declared nowhere (`totally_undeclared_key`) - had *all three* present in
+the final state. `_update_state_with_reducers` (`engine.py:1259`) writes
+whatever key it is handed.
+
+So `render_attempt: int` on `ScienceVideoState` was **not required** for the
+key to survive. It does, however, have a side effect I did not anticipate:
+
+`_initialize_state` (`engine.py:1244`) pre-fills **every** annotated field of
+the schema before the run - `[]` for list-typed fields, `None` for everything
+else. Measured: a graph whose only node returns `{}` still ends with
+`render_attempt` present, value `None`.
+
+Consequence: because the field is now declared, the final state **always**
+carries a `render_attempt` key - `None` when the render never succeeded, where
+before the declaration the key would simply be absent on that path.
+`render_video`'s own return dict is untouched on failure, and `check.sh` still
+asserts that. See the questions section.
+
+### 3. Does `educate_and_script` really run in parallel?
+
+**Yes, genuinely concurrent** - and that is exactly why the script generator
+never sees the explanation. Measured with 0.30s sleeps wrapped around both
+nodes, `DOC_SNIPPET_MODE=1`, real graph:
+
+```
+[manim_script] educator_text length at entry: 0
+
+  educator_answer        enter   0.001
+  generate_manim_script  enter   0.001
+  educator_answer        exit    0.301
+  generate_manim_script  exit    0.302
+  render_video           enter   0.302
+  total wall time -> 0.302s        (0.60s if it were sequential)
+```
+
+`generate_manim_script` entered before `educator_answer` exited => CONCURRENT.
+
+**`len(educator_text)` inside `generate_manim_script` is 0.** The engine only
+merges a parallel group's results after every task completes
+(`asyncio.wait(..., ALL_COMPLETED)` at `engine.py:1151`, updates applied at
+`engine.py:1162`), so `generate_manim_script` structurally *cannot* observe
+`educator_answer`'s output. The user message it builds ends with
+"Explanation to visualize:" followed by nothing. The final state does hold
+`educator_text` (length 39, the stub string) - it is merged, just after the
+node that was supposed to consume it already ran.
+
+Related: the node `manim_script` has **no incoming edge** in `build_app`. It
+only ever runs because `add_parallel_group` binds it to `educator_video`, and
+the graph then continues along `educator_video -> render -> output`.
+
+Not fixed, per instruction. `build_app` was moved verbatim, so this predates
+the refactor. The probe print in `generate_manim_script` is the one line added
+for this measurement.
+
+### Does anything import the shim's dropped names?
+
+No.
+
+- `docker-compose.yml`, `start.sh`, `agent/Dockerfile`, `backend/Dockerfile`
+  contain no Python imports at all - they only `exec agent_ws_client.py` and
+  `uvicorn main:app`.
+- The only cross-module import of the shim anywhere in the repo is
+  `agent/agent_ws_client.py:93` -> `from science_manim_graph_agent import app`,
+  which the shim still provides.
+- Every name the shim stopped exposing (`MANIM_API_REFERENCE`, `llm`,
+  `_llm_chat`, `_strip_code_fences`, `render_video`, `build_app`, ...) is
+  referenced only from `check.sh`, which imports each from its `anyq.*` module.
+  `_GENERIC_FAILURE_MESSAGES` is used by `agent_ws_client.py`, also via
+  `anyq.language`, not via the shim.
+- `backend/main.py` never imports the agent; it talks to it over the websocket.
+
+---
+
 ## Bugs and oddities found - NOT fixed
 
 Recorded per rule 5. None of these were touched.
@@ -255,6 +377,18 @@ Recorded per rule 5. None of these were touched.
    exist in that module. It is never evaluated at runtime so behaviour is
    unchanged, but `typing.get_type_hints()` on it would now raise where it
    previously resolved. Kept verbatim per the no-rename rule.
+9. **The parallel group defeats its own purpose.** `educate_and_script` runs
+   `educator_video` and `manim_script` truly concurrently, and the engine
+   merges a group's results only after all of its tasks finish. So
+   `generate_manim_script` always reads `educator_text` as empty (measured: 0)
+   and sends the model a prompt whose "Explanation to visualize:" section is
+   blank. The Manim script is therefore written from the user question and
+   subject alone, never from the educator explanation the pipeline just paid
+   for. Pre-existing; `build_app` was moved verbatim.
+10. **`manim_script` has no incoming edge.** It is reachable only through the
+    parallel group. If `add_parallel_group` were ever removed or renamed, the
+    node would silently stop running and `render_video` would raise
+    `ValueError("manim_script is required")`.
 
 
 ---
@@ -274,11 +408,18 @@ Recorded per rule 5. None of these were touched.
    how many attempts were burned - would change the failure return too, which
    the task told me not to touch.
 
-3. **`render_attempt: int` was added to `ScienceVideoState`.** If
-   `spoon_ai`'s `StateGraph` filters state updates against the TypedDict, the
-   key would be dropped without this. I could not verify either way:
-   `spoon-ai-sdk` is not installed in this environment, so `check.sh` exercises
-   `render_video` directly rather than through a real graph run.
+3. **`render_attempt: int` on `ScienceVideoState` - now measured, and I
+   suggest dropping it.** I added it in case `StateGraph` filtered updates
+   against the TypedDict. It does not: undeclared keys survive untouched. The
+   declaration is therefore unnecessary, and it has a cost - `_initialize_state`
+   pre-seeds every declared field, so the final state now always contains
+   `render_attempt` (`None` when the render never succeeded) where the key used
+   to be absent on that path. That is one observable difference beyond "return
+   the attempt number on success". Removing the one line restores the old
+   failure-path state exactly. I have **not** removed it - it is a behaviour
+   decision on a run you are measuring, and the rules say report, do not
+   silently change. Say the word and it is a one-line edit plus a `check.sh`
+   tweak.
 
 4. **`from __future__ import annotations` in `vision.py` and `render.py`**
    instead of importing `ScienceVideoState`. It keeps the moved code byte-for-
@@ -298,10 +439,12 @@ Recorded per rule 5. None of these were touched.
    because moving it would change what `python science_manim_graph_agent.py`
    does. Say the word if you want it in `graph.py` with a `python -m` entry.
 
-7. **`check.sh` stubs `spoon_ai` when it is missing.** In your venv it will use
-   the real package. The stub exists so the checks exercise our own import
-   graph instead of being skipped; it prints a NOTE whenever it kicks in.
-   Worth re-running `agent/check.sh` in the real venv before trusting it.
+7. **`check.sh` stubs `spoon_ai` when it is missing** - resolved: it has now
+   been run against the real SDK 0.3.6 in a container (31 PASS, exit 0), so the
+   stub path is a convenience, not the evidence. The container was a slim image
+   built from `requirements.txt` minus `manim`/`ManimPango`, not the full
+   `agent` image; if you want the checks run inside the real `agent` image too,
+   that is a `docker compose build agent` away (long: texlive).
 
 8. **`check.sh` is stored with LF endings**, like the existing `start.sh`. With
    this repo's `core.autocrlf=true`, a Windows working tree gets CRLF for both.
@@ -314,3 +457,9 @@ Recorded per rule 5. None of these were touched.
 
 10. **`NOTES.md` is at the repo root** next to `PROJECT_MEMORY.md`;
     `check.sh` is in `agent/` because it has to run from there.
+
+11. **The `[manim_script] educator_text length at entry:` print now lives in
+    `anyq/nodes.py` permanently.** You asked for the measurement; I left the
+    probe in rather than reverting it, so the number keeps appearing in
+    production logs. Say if you want it removed now that the answer is
+    recorded, or gated behind `DOC_SNIPPET_MODE`.

@@ -196,6 +196,11 @@ async def generate_manim_script(state: ScienceVideoState) -> Dict[str, Any]:
     educator_text = (state.get("educator_text") or "").strip()
     img_ctx = (state.get("image_context") or "").strip()
 
+    # Instrumentation: how much of the educator explanation is actually
+    # visible here. Empty means this node ran before educator_answer's
+    # result was merged into the state.
+    print(f"[manim_script] educator_text length at entry: {len(educator_text)}", flush=True)
+
     if DOC_SNIPPET_MODE == "1":
         return {
             "manim_script": """
