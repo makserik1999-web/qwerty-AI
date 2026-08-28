@@ -32,6 +32,7 @@ from anyq.script_guard import (
     _strip_code_fences,
     _tex_contains_cyrillic,
 )
+from anyq import telemetry
 
 
 class ScienceVideoState(TypedDict, total=False):
@@ -61,7 +62,6 @@ class ScienceVideoState(TypedDict, total=False):
     video_path: str
     mcp_raw_result: str
     render_error: str
-    render_attempt: int
 
     # output
     final_text: str
@@ -102,9 +102,6 @@ async def classify_intent(state: ScienceVideoState) -> Dict[str, Any]:
 
 def route_after_intent(state: ScienceVideoState) -> str:
     return "science" if state.get("is_science") else "reject"
-
-
-_SIMPLE_ARITH_RE = re.compile(r"^\s*-?\d+(\s*[+\-*/]\s*-?\d+)+\s*\??\s*$")
 
 
 def _heuristic_video_needed(query: str) -> Optional[Dict[str, Any]]:
@@ -199,11 +196,10 @@ async def generate_manim_script(state: ScienceVideoState) -> Dict[str, Any]:
     # Instrumentation: how much of the educator explanation is actually
     # visible here. Empty means this node ran before educator_answer's
     # result was merged into the state.
-    print(f"[manim_script] educator_text length at entry: {len(educator_text)}", flush=True)
+    telemetry.record(educator_text_len=len(educator_text))
 
     if DOC_SNIPPET_MODE == "1":
-        return {
-            "manim_script": """
+        stub_script = """
 from manim import *
 
 class Demo(Scene):
@@ -212,7 +208,8 @@ class Demo(Scene):
         self.play(Write(t))
         self.wait(1)
 """.strip()
-        }
+        telemetry.record(script_len=len(stub_script))
+        return {"manim_script": stub_script}
 
     allow_latex = _latex_toolchain_healthy()
     language = _resolve_output_language(state)
@@ -256,6 +253,7 @@ class Demo(Scene):
 
     # Repair forbidden helpers
     if _contains_forbidden_manim(script):
+        telemetry.note_guard_rewrite("forbidden")
         rewrite = await _llm_chat(
             [
                 Message(
@@ -273,6 +271,7 @@ class Demo(Scene):
 
     # Remove Tex/MathTex if no LaTeX
     if (not allow_latex) and _contains_latex_objects(script):
+        telemetry.note_guard_rewrite("latex_objects")
         rewrite = await _llm_chat(
             [
                 Message(
@@ -290,6 +289,7 @@ class Demo(Scene):
 
     # Cyrillic inside Tex/MathTex will not compile - move those words into Text().
     if _tex_contains_cyrillic(script):
+        telemetry.note_guard_rewrite("tex_cyrillic")
         rewrite = await _llm_chat(
             [
                 Message(
@@ -306,6 +306,7 @@ class Demo(Scene):
             script = script2
 
     script = _ensure_unicode_font(script)
+    telemetry.record(script_len=len(script))
     return {"manim_script": script}
 
 

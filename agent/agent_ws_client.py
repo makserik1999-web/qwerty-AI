@@ -44,6 +44,7 @@ from anyq.language import (  # noqa: F401 - _GENERIC_FAILURE_MESSAGES re-exporte
     _GENERIC_FAILURE_MESSAGES,
     _friendly_failure_text,
 )
+from anyq import telemetry
 
 _DATA_URL_RE = re.compile(r"^data:(?P<mime>[^;]+);base64,(?P<b64>.+)$", re.DOTALL)
 
@@ -96,13 +97,14 @@ async def process_request(payload: Dict[str, Any]) -> Dict[str, Any]:
     text = (payload.get("text") or "").strip()
     image_data = payload.get("image_data")
 
-    if not request_id:
-        raise ValueError("Missing request_id")
-    if not text:
-        raise ValueError("Missing text")
-
+    telemetry.new_run(request_id, text)
     tmp_image_path: Optional[str] = None
     try:
+        if not request_id:
+            raise ValueError("Missing request_id")
+        if not text:
+            raise ValueError("Missing text")
+
         initial: Dict[str, Any] = {"user_message": text}
         if image_data:
             tmp_image_path = _materialize_image_to_tempfile(str(image_data))
@@ -112,18 +114,36 @@ async def process_request(payload: Dict[str, Any]) -> Dict[str, Any]:
         final_text = (result.get("final_text") or "").strip()
         video_path = (result.get("final_video_path") or "") or ""
 
+        telemetry.record(
+            language=str(result.get("output_language") or ""),
+            is_science=bool(result.get("is_science")),
+            subject=str(result.get("subject") or ""),
+            video_needed=bool(result.get("video_needed")),
+            render_attempt=result.get("render_attempt"),
+            render_ok=bool(result.get("video_path")),
+            render_error_tail=(result.get("render_error") or "")[-400:],
+            status="complete",
+        )
+
         return {
             "request_id": request_id,
             "status": "complete",
             "text": final_text,
             "video_path": video_path,
         }
+    except Exception as e:
+        # The response this exception drives (built by agent_client()'s own
+        # except block, unchanged) still reads "complete" to the end user;
+        # only the telemetry line records what actually happened.
+        telemetry.record(status="error", error_type=type(e).__name__)
+        raise
     finally:
         if tmp_image_path:
             try:
                 os.remove(tmp_image_path)
             except Exception:
                 pass
+        telemetry.write()
 
 
 async def agent_client() -> None:

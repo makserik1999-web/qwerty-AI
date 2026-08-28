@@ -105,8 +105,10 @@ import agent_ws_client as W
 print("  PASS  import agent_ws_client")
 import anyq.config, anyq.language, anyq.prompts
 import anyq.llm_client, anyq.script_guard
-import anyq.vision, anyq.render
-print("  PASS  import anyq.{config,language,prompts,llm_client,script_guard,vision,render}")
+import anyq.vision, anyq.render, anyq.telemetry
+import anyq.nodes as N
+print("  PASS  import anyq.{config,language,prompts,llm_client,script_guard,vision,render,telemetry,nodes}")
+check_true("_SIMPLE_ARITH_RE was removed from anyq.nodes", not hasattr(N, "_SIMPLE_ARITH_RE"))
 
 print("[re-exports from science_manim_graph_agent]")
 check_true("app is importable", hasattr(A, "app"))
@@ -204,9 +206,84 @@ try:
 finally:
     R.MCPTool, R.MANIM_MCP_SERVER_SCRIPT, R._llm_chat = _saved
 
-check_true("ScienceVideoState declares render_attempt",
-           "render_attempt" in A.ScienceVideoState.__annotations__,
+check_true("ScienceVideoState no longer declares render_attempt",
+           "render_attempt" not in A.ScienceVideoState.__annotations__,
            repr(sorted(A.ScienceVideoState.__annotations__)))
+
+print("[telemetry]")
+import json as _json
+import os as _os
+import shutil as _shutil
+import tempfile as _tempfile
+
+import anyq.telemetry as T
+
+_tmp_dir = _tempfile.mkdtemp()
+_saved_path = T.ANYQ_TELEMETRY_PATH
+try:
+    # A run whose fields are fully populated: the written line must round-trip
+    # as valid JSON with exactly the documented key set.
+    _log_path = _os.path.join(_tmp_dir, "sub", "runs.jsonl")
+    T.ANYQ_TELEMETRY_PATH = _log_path
+    T.new_run("req-1", "hello world")
+    T.record(
+        language="ru",
+        is_science=True,
+        subject="physics",
+        video_needed=True,
+        educator_text_len=42,
+        script_len=100,
+        render_attempt=1,
+        render_ok=True,
+        render_error_tail="",
+        status="complete",
+    )
+    T.note_guard_rewrite("forbidden")
+    T.write()
+
+    check_true("telemetry.write() created the log file and its directory",
+               _os.path.exists(_log_path))
+    with open(_log_path, "r", encoding="utf-8") as f:
+        _line = f.readline()
+    _entry = _json.loads(_line)
+    _expected_keys = {
+        "run_id", "timestamp", "request_id", "user_message", "language",
+        "is_science", "subject", "video_needed", "educator_text_len",
+        "script_len", "guard_rewrites", "render_attempt", "render_ok",
+        "render_error_tail", "duration_ms", "status", "error_type",
+    }
+    check_true("telemetry line has the full documented key set",
+               set(_entry.keys()) == _expected_keys, repr(sorted(_entry.keys())))
+    check("telemetry request_id round-trips", _entry.get("request_id"), "req-1")
+    check("telemetry guard_rewrites round-trips", _entry.get("guard_rewrites"), ["forbidden"])
+    check("telemetry status round-trips", _entry.get("status"), "complete")
+
+    # A run that never calls record(): defaults must still produce a complete,
+    # valid line rather than a missing key or a crash.
+    T.new_run(None, "")
+    T.write()
+    with open(_log_path, "r", encoding="utf-8") as f:
+        _lines = f.readlines()
+    _entry2 = _json.loads(_lines[-1])
+    check_true("a bare new_run()+write() still has the full key set",
+               set(_entry2.keys()) == _expected_keys, repr(sorted(_entry2.keys())))
+    check("an unrecorded run defaults to status=error", _entry2.get("status"), "error")
+
+    # Unwritable path (a file sits where the log directory would need to be
+    # created): write() must swallow the failure, not raise.
+    _blocker = _os.path.join(_tmp_dir, "blocker")
+    with open(_blocker, "w", encoding="utf-8") as f:
+        f.write("x")
+    T.ANYQ_TELEMETRY_PATH = _os.path.join(_blocker, "x.jsonl")
+    T.new_run("req-2", "x")
+    try:
+        T.write()
+        check_true("telemetry.write() does not raise on an unwritable path", True)
+    except Exception as e:
+        check_true("telemetry.write() does not raise on an unwritable path", False, repr(e))
+finally:
+    T.ANYQ_TELEMETRY_PATH = _saved_path
+    _shutil.rmtree(_tmp_dir, ignore_errors=True)
 
 print("[prompt integrity]")
 from anyq.prompts import build_manim_system_prompt

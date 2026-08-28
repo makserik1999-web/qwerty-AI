@@ -57,3 +57,6 @@ RECONNECT_DELAY_SEC = float(os.getenv("AGENT_WS_RECONNECT_DELAY_SEC", "5"))
 # timeout) and the finished response is lost, so allow long quiet periods.
 WS_PING_INTERVAL_SEC = float(os.getenv("AGENT_WS_PING_INTERVAL_SEC", "600"))
 WS_PING_TIMEOUT_SEC = float(os.getenv("AGENT_WS_PING_TIMEOUT_SEC", "600"))
+
+# ============== Telemetry ==============
+ANYQ_TELEMETRY_PATH = os.getenv("ANYQ_TELEMETRY_PATH", "/app/logs/runs.jsonl")

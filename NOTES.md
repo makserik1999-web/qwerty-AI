@@ -216,6 +216,152 @@ agent/
 
 ---
 
+## Tail 1 - `render_attempt` off `ScienceVideoState` (from Task 3's measurement)
+
+Removed the `render_attempt: int` line from `ScienceVideoState` in
+`anyq/nodes.py`. `render_video`'s own return dict is untouched - the success
+path still returns `render_attempt`, the failure path still omits it.
+
+Re-measured against the real SDK in a container, running the compiled graph
+end to end (`DOC_SNIPPET_MODE=1`, a fake MCP tool):
+
+- **Success**: the final merged state still contains `render_attempt: 1` -
+  confirms Task 3's finding again, undeclared keys are not filtered.
+- **Failure** (all repair attempts exhausted): the final merged state now has
+  **no `render_attempt` key at all** - before this tail, with the field
+  declared, `_initialize_state` pre-seeded it and the key was present with
+  value `None`. That pre-seeding is gone now that the field isn't declared.
+
+`check.sh`'s `[render]` section already asserted the return value of
+`render_video` itself on all three paths (untouched by this tail); the
+`ScienceVideoState`-declaration assertion right after it was flipped from
+"declares render_attempt" to "no longer declares render_attempt".
+
+---
+
+## Tail 2 - removed the `educator_text` length print-probe
+
+Removed the `print(f"[manim_script] educator_text length at entry: ...")`
+line from `generate_manim_script` in `anyq/nodes.py`. The comment above it
+describes the measurement itself (why `len(educator_text)` is read here,
+and what an empty value means), which is still exactly true now that the
+same measurement feeds `telemetry.record(educator_text_len=...)` instead of
+stdout - so the comment was kept verbatim and only the `print(...)` call was
+swapped for the `telemetry.record(...)` call.
+
+Confirmed in the container that the probe text no longer appears in stdout
+during a real graph run, and that `educator_text_len` still reads `0` inside
+`generate_manim_script` under the parallel-group race (bug 9/10, unchanged,
+not fixed).
+
+---
+
+## Task 5 - run telemetry and honest error statuses
+
+Created **`anyq/telemetry.py`** (standard library only: `json`, `os`,
+`threading`, `time`, `uuid`, `datetime`). One JSON Lines record per
+websocket request:
+
+- `new_run(request_id, user_message)` - called once, at the top of
+  `agent_ws_client.process_request`, creates the run dict (module-level, not
+  part of `ScienceVideoState`) with every field defaulted (`status` defaults
+  to `"error"`, everything else to its natural empty value).
+- `record(**fields)` - merges fields into the current run. Called from
+  `process_request` after `app.invoke()` returns (language, is_science,
+  subject, video_needed, render_attempt, render_ok, render_error_tail,
+  status) and from `anyq/nodes.py`'s `generate_manim_script` (educator_text_len
+  at entry, script_len at exit, on every return path including the
+  `DOC_SNIPPET_MODE` stub).
+- `note_guard_rewrite(name)` - appends to `guard_rewrites`; called at the top
+  of each of the three rewrite branches in `generate_manim_script` when that
+  branch's guard condition is true (i.e. the guard fired), regardless of
+  whether the LLM's rewrite attempt then succeeded.
+- `write()` - builds the final line (adds `timestamp`, computes `duration_ms`
+  from a `time.monotonic()` start captured in `new_run`), creates the log
+  directory if needed, appends one line under a `threading.Lock` in `"a"`
+  mode with a `flush()`, and clears the module-level slot. The entire body is
+  wrapped in `try/except Exception` - a telemetry failure only prints a
+  warning, never raises.
+
+Added `ANYQ_TELEMETRY_PATH = os.getenv("ANYQ_TELEMETRY_PATH",
+"/app/logs/runs.jsonl")` to `anyq/config.py`, next to the other `os.getenv`
+reads.
+
+**Why a plain module-level dict is safe here, without `contextvars`:**
+`agent_client()`'s loop does `resp = await process_request(data)` once per
+message - one request is in flight at a time, so there is no cross-request
+concurrency to guard against. Inside a single request, `educator_answer` and
+`generate_manim_script` do run concurrently (the `educate_and_script`
+parallel group), but they only ever touch their own keys of the same dict and
+never `await` between reading and writing them, so plain dict mutation is
+race-free.
+
+### `agent_ws_client.py`: honest telemetry status, unchanged response
+
+`process_request` now wraps its body in `try/except Exception/finally`:
+
+- On success, `telemetry.record(..., status="complete")` before returning.
+- On any exception, `telemetry.record(status="error",
+  error_type=type(e).__name__)`, then a bare `raise` - the exception that
+  reaches `agent_client()` is byte-identical to before, so its `except`
+  block still builds the same friendly `status: "complete"` response the
+  end user sees. Only the telemetry line now says what actually happened.
+- `finally` still does the temp-image cleanup (untouched) and now also calls
+  `telemetry.write()` exactly once.
+
+The two early validation raises (`Missing request_id`, `Missing text`) moved
+from before the `try` to inside it, so they also get a telemetry line now.
+Same exception type, same message, same propagation - see question 1 below.
+
+Verified end to end in the container (real SDK, real graph, `DOC_SNIPPET_MODE=1`):
+a success run logs `status=complete, error_type=""`; a `Missing text` call
+logs `status=error, error_type=ValueError` and still raises `ValueError`
+out of `process_request`; a real node failure (missing
+`MANIM_MCP_SERVER_SCRIPT`) logs `status=error,
+error_type=GraphExecutionError` (the SDK wraps node exceptions in its own
+`GraphExecutionError` - that wrapping predates this task) and still
+propagates out of `process_request` unchanged.
+
+### Removed `_SIMPLE_ARITH_RE`
+
+Deleted the dead compiled regex from `anyq/nodes.py` (bug 1 in the list
+below - explicitly named in this task, not a self-directed fix). Nothing
+else in the repo referenced it; `check.sh` now asserts
+`not hasattr(anyq.nodes, "_SIMPLE_ARITH_RE")`.
+
+### `check.sh` additions
+
+- `anyq.telemetry` added to the combined `anyq.*` import line; a new
+  `_SIMPLE_ARITH_RE was removed` check next to it.
+- The `ScienceVideoState declares render_attempt` check (Task 3) was flipped
+  to `ScienceVideoState no longer declares render_attempt` (Tail 1).
+- New `[telemetry]` section: writes a fully-populated run to a temp path
+  under a subdirectory that doesn't exist yet (asserts the directory gets
+  created and the line is valid JSON with exactly the 17 documented keys);
+  writes a bare `new_run()`+`write()` with no `record()` calls (asserts the
+  defaulted line still has the full key set and `status == "error"`); then
+  points `ANYQ_TELEMETRY_PATH` at a path whose parent is a plain *file*
+  (guaranteed to fail `os.makedirs` regardless of container privileges,
+  unlike a merely-nonexistent absolute path which a root container can often
+  still create) and asserts `write()` does not raise.
+
+31 checks before this task; the full run (with all Task 5 additions) is
+included in the "against the real spoon-ai-sdk" verification below.
+
+### Breakages during Task 5
+
+None. `check.sh` passed against the local stub on the first run and against
+the real SDK in the container on the first run.
+
+### Layout, updated
+
+New file: `anyq/telemetry.py` (114 lines). Line counts of files touched by
+the tails and Task 5, for the record (see the Task 4 tree above for the rest,
+unchanged): `anyq/config.py` 59 -> 62, `anyq/nodes.py` 324 -> 330,
+`agent_ws_client.py` 185 -> 205.
+
+---
+
 ## Verification against the real spoon-ai-sdk (not the stub)
 
 ### Environment
@@ -245,6 +391,28 @@ So `fastmcp==2.14.1` in `requirements.txt` is load-bearing, not cosmetic.
 31 PASS, `ALL CHECKS PASSED`, exit code 0. `LLMManager()` constructs for real
 (it logs `No API keys found for any provider, falling back to openai`). Prompt
 sha256 recomputed inside the container: unchanged.
+
+**Re-run for the tails and Task 5** (same image rebuilt from the current
+`requirements.txt`, same bind mount): **40 PASS, `ALL CHECKS PASSED`, exit
+code 0.** Prompt sha256 still unchanged. Beyond `check.sh` itself, two
+additional real-SDK probes (not part of `check.sh`, run once by hand and then
+discarded):
+
+- Invoked the compiled `anyq.graph.app` directly (`DOC_SNIPPET_MODE=1`, a
+  fake MCP tool) for both a render-success and a render-exhausted run. Success:
+  final state has `render_attempt: 1`. Failure: `'render_attempt' in result`
+  is `False` - confirms Tail 1's fix removed the `None`-seeded key on the
+  failure path (see Tail 1 above). No `[manim_script] educator_text length at
+  entry` text in stdout either run. `telemetry._current["educator_text_len"]`
+  read `0` mid-run (bug 9/10, still reproduces, still not fixed) and
+  `["script_len"]` read `146`, the stub script's length.
+- Called `agent_ws_client.process_request` directly three times: a normal
+  success, a `Missing text` call, and a call that reaches a real node failure
+  (`MANIM_MCP_SERVER_SCRIPT` unset). All three raised/returned exactly as
+  before this task (`ValueError`/`GraphExecutionError` still propagate out of
+  `process_request` unchanged); the resulting telemetry log had three lines,
+  each with the full key set, reading `status=complete/error/error` and
+  `error_type=""/ValueError/GraphExecutionError` respectively.
 
 ### 1. Does the real StateGraph compile?
 
@@ -316,8 +484,10 @@ only ever runs because `add_parallel_group` binds it to `educator_video`, and
 the graph then continues along `educator_video -> render -> output`.
 
 Not fixed, per instruction. `build_app` was moved verbatim, so this predates
-the refactor. The probe print in `generate_manim_script` is the one line added
-for this measurement.
+the refactor. The probe print in `generate_manim_script` was the one line
+added for this measurement - removed in Tail 2 above once the measurement was
+recorded; the same `len(educator_text)` reading now feeds telemetry's
+`educator_text_len` field instead of stdout.
 
 ### Does anything import the shim's dropped names?
 
@@ -342,8 +512,10 @@ No.
 
 Recorded per rule 5. None of these were touched.
 
-1. **`_SIMPLE_ARITH_RE`** (`science_manim_graph_agent.py`) is compiled and
-   never used anywhere. Dead code from an earlier heuristic.
+1. ~~**`_SIMPLE_ARITH_RE`** (`science_manim_graph_agent.py`) is compiled and
+   never used anywhere. Dead code from an earlier heuristic.~~ **Removed in
+   Task 5**, explicitly named in that task's instructions - not a
+   self-directed fix.
 2. **`_latex_is_available()`** is defined and never called; the code path
    actually used is `_latex_toolchain_healthy()`.
 3. **`_heuristic_video_needed` never returns `None`**, so in
@@ -408,18 +580,11 @@ Recorded per rule 5. None of these were touched.
    how many attempts were burned - would change the failure return too, which
    the task told me not to touch.
 
-3. **`render_attempt: int` on `ScienceVideoState` - now measured, and I
-   suggest dropping it.** I added it in case `StateGraph` filtered updates
-   against the TypedDict. It does not: undeclared keys survive untouched. The
-   declaration is therefore unnecessary, and it has a cost - `_initialize_state`
-   pre-seeds every declared field, so the final state now always contains
-   `render_attempt` (`None` when the render never succeeded) where the key used
-   to be absent on that path. That is one observable difference beyond "return
-   the attempt number on success". Removing the one line restores the old
-   failure-path state exactly. I have **not** removed it - it is a behaviour
-   decision on a run you are measuring, and the rules say report, do not
-   silently change. Say the word and it is a one-line edit plus a `check.sh`
-   tweak.
+3. ~~**`render_attempt: int` on `ScienceVideoState` - now measured, and I
+   suggest dropping it.**~~ **Done, in Tail 1** of this run: the line is
+   removed, `check.sh`'s assertion was flipped, and the failure-path state now
+   measures as key-absent again (see Tail 1 above for the container
+   confirmation).
 
 4. **`from __future__ import annotations` in `vision.py` and `render.py`**
    instead of importing `ScienceVideoState`. It keeps the moved code byte-for-
@@ -458,8 +623,60 @@ Recorded per rule 5. None of these were touched.
 10. **`NOTES.md` is at the repo root** next to `PROJECT_MEMORY.md`;
     `check.sh` is in `agent/` because it has to run from there.
 
-11. **The `[manim_script] educator_text length at entry:` print now lives in
-    `anyq/nodes.py` permanently.** You asked for the measurement; I left the
-    probe in rather than reverting it, so the number keeps appearing in
-    production logs. Say if you want it removed now that the answer is
-    recorded, or gated behind `DOC_SNIPPET_MODE`.
+11. ~~**The `[manim_script] educator_text length at entry:` print now lives in
+    `anyq/nodes.py` permanently.**~~ **Done, in Tail 2** of this run: the
+    print is gone, the same measurement now feeds
+    `telemetry.record(educator_text_len=...)`.
+
+12. **`guard_rewrites` records a guard as "fired" when its condition is true,
+    not only when the LLM's rewrite then succeeds.** The task said "отмечай,
+    какие сработали" without saying which. All three branches in
+    `generate_manim_script` follow the same shape: `if _contains_X(script):
+    ... rewrite ... if script2 and not _contains_X(script2): script = script2`
+    - the inner `if` can leave `script` unchanged if the rewrite didn't fix
+    it. I record the guard name at the outer `if` (the guard detected a
+    problem and an attempt was made), not the inner one (the attempt
+    succeeded). If you want "guard actually fixed the script" instead, it is
+    a one-line move of the three `telemetry.note_guard_rewrite(...)` calls
+    from just after each outer `if` to inside each inner `if`.
+
+13. **`render_ok` and `render_error_tail` are read from the merged graph
+    state in `process_request` (`result.get("video_path")` /
+    `result.get("render_error")`), not from `render_video`'s return value
+    directly**, unlike `render_attempt` which the task named explicitly as
+    coming "из результата render_video". Reading the merged state gives the
+    identical value here - nothing between `render_video` and the state
+    reaching `process_request` touches `video_path` or `render_error` - and
+    avoids adding a second telemetry call site inside `anyq/render.py`. Say
+    if you'd rather have `render.py` itself call
+    `telemetry.record(render_ok=..., render_error_tail=...)` next to where it
+    already knows these values.
+
+14. **Moved the `Missing request_id`/`Missing text` raises inside
+    `process_request`'s `try` block** so they get a telemetry line too (they
+    used to raise before any `try` existed). Same exception type, same
+    message, same thing happens to the caller - only now `agent_client()`'s
+    friendly-response path for these two cases also produces a `status:
+    "error"` telemetry line instead of leaving them unlogged. Say if you'd
+    rather keep these two validations un-instrumented and outside the `try`
+    to minimize the diff against the pre-Task-5 shape of `process_request`.
+
+15. **`status` defaults to `"error"` in `new_run()`**, overwritten to
+    `"complete"` only after a fully successful `record(...)` call at the end
+    of the try block. This means a run that exits via some path that isn't
+    `except Exception` (e.g. `BaseException` - `asyncio.CancelledError`,
+    a websocket-level cancellation) still logs `"error"` rather than being
+    silently left as whatever stale value a previous run left behind. No such
+    path is exercised by any test; it's a defensive default, not a measured
+    behaviour.
+
+16. **`DOC_SNIPPET_MODE`'s stub Manim script now also gets a
+    `telemetry.record(script_len=...)` call** that didn't exist as a `return`
+    site before - I restructured `return {"manim_script": "..."}` into
+    `stub_script = "..."; telemetry.record(...); return {...}` so the stub
+    path's `script_len` isn't silently `0` in telemetry. This is a small
+    structural change to a block the task didn't name line-by-line, done
+    because leaving it out would make telemetry lie about the one path where
+    the value is trivial to capture. Say if you'd rather that branch keep its
+    original one-statement `return` and leave `script_len` at the default `0`
+    for `DOC_SNIPPET_MODE` runs.
