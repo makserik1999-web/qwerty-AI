@@ -32,21 +32,19 @@ import re
 import tempfile
 from typing import Any, Dict, Optional, Tuple
 
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except Exception:
-    pass
-
-
-DEFAULT_WS_URL = os.getenv("AGENT_WS_URL", "ws://backend:8000/ws/agent")
-RECONNECT_DELAY_SEC = float(os.getenv("AGENT_WS_RECONNECT_DELAY_SEC", "5"))
-
-# A single video can take minutes to render, during which this connection is
-# idle. The default 20s keepalive closes it mid-render (1011 keepalive ping
-# timeout) and the finished response is lost, so allow long quiet periods.
-WS_PING_INTERVAL_SEC = float(os.getenv("AGENT_WS_PING_INTERVAL_SEC", "600"))
-WS_PING_TIMEOUT_SEC = float(os.getenv("AGENT_WS_PING_TIMEOUT_SEC", "600"))
+# Environment and the user-facing failure message now live in the anyq package.
+# Importing anyq.config is also what calls load_dotenv().
+from anyq.config import (
+    DEFAULT_WS_URL,
+    RECONNECT_DELAY_SEC,
+    WS_PING_INTERVAL_SEC,
+    WS_PING_TIMEOUT_SEC,
+)
+from anyq.language import (  # noqa: F401 - _GENERIC_FAILURE_MESSAGES re-exported
+    _GENERIC_FAILURE_MESSAGES,
+    _friendly_failure_text,
+)
+from anyq import telemetry
 
 _DATA_URL_RE = re.compile(r"^data:(?P<mime>[^;]+);base64,(?P<b64>.+)$", re.DOTALL)
 
@@ -89,36 +87,6 @@ def _materialize_image_to_tempfile(image_data: str) -> str:
     return path
 
 
-# Shown if the pipeline fails for a reason other than rendering (network,
-# quota, upstream outage). The real error goes to the log, never to the user.
-_GENERIC_FAILURE_MESSAGES = {
-    "kk": (
-        "Сәтсіз болды :( Жауапты дәл қазір дайындай алмадым. "
-        "Сәл кейінірек қайта байқап көріңізші."
-    ),
-    "ru": (
-        "Не получилось :( Сейчас не удалось подготовить ответ. "
-        "Попробуйте, пожалуйста, ещё раз чуть позже."
-    ),
-    "en": (
-        "Sorry, I could not prepare an answer right now. "
-        "Please try again in a moment."
-    ),
-}
-
-
-def _friendly_failure_text(user_text: str) -> str:
-    try:
-        from science_manim_graph_agent import (
-            _detect_language,
-            DEFAULT_OUTPUT_LANGUAGE,
-        )
-        lang = _detect_language(user_text) or DEFAULT_OUTPUT_LANGUAGE
-    except Exception:
-        lang = "kk"
-    return _GENERIC_FAILURE_MESSAGES.get(lang, _GENERIC_FAILURE_MESSAGES["kk"])
-
-
 async def process_request(payload: Dict[str, Any]) -> Dict[str, Any]:
     """
     Runs the science manim graph agent for a single websocket request.
@@ -129,13 +97,14 @@ async def process_request(payload: Dict[str, Any]) -> Dict[str, Any]:
     text = (payload.get("text") or "").strip()
     image_data = payload.get("image_data")
 
-    if not request_id:
-        raise ValueError("Missing request_id")
-    if not text:
-        raise ValueError("Missing text")
-
+    telemetry.new_run(request_id, text)
     tmp_image_path: Optional[str] = None
     try:
+        if not request_id:
+            raise ValueError("Missing request_id")
+        if not text:
+            raise ValueError("Missing text")
+
         initial: Dict[str, Any] = {"user_message": text}
         if image_data:
             tmp_image_path = _materialize_image_to_tempfile(str(image_data))
@@ -145,18 +114,36 @@ async def process_request(payload: Dict[str, Any]) -> Dict[str, Any]:
         final_text = (result.get("final_text") or "").strip()
         video_path = (result.get("final_video_path") or "") or ""
 
+        telemetry.record(
+            language=str(result.get("output_language") or ""),
+            is_science=bool(result.get("is_science")),
+            subject=str(result.get("subject") or ""),
+            video_needed=bool(result.get("video_needed")),
+            render_attempt=result.get("render_attempt"),
+            render_ok=bool(result.get("video_path")),
+            render_error_tail=(result.get("render_error") or "")[-400:],
+            status="complete",
+        )
+
         return {
             "request_id": request_id,
             "status": "complete",
             "text": final_text,
             "video_path": video_path,
         }
+    except Exception as e:
+        # The response this exception drives (built by agent_client()'s own
+        # except block, unchanged) still reads "complete" to the end user;
+        # only the telemetry line records what actually happened.
+        telemetry.record(status="error", error_type=type(e).__name__)
+        raise
     finally:
         if tmp_image_path:
             try:
                 os.remove(tmp_image_path)
             except Exception:
                 pass
+        telemetry.write()
 
 
 async def agent_client() -> None:
