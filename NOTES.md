@@ -657,6 +657,8 @@ Recorded per rule 5. None of these were touched.
     `telemetry.record(render_ok=..., render_error_tail=...)` next to where it
     already knows these values.
 
+    **Confirmed: kept as-is, no change.**
+
 14. **Moved the `Missing request_id`/`Missing text` raises inside
     `process_request`'s `try` block** so they get a telemetry line too (they
     used to raise before any `try` existed). Same exception type, same
@@ -666,6 +668,8 @@ Recorded per rule 5. None of these were touched.
     rather keep these two validations un-instrumented and outside the `try`
     to minimize the diff against the pre-Task-5 shape of `process_request`.
 
+    **Confirmed: kept as-is, no change.**
+
 15. **`status` defaults to `"error"` in `new_run()`**, overwritten to
     `"complete"` only after a fully successful `record(...)` call at the end
     of the try block. This means a run that exits via some path that isn't
@@ -674,6 +678,8 @@ Recorded per rule 5. None of these were touched.
     silently left as whatever stale value a previous run left behind. No such
     path is exercised by any test; it's a defensive default, not a measured
     behaviour.
+
+    **Confirmed: kept as-is, no change.**
 
 16. **`DOC_SNIPPET_MODE`'s stub Manim script now also gets a
     `telemetry.record(script_len=...)` call** that didn't exist as a `return`
@@ -685,3 +691,13 @@ Recorded per rule 5. None of these were touched.
     the value is trivial to capture. Say if you'd rather that branch keep its
     original one-statement `return` and leave `script_len` at the default `0`
     for `DOC_SNIPPET_MODE` runs.
+
+    **Confirmed: kept as-is, no change.**
+
+---
+
+All open questions resolved. Branch `refactor/anyq-package` closed out: Tasks
+1-5 plus both tails are complete, `check.sh` passes locally and against the
+real spoon-ai-sdk 0.3.6 in a container, and no known bug from the "Bugs and
+oddities" list was silently fixed - bugs 9 and 10 (the parallel-group race)
+remain exactly as measured, per instruction.
