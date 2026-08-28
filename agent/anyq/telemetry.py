@@ -63,10 +63,14 @@ def record(**fields: Any) -> None:
         _current.update(fields)
 
 
-def note_guard_rewrite(name: str) -> None:
-    """Append a guard name to the current run's guard_rewrites list."""
+def note_guard_rewrite(name: str, fixed: bool) -> None:
+    """Record that a guard fired, and whether its rewrite was accepted.
+
+    `fixed` is True only when the rewritten script passed the guard's own
+    re-check and replaced the script generate_manim_script goes on to use.
+    """
     if _current is not None:
-        _current["guard_rewrites"].append(name)
+        _current["guard_rewrites"].append({"guard": name, "fired": True, "fixed": fixed})
 
 
 def write() -> None:

@@ -238,7 +238,8 @@ try:
         render_error_tail="",
         status="complete",
     )
-    T.note_guard_rewrite("forbidden")
+    T.note_guard_rewrite("forbidden", True)
+    T.note_guard_rewrite("latex_objects", False)
     T.write()
 
     check_true("telemetry.write() created the log file and its directory",
@@ -255,7 +256,10 @@ try:
     check_true("telemetry line has the full documented key set",
                set(_entry.keys()) == _expected_keys, repr(sorted(_entry.keys())))
     check("telemetry request_id round-trips", _entry.get("request_id"), "req-1")
-    check("telemetry guard_rewrites round-trips", _entry.get("guard_rewrites"), ["forbidden"])
+    check("telemetry guard_rewrites round-trips", _entry.get("guard_rewrites"), [
+        {"guard": "forbidden", "fired": True, "fixed": True},
+        {"guard": "latex_objects", "fired": True, "fixed": False},
+    ])
     check("telemetry status round-trips", _entry.get("status"), "complete")
 
     # A run that never calls record(): defaults must still produce a complete,

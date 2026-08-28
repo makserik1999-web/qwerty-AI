@@ -272,10 +272,12 @@ websocket request:
   status) and from `anyq/nodes.py`'s `generate_manim_script` (educator_text_len
   at entry, script_len at exit, on every return path including the
   `DOC_SNIPPET_MODE` stub).
-- `note_guard_rewrite(name)` - appends to `guard_rewrites`; called at the top
-  of each of the three rewrite branches in `generate_manim_script` when that
-  branch's guard condition is true (i.e. the guard fired), regardless of
-  whether the LLM's rewrite attempt then succeeded.
+- `note_guard_rewrite(name, fixed)` - appends
+  `{"guard": name, "fired": True, "fixed": fixed}` to `guard_rewrites`;
+  called once in each of the three rewrite branches in
+  `generate_manim_script`, after the branch's own re-check of the rewritten
+  script (see question 12 - this went through a revision, see there for the
+  final shape and why `fired` is always `true`).
 - `write()` - builds the final line (adds `timestamp`, computes `duration_ms`
   from a `time.monotonic()` start captured in `new_run`), creates the log
   directory if needed, appends one line under a `threading.Lock` in `"a"`
@@ -628,17 +630,20 @@ Recorded per rule 5. None of these were touched.
     print is gone, the same measurement now feeds
     `telemetry.record(educator_text_len=...)`.
 
-12. **`guard_rewrites` records a guard as "fired" when its condition is true,
-    not only when the LLM's rewrite then succeeds.** The task said "отмечай,
-    какие сработали" without saying which. All three branches in
-    `generate_manim_script` follow the same shape: `if _contains_X(script):
-    ... rewrite ... if script2 and not _contains_X(script2): script = script2`
-    - the inner `if` can leave `script` unchanged if the rewrite didn't fix
-    it. I record the guard name at the outer `if` (the guard detected a
-    problem and an attempt was made), not the inner one (the attempt
-    succeeded). If you want "guard actually fixed the script" instead, it is
-    a one-line move of the three `telemetry.note_guard_rewrite(...)` calls
-    from just after each outer `if` to inside each inner `if`.
+12. ~~**`guard_rewrites` records a guard as "fired" when its condition is
+    true, not only when the LLM's rewrite then succeeds.**~~ **Resolved:**
+    both, per instruction. `guard_rewrites` is now a list of objects,
+    `{"guard": "<name>", "fired": true, "fixed": <bool>}`. `fired` is always
+    `true` (an entry only exists because the guard's outer `if` was true);
+    `fixed` is `bool(script2 and not _contains_X(script2))` - the same
+    condition the inner `if` already guarded on. In each of the three
+    branches, `note_guard_rewrite(name, fixed)` moved from right after the
+    outer `if` to right after `fixed` is computed (still before `script2` is
+    prefixed with `from manim import *` if needed), so it fires exactly once
+    per branch with the correct `fixed` value either way. `check.sh`'s
+    telemetry check now exercises one `fixed: True` and one `fixed: False`
+    entry. Verified again against the real SDK in the container: 40 PASS
+    unchanged.
 
 13. **`render_ok` and `render_error_tail` are read from the merged graph
     state in `process_request` (`result.get("video_path")` /

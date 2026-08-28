@@ -253,7 +253,6 @@ class Demo(Scene):
 
     # Repair forbidden helpers
     if _contains_forbidden_manim(script):
-        telemetry.note_guard_rewrite("forbidden")
         rewrite = await _llm_chat(
             [
                 Message(
@@ -264,14 +263,15 @@ class Demo(Scene):
             ]
         )
         script2 = _strip_code_fences(rewrite.content)
-        if script2 and not _contains_forbidden_manim(script2):
+        fixed = bool(script2 and not _contains_forbidden_manim(script2))
+        if fixed:
             if script2.split("\n")[0].strip() != "from manim import *":
                 script2 = "from manim import *\n\n" + script2
             script = script2
+        telemetry.note_guard_rewrite("forbidden", fixed)
 
     # Remove Tex/MathTex if no LaTeX
     if (not allow_latex) and _contains_latex_objects(script):
-        telemetry.note_guard_rewrite("latex_objects")
         rewrite = await _llm_chat(
             [
                 Message(
@@ -282,14 +282,15 @@ class Demo(Scene):
             ]
         )
         script2 = _strip_code_fences(rewrite.content)
-        if script2 and not _contains_latex_objects(script2):
+        fixed = bool(script2 and not _contains_latex_objects(script2))
+        if fixed:
             if script2.split("\n")[0].strip() != "from manim import *":
                 script2 = "from manim import *\n\n" + script2
             script = script2
+        telemetry.note_guard_rewrite("latex_objects", fixed)
 
     # Cyrillic inside Tex/MathTex will not compile - move those words into Text().
     if _tex_contains_cyrillic(script):
-        telemetry.note_guard_rewrite("tex_cyrillic")
         rewrite = await _llm_chat(
             [
                 Message(
@@ -300,10 +301,12 @@ class Demo(Scene):
             ]
         )
         script2 = _strip_code_fences(rewrite.content)
-        if script2 and not _tex_contains_cyrillic(script2):
+        fixed = bool(script2 and not _tex_contains_cyrillic(script2))
+        if fixed:
             if script2.split("\n")[0].strip() != "from manim import *":
                 script2 = "from manim import *\n\n" + script2
             script = script2
+        telemetry.note_guard_rewrite("tex_cyrillic", fixed)
 
     script = _ensure_unicode_font(script)
     telemetry.record(script_len=len(script))
