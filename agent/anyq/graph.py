@@ -1,6 +1,9 @@
 """Graph wiring: the nodes and edges, and the compiled app.
 
-Moved verbatim out of science_manim_graph_agent.py.
+Sequence: vision -> intent -> video_needed -> (reject | video path).
+The video path is strictly sequential: educator_video -> manim_script ->
+render -> output, so generate_manim_script sees the educator explanation the
+pipeline just produced (and educator_answer runs exactly once per request).
 """
 
 from spoon_ai.graph import END, StateGraph
@@ -32,12 +35,6 @@ def build_app():
     graph.add_node("render", render_video)
     graph.add_node("output", format_output)
 
-    graph.add_parallel_group(
-        "educate_and_script",
-        ["educator_video", "manim_script"],
-        {"join_strategy": "all_complete", "error_strategy": "fail_fast"},
-    )
-
     graph.set_entry_point("vision")
     graph.add_edge("vision", "intent")
     graph.add_conditional_edges(
@@ -54,7 +51,8 @@ def build_app():
     )
 
     graph.add_edge("educator_text", "output")
-    graph.add_edge("educator_video", "render")
+    graph.add_edge("educator_video", "manim_script")
+    graph.add_edge("manim_script", "render")
     graph.add_edge("render", "output")
     graph.add_edge("output", END)
 

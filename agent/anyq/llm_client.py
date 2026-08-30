@@ -18,20 +18,22 @@ _TRANSIENT_LLM_MARKERS = (
     "unavailable",
     "overloaded",
     "high demand",
-    "429",
     "resource_exhausted",
     "rate limit",
-    "500",
-    "internal error",
-    "502",
-    "504",
+    "429 too many requests",
+    "500 internal",
+    "502 bad gateway",
+    "504 gateway timeout",
     "deadline exceeded",
-    "timeout",
+    "timed out",
 )
 
 
 def _is_transient_llm_error(exc: BaseException) -> bool:
-    msg = str(exc).lower()
+    # Match against the tail of the message only - the actual API error reason
+    # lives at the end; short arbitrary substrings like "500" or "timeout"
+    # inside user-echoed text caused false retries.
+    msg = str(exc).strip().lower()[-300:]
     return any(marker in msg for marker in _TRANSIENT_LLM_MARKERS)
 
 
@@ -48,7 +50,7 @@ async def _llm_chat(messages, **kwargs):
             delay = _LLM_RETRY_BASE_DELAY * (2 ** attempt)
             print(
                 f"[llm] transient error (attempt {attempt + 1}/{_LLM_RETRIES + 1}), "
-                f"retrying in {delay:.0f}s: {exc}",
+                f"retrying in {delay:.0f}s: {type(exc).__name__}: {str(exc)[-200:]}",
                 flush=True,
             )
             await asyncio.sleep(delay)

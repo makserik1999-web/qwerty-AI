@@ -8,9 +8,28 @@ server {
     gzip on;
     gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
 
+    # Security headers
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' ws: wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;
+
+    client_max_body_size 4m;
+
     # Handle SPA routing
     location / {
         try_files $uri $uri/ /index.html;
+    }
+
+    # The AI agent channel must NEVER be reachable from outside: the agent
+    # connects to the backend directly over the internal docker network.
+    location = /ws/agent {
+        return 403;
+    }
+    location ~ ^/ws/agent(/|$) {
+        return 403;
     }
 
     # Proxy API requests to backend
@@ -23,8 +42,8 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # Proxy WebSocket requests to backend
-    location /ws {
+    # Proxy UI WebSocket requests (exact /ws path only; /ws/agent is blocked above)
+    location = /ws {
         proxy_pass ${BACKEND_URL};
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
@@ -55,4 +74,3 @@ server {
         add_header Cache-Control "public, immutable";
     }
 }
-

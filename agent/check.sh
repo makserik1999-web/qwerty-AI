@@ -143,7 +143,11 @@ check("_friendly_failure_text('hello') falls back to the default language",
       _friendly_failure_text("hello"), _GENERIC_FAILURE_MESSAGES[DEFAULT_OUTPUT_LANGUAGE])
 
 print("[script guard]")
-from anyq.script_guard import _tex_contains_cyrillic, _contains_forbidden_manim
+from anyq.script_guard import (
+    _tex_contains_cyrillic,
+    _contains_forbidden_manim,
+    validate_manim_script,
+)
 check("_tex_contains_cyrillic('MathTex(\"privet\")') is True",
       _tex_contains_cyrillic('MathTex("\u043f\u0440\u0438\u0432\u0435\u0442")'), True)
 check("_tex_contains_cyrillic('MathTex(\"x^2\")') is False",
@@ -152,6 +156,23 @@ check("_contains_forbidden_manim('Checkmark()') is True",
       _contains_forbidden_manim("Checkmark()"), True)
 check("_contains_forbidden_manim('Circle()') is False",
       _contains_forbidden_manim("Circle()"), False)
+
+print("[safety]")
+_VALID_OK = "from manim import *\n\nclass Demo(Scene):\n    def construct(self):\n        t = Text(\"x\")\n        self.play(Write(t))\n"
+_VALID_BAD = {
+    "import_os": "import os\nclass X(Scene):\n    def construct(self):\n        pass\n",
+    "from_subprocess": "from subprocess import run\nclass X(Scene):\n    def construct(self):\n        pass\n",
+    "eval_call": "from manim import *\nclass X(Scene):\n    def construct(self):\n        eval('1+1')\n",
+    "module_print": "from manim import *\nprint('hi')\nclass X(Scene):\n    def construct(self):\n        pass\n",
+    "open_call": "from manim import *\nclass X(Scene):\n    def construct(self):\n        f = open('/etc/passwd')\n",
+    "socket_import": "from manim import *\nimport socket\nclass X(Scene):\n    def construct(self):\n        pass\n",
+    "dunder_attr": "from manim import *\nclass X(Scene):\n    def construct(self):\n        y = getattr('a', '__class__')\n",
+}
+_ok, _reason = validate_manim_script(_VALID_OK)
+check_true("validate_manim_script accepts a plain Manim scene", _ok, _reason)
+for _name, _script in _VALID_BAD.items():
+    _ok, _reason = validate_manim_script(_script)
+    check_true("validate_manim_script rejects %s" % _name, not _ok, _reason)
 
 print("[render]")
 import asyncio as _asyncio
@@ -248,10 +269,11 @@ try:
         _line = f.readline()
     _entry = _json.loads(_line)
     _expected_keys = {
-        "run_id", "timestamp", "request_id", "user_message", "language",
-        "is_science", "subject", "video_needed", "educator_text_len",
-        "script_len", "guard_rewrites", "render_attempt", "render_ok",
-        "render_error_tail", "duration_ms", "status", "error_type",
+        "run_id", "timestamp", "request_id", "user_message_sha256",
+        "user_message_len", "language", "is_science", "subject",
+        "video_needed", "educator_text_len", "script_len", "guard_rewrites",
+        "render_attempt", "render_ok", "render_error_tail", "duration_ms",
+        "status", "error_type",
     }
     check_true("telemetry line has the full documented key set",
                set(_entry.keys()) == _expected_keys, repr(sorted(_entry.keys())))

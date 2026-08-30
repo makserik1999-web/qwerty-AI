@@ -14,6 +14,16 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: "1.0"
 
   # Backend API Server
   backend:
@@ -25,6 +35,14 @@ services:
     environment:
       - MONGO_URL=mongodb://mongo:27017
       - DATABASE_NAME=${DATABASE_NAME:-spoon_chat}
+      # Agent channel secret - must match AGENT_SECRET on the agent service.
+      # Set it in .env. Empty => backend refuses agent connections (fail closed).
+      - AGENT_SECRET=${AGENT_SECRET:-}
+      - COOKIE_SECURE=${COOKIE_SECURE:-0}
+      # Explicit allowlist; credentials are enabled so "*" is never valid here.
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      # Media volume root as seen by the backend (the agent's outputs subdir).
+      - MEDIA_DIR=/app/media/outputs
     depends_on:
       mongo:
         condition: service_healthy
@@ -38,7 +56,21 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 5s
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "1.0"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
   # Frontend (React + Nginx)
   frontend:
@@ -56,6 +88,24 @@ services:
         condition: service_healthy
     networks:
       - spoon-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:3000/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.5"
+    security_opt:
+      - no-new-privileges:true
 
   # AI Agent Service
   agent:
@@ -66,12 +116,18 @@ services:
     restart: unless-stopped
     environment:
       - AGENT_WS_URL=ws://backend:8000/ws/agent
+      - AGENT_SECRET=${AGENT_SECRET:-}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - DEFAULT_LLM_PROVIDER=${DEFAULT_LLM_PROVIDER:-gemini}
       - DEFAULT_MODEL=${DEFAULT_MODEL:-gemini-2.5-pro}
       - GEMINI_MAX_TOKENS=${GEMINI_MAX_TOKENS:-20000}
       - MANIM_ALLOW_LATEX=${MANIM_ALLOW_LATEX:-1}
       - MANIM_MCP_SERVER_SCRIPT=/app/manim-mcp-server/src/manim_server.py
+      # Explicit output dir (the shared media volume is mounted below).
+      - MANIM_OUTPUT_DIR=/app/manim-mcp-server/src/media/outputs
+      # Telemetry goes to stdout (docker log rotation bounds it); the file path
+      # is inside the tmpfs so it never touches the read-only rootfs.
+      - ANYQ_TELEMETRY_PATH=/tmp/logs/runs.jsonl
       # Optional: OpenAI/Anthropic keys if you want to use those providers
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
@@ -81,8 +137,36 @@ services:
     networks:
       - spoon-network
     volumes:
-      # Persist generated videos
-      - media_data:/app/manim-mcp-server/src/media/outputs
+      # Persist generated videos. The whole media dir is mounted (manim writes
+      # intermediates into media/videos as well as the final outputs/).
+      - media_data:/app/manim-mcp-server/src/media
+    # Sandbox: non-root user (in image), no capabilities, no new privileges,
+    # read-only rootfs (tmpfs for /tmp), hard resource caps. Outbound network
+    # is restricted by the AST script validator (import whitelist) at runtime.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:size=512m,mode=1777
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: "2.0"
+          pids: 256
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; d=urllib.request.urlopen('http://backend:8000/health', timeout=5); assert b'connected' in d.read()"]
+      interval: 20s
+      timeout: 10s
+      retries: 4
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 networks:
   spoon-network:
@@ -91,4 +175,3 @@ networks:
 volumes:
   mongo_data:
   media_data:
-

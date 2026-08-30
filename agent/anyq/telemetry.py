@@ -19,6 +19,7 @@ Any failure while writing the log must never break the pipeline: every
 exception is caught and only printed as a warning.
 """
 
+import hashlib
 import json
 import os
 import threading
@@ -37,10 +38,13 @@ _current: Optional[dict] = None
 def new_run(request_id: Any, user_message: str) -> None:
     """Start a new run record. Called once, at the top of process_request."""
     global _current
+    # Privacy: never store raw user content - only a sha256 and the length.
+    user_text = user_message or ""
     _current = {
         "run_id": str(uuid.uuid4()),
         "request_id": request_id,
-        "user_message": (user_message or "")[:200],
+        "user_message_sha256": hashlib.sha256(user_text.encode("utf-8")).hexdigest(),
+        "user_message_len": len(user_text),
         "language": "",
         "is_science": False,
         "subject": "",
@@ -88,7 +92,8 @@ def write() -> None:
             "run_id": run["run_id"],
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "request_id": run["request_id"],
-            "user_message": run["user_message"],
+            "user_message_sha256": run["user_message_sha256"],
+            "user_message_len": run["user_message_len"],
             "language": run["language"],
             "is_science": run["is_science"],
             "subject": run["subject"],
@@ -110,6 +115,9 @@ def write() -> None:
             os.makedirs(directory, exist_ok=True)
 
         line = json.dumps(entry, ensure_ascii=False)
+        # Stdout is the canonical sink (bounded by docker log rotation); the
+        # file write is best-effort for local development.
+        print(f"TELEMETRY {line}", flush=True)
         with _write_lock:
             with open(path, "a", encoding="utf-8") as f:
                 f.write(line + "\n")

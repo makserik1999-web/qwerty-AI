@@ -8,6 +8,159 @@ Checks: `agent/check.sh` (run it from anywhere; it cd's to `agent/`).
 
 ---
 
+## FIX RUN - auth, sandbox, correctness, deploy hygiene (branch `fix/auth-and-hardening`)
+
+A separate hardening pass on top of the refactor (commit range after the
+refactor tasks). This is a *behaviour-changing* pass - the original "record
+bugs, don't fix them" rule is intentionally overridden by the task that asked
+for these fixes.
+
+### Status of the known-bug list ("Bugs and oddities found - NOT fixed")
+
+1. `_SIMPLE_ARITH_RE` - already removed in Task 5. Unchanged.
+2. `_latex_is_available()` - still defined and unused (kept; harmless).
+3. `_heuristic_video_needed` never returns `None` - unreachable fallback branch
+   kept; harmless.
+4. `format_output` returns `final_video_path: None` when no video - kept as-is
+   (`agent_ws_client` still normalises with `or ""`).
+5. `_TRANSIENT_LLM_MARKERS` raw-substring matching - **fixed**: markers
+   tightened (`"429 too many requests"`, `"500 internal"`, ...) and matched
+   against the message tail (-300 chars) instead of the whole string, so
+   user-echoed text like "took 500 ms" no longer forces bogus retries.
+6. Env reads at import time - kept (intended), but `config.py` now validates
+   every numeric env (typo/negative exits with a clear FATAL message instead of
+   a deep traceback).
+7. `_friendly_failure_text` fallback - unchanged (still works per check.sh).
+8. `_resolve_output_language` forward reference - kept verbatim (never
+   evaluated at runtime).
+9. **Parallel group race (empty `educator_text`) - FIXED.** `build_app` no
+   longer uses the `educate_and_script` parallel group: the video path is now
+   strictly `educator_video -> manim_script -> render -> output`, so
+   `generate_manim_script` sees the educator explanation (measured: non-zero
+   `educator_text_len` in telemetry) and `educator_answer` runs exactly ONCE
+   per request (no double LLM cost).
+10. `manim_script` with no incoming edge - **FIXED** by the same change: it now
+    has an explicit `educator_video -> manim_script` edge.
+
+### Fixed in this pass (highlights)
+
+**Backend (`backend/main.py` rewritten):**
+- Real auth: `users` (username unique, email optional unique, bcrypt
+  `password_hash`), `sessions` (random 48-byte token stored as sha256, TTL
+  index), endpoints `/api/auth/signup|login|logout|me`, HttpOnly
+  `anyq_session` cookie (`SameSite=Lax`, `Secure` behind `COOKIE_SECURE=1`),
+  in-memory login rate limiter (ip + user keys).
+- Identity is server-side only: `GET /api/chats[/{chat_id}]` derive user from
+  the cookie; custom exceptions -> 401/400/404 JSON. `x-user-id` headers are
+  gone.
+- UI WS moved to `/ws` (no path param); unauthenticated/origin-not-allowed
+  handshakes are rejected. Every frame handled in `_handle_ui_frame`; malformed
+  frames no longer kill the socket.
+- Agent channel: `AGENT_SECRET` handshake (`{"type":"auth","token":...}`)
+  before any request is processed; wrong/missing secret -> close 1008;
+  `request_id` is server-generated uuid4; `pending_requests` get a TTL sweep +
+  notification of all affected users when the agent drops.
+- `user_message`: chat ownership check (403-ish error frame), 24-hex
+  `chat_id` validation, prompt/title/screenshot size limits, agent availability
+  checked BEFORE saving the message.
+- `/media`: authenticated, only known video types, `os.path.basename`-safe.
+- Chat list: single aggregation (no N+1 `count_documents`).
+- CORS: explicit origin allowlist (`credentials` enabled, never `*`).
+
+**Agent:**
+- `script_guard.py`: real AST validator `validate_manim_script` (import
+  whitelist manim/numpy/math/random/typing, module level only imports/classes/
+  simple assignments/Text.set_default, banned eval/exec/open/socket/requests/
+  input/breakpoint/getattr/dunder tricks, class decorators, `__`-prefixed dict
+  keys/kwargs). A rejected script is NEVER rendered - `nodes.py` raises a clear
+  error before render, `render.py` also re-validates before every render and
+  before repair prompts.
+- `manim_server.py`: same validator embedded (defense in depth); subprocess
+  runs with a minimal env (no API keys/secrets), as a new process group killed
+  with `os.killpg` on timeout (no ffmpeg orphans); removed the "search any mp4"
+  fallback that could return a stale video; `MANIM_RENDER_TIMEOUT_SEC`.
+- Prompt injection: every user/image/script insertion is wrapped in
+  `<user_input>…</user_input>`-style tags with explicit "data, not
+  instructions" notices (`nodes.py`, `vision.py`, `render.py`).
+- `nodes.py`: LaTeX probe and font listing run in `asyncio.to_thread`; result
+  cached in `_latex_toolchain_healthy`.
+- `agent_ws_client.py`: AGENT_SECRET handshake; per-request deadline
+  (`asyncio.wait_for` on `app.invoke`); `max_size` frame limit; idlest
+  `recv` timeout; real `"status":"error"` responses (friendly text separate
+  field); previews are length-only (no user text in stdout); image size/count
+  limits.
+- `telemetry.py`: user message stored as sha256 + length only (no raw 200
+  chars); one JSON line also printed to stdout as `TELEMETRY ...` (bounded by
+  docker log rotation).
+- `config.py`: env validation (int/float ranges, FATAL on typo), AGENT_SECRET,
+  image limits, WS limits, request deadline.
+
+**Frontend:**
+- `App.tsx`: hardcoded `admin/yesko` and `sessionStorage['anyq_auth']` gone;
+  session restored via `GET /api/auth/me`; login/signup forms call the real
+  endpoints (`LoginScreen.tsx`); logout clears all chat state.
+- Cross-chat contamination fixed: messages/videos stored per `chatId`
+  (`messagesByChat`, `videoByChat`); `ai_response` and `error` frames keyed by
+  `chat_id`.
+- Message loss / eternal spinner: `sendMessage` return value honored, sending
+  blocked while `!isConnected` (button + warning text), `isLoading` is
+  per-chat with a 25 min timeout, outbound queue flashed on reconnect.
+- `useWebSocket.ts`: app-level heartbeat (ping every 25 s, close with code
+  4001 after 35 s without pong), stale-socket guard (`wsRef.current === ws`),
+  `pong` handled internally.
+- `ChatSidebar`/`ChatPanel`/`VideoPanel`: count updates incremental (no
+  full refetch on every response), canvas `absolute` + centered, undo history
+  capped at 15 entries.
+- ES-lint fixed: `eslint` + `@typescript-eslint` + `eslint-plugin-react-hooks`
+  added to devDependencies with `.eslintrc.cjs`; `npm run lint` passes and
+  shares the lockfile (`npm ci`).
+
+**Deploy:**
+- nginx: `/ws/agent` blocked externally (403), security headers (CSP,
+  X-Frame-Options, nosniff, HSTS, Referrer-Policy, Permissions-Policy),
+  `client_max_body_size`.
+- compose: AGENT_SECRET to backend+agent, `MANIM_OUTPUT_DIR` explicit,
+  `MEDIA_DIR`, read-only rootfs + tmpfs for the agent, `cap_drop: ALL` +
+  `no-new-privileges`, resource limits (`deploy.resources`), log rotation
+  (`max-size/max-file`), healthchecks for frontend/agent, backend `/health`
+  now pings MongoDB (503 when DB down).
+- Dockerfiles: non-root users (backend `appuser`, agent `appuser`), `npm ci` +
+  lockfile-first build, no manual envsubst in CMD (template auto-render),
+  `.dockerignore` for all three build contexts.
+- Telemetry file lands in the agent's tmpfs and stdout; docker log rotation
+  bounds growth.
+
+### Not fixed (out of scope / by design)
+
+- MongoDB auth (`--auth` + users): the audit's 2.6 recommendation. Not enabled
+  because the port is not published (internal network only) and this pass
+  focuses on the app layer; can be a follow-up without code changes.
+- TLS: nginx still serves plain HTTP locally; `COOKIE_SECURE=1` exists for
+  when a TLS terminator is added (README notes the wss:// upgrade is
+  automatic).
+- `check.sh` verified locally via a spoon_ai stub on a Windows host (see
+  `logs/run_check.sh`) - the stub lives under `logs/` which is gitignored;
+  the canonical verification remains the real-SDK container run.
+
+### Bugs caught by verification during this pass
+
+- **Email-uniqueness bug (backend).** The original duplicate check used
+  `{"$or": [{"username": u}, {"email": e}]}` even when `e` was empty. In Mongo
+  `{"email": null}` matches documents that have NO `email` field at all, so the
+  *second* signup without an email always reported "Email already registered".
+  Caught by the backend smoke test (signup carol -> 409 Email already
+  registered). Fixed: the `email` condition is only added to the `$or` list
+  when an email was actually provided.
+- **WS smoke flow.** A full end-to-end backend test (signup/login/logout/me,
+  401 gates on `/api/chats` + `/media`, WS without cookie rejected, create chat
+  via WS, agent handshake with wrong secret rejected / right secret accepted,
+  server-side uuid4 request_id in the request to the agent, ai_response and
+  error frames keyed by chat_id, cross-user chat isolation) lives in
+  `logs/backend_smoke.py` and currently passes 38/38 against the real app with
+  mongomock-motor (not committed - `logs/` is gitignored).
+
+---
+
 ## Prompt integrity log
 
 sha256 of `build_manim_system_prompt(True, "Kazakh (қазақ тілі)")`:
@@ -18,9 +171,11 @@ sha256 of `build_manim_system_prompt(True, "Kazakh (қазақ тілі)")`:
 | after Task 2 | `0cf849266f9ae68e4081397abd3309eaa7ec0a002b5cbe79224fe99506fcb045` |
 | after Task 3 | `0cf849266f9ae68e4081397abd3309eaa7ec0a002b5cbe79224fe99506fcb045` |
 | after Task 4 | `0cf849266f9ae68e4081397abd3309eaa7ec0a002b5cbe79224fe99506fcb045` |
+| after FIX RUN | `0cf849266f9ae68e4081397abd3309eaa7ec0a002b5cbe79224fe99506fcb045` |
 
 The value is pinned in `agent/check.sh` as `EXPECTED_PROMPT_SHA256`, so every
-run re-verifies it.
+run re-verifies it (the fix run only wraps user content in delimiters; the
+system prompt byte-for-byte is untouched).
 
 ---
 

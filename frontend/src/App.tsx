@@ -5,11 +5,12 @@ import { ChatSidebar } from './components/ChatSidebar';
 import { ChatPanel } from './components/ChatPanel';
 import { VideoPanel } from './components/VideoPanel';
 import { useWebSocket } from './hooks/useWebSocket';
-import { useApi } from './hooks/useApi';
-import { Chat, ChatMessage, PendingScreenshot } from './types';
+import { useApi, AuthResult } from './hooks/useApi';
+import { Chat, ChatMessage, PendingScreenshot, User } from './types';
 
-// Hardcoded user ID
-const USER_ID = '1';
+// Generous loading timeout - a full LLM + render pipeline can take minutes,
+// but the spinner must never hang forever.
+const LOADING_TIMEOUT_MS = 25 * 60 * 1000;
 
 interface PendingMessage {
   prompt: string;
@@ -17,48 +18,129 @@ interface PendingMessage {
 }
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [authChecking, setAuthChecking] = useState(true);
   const [chats, setChats] = useState<Chat[]>([]);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [currentVideoUrl, setCurrentVideoUrl] = useState<string | null>(null);
+  // Messages and videos are kept per chat - never mixed across chats.
+  const [messagesByChat, setMessagesByChat] = useState<Record<string, ChatMessage[]>>({});
+  const [videoByChat, setVideoByChat] = useState<Record<string, string | null>>({});
   const [pendingScreenshots, setPendingScreenshots] = useState<PendingScreenshot[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  // The chat that is currently awaiting an AI response (drives the spinner).
+  const [pendingRequestChatId, setPendingRequestChatId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  
-  // Queue for messages that are waiting for chat creation
-  const pendingMessageRef = useRef<PendingMessage | null>(null);
 
-  const { fetchUserChats, fetchChat } = useApi();
+  // Queue of messages waiting for a chat to be created (one or more).
+  const pendingChatMessagesRef = useRef<PendingMessage[]>([]);
+  const loadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const selectedChatIdRef = useRef<string | null>(null);
 
-  // Check for existing auth on mount
+  const { fetchUserChats, fetchChat, fetchMe, login, signup, logout } = useApi();
+
+  // Restore the session from the HttpOnly cookie on mount.
   useEffect(() => {
-    const authStatus = sessionStorage.getItem('anyq_auth');
-    if (authStatus === 'authenticated') {
-      setIsAuthenticated(true);
+    let cancelled = false;
+    fetchMe().then((u) => {
+      if (!cancelled) {
+        setUser(u);
+        setAuthChecking(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchMe]);
+
+  useEffect(() => {
+    selectedChatIdRef.current = selectedChatId;
+  }, [selectedChatId]);
+
+  // ============== auth ==============
+  const handleLogin = useCallback(async (username: string, password: string): Promise<AuthResult> => {
+    const result = await login(username, password);
+    if (result.ok && result.user) {
+      setUser(result.user);
+    }
+    return result;
+  }, [login]);
+
+  const handleSignup = useCallback(async (username: string, email: string, password: string): Promise<AuthResult> => {
+    const result = await signup(username, email, password);
+    if (result.ok && result.user) {
+      setUser(result.user);
+    }
+    return result;
+  }, [signup]);
+
+  const handleLogout = useCallback(() => {
+    logout();
+    // Clear everything: chats, messages, videos, selection.
+    setUser(null);
+    setChats([]);
+    setSelectedChatId(null);
+    setMessagesByChat({});
+    setVideoByChat({});
+    setPendingScreenshots([]);
+    setPendingRequestChatId(null);
+    pendingChatMessagesRef.current = [];
+    if (loadingTimeoutRef.current) {
+      clearTimeout(loadingTimeoutRef.current);
+      loadingTimeoutRef.current = null;
+    }
+  }, [logout]);
+
+  // ============== per-chat helpers ==============
+  const appendMessage = useCallback((chatId: string, message: ChatMessage) => {
+    setMessagesByChat((prev) => ({
+      ...prev,
+      [chatId]: [...(prev[chatId] || []), message],
+    }));
+  }, []);
+
+  const addErrorBubble = useCallback((chatId: string | null, text: string) => {
+    const target = chatId || selectedChatIdRef.current;
+    if (!target) return;
+    appendMessage(target, {
+      id: uuidv4(),
+      role: 'assistant',
+      content: `⚠️ ${text}`,
+      screenshots: [],
+      timestamp: new Date().toISOString(),
+    });
+  }, [appendMessage]);
+
+  const clearPendingRequest = useCallback((chatId: string | null) => {
+    setPendingRequestChatId((prev) => (prev === chatId ? null : prev));
+    if (loadingTimeoutRef.current) {
+      clearTimeout(loadingTimeoutRef.current);
+      loadingTimeoutRef.current = null;
     }
   }, []);
 
-  // Handle login
-  const handleLogin = (username: string, password: string): boolean => {
-    // Hardcoded gatekeeper credentials
-    if (username === 'admin' && password === 'yesko') {
-      sessionStorage.setItem('anyq_auth', 'authenticated');
-      setIsAuthenticated(true);
-      return true;
+  const armLoadingTimeout = useCallback((chatId: string) => {
+    if (loadingTimeoutRef.current) {
+      clearTimeout(loadingTimeoutRef.current);
     }
-    return false;
-  };
+    loadingTimeoutRef.current = setTimeout(() => {
+      loadingTimeoutRef.current = null;
+      setPendingRequestChatId((prev) => (prev === chatId ? null : prev));
+      addErrorBubble(chatId, 'Processing timed out. Please try again.');
+    }, LOADING_TIMEOUT_MS);
+  }, [addErrorBubble]);
 
-  // Handle logout
-  const handleLogout = () => {
-    sessionStorage.removeItem('anyq_auth');
-    setIsAuthenticated(false);
-  };
+  const incrementChatCount = useCallback((chatId: string, delta: number = 1) => {
+    setChats((prev) =>
+      prev.map((c) => (c.id === chatId ? { ...c, message_count: c.message_count + delta } : c)),
+    );
+  }, []);
 
-  // Send message to a specific chat
-  const sendMessageToChat = useCallback((chatId: string, prompt: string, screenshots: PendingScreenshot[], sendMessageFn: (type: string, data: Record<string, unknown>) => boolean) => {
-    // Create user message for immediate display
+  // ============== sending ==============
+  const sendMessageToChat = useCallback((
+    chatId: string,
+    prompt: string,
+    screenshots: PendingScreenshot[],
+    sendMessageFn: (type: string, data: Record<string, unknown>) => boolean,
+  ) => {
     const userMessage: ChatMessage = {
       id: uuidv4(),
       role: 'user',
@@ -70,12 +152,12 @@ function App() {
       timestamp: new Date().toISOString(),
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    appendMessage(chatId, userMessage);
     setPendingScreenshots([]);
-    setIsLoading(true);
+    setPendingRequestChatId(chatId);
+    armLoadingTimeout(chatId);
 
-    // Send via WebSocket
-    sendMessageFn('user_message', {
+    const ok = sendMessageFn('user_message', {
       chat_id: chatId,
       prompt,
       screenshots: screenshots.map((ss) => ({
@@ -83,9 +165,13 @@ function App() {
         image_base64: ss.dataUrl,
       })),
     });
-  }, []);
+    if (!ok) {
+      // Message is queued by the hook and will be flushed on reconnect.
+      addErrorBubble(chatId, 'No connection right now - the message will be sent when the connection returns.');
+    }
+  }, [appendMessage, armLoadingTimeout, addErrorBubble]);
 
-  // WebSocket message handler
+  // ============== WebSocket message handler ==============
   const handleWebSocketMessage = useCallback((data: Record<string, unknown>, sendMessageFn: (type: string, data: Record<string, unknown>) => boolean) => {
     const messageType = data.type as string;
 
@@ -98,19 +184,15 @@ function App() {
         const chatData = data.data as Chat;
         setChats((prev) => [chatData, ...prev]);
         setSelectedChatId(chatData.id);
-        setMessages([]);
-        setCurrentVideoUrl(null);
-        
-        // Check if there's a pending message to send
-        if (pendingMessageRef.current) {
-          const { prompt, screenshots } = pendingMessageRef.current;
-          pendingMessageRef.current = null; // Clear the pending message
-          
-          // Send the message to the newly created chat
-          setTimeout(() => {
-            sendMessageToChat(chatData.id, prompt, screenshots, sendMessageFn);
-          }, 100);
-        } else {
+        setMessagesByChat((prev) => ({ ...prev, [chatData.id]: prev[chatData.id] || [] }));
+
+        // Flush any messages that were waiting for a chat to exist.
+        const queued = pendingChatMessagesRef.current;
+        pendingChatMessagesRef.current = [];
+        for (const item of queued) {
+          sendMessageToChat(chatData.id, item.prompt, item.screenshots, sendMessageFn);
+        }
+        if (queued.length === 0) {
           setPendingScreenshots([]);
         }
         break;
@@ -120,7 +202,16 @@ function App() {
         const deleteData = data.data as { chat_id: string; success: boolean };
         if (deleteData.success) {
           setChats((prev) => prev.filter((c) => c.id !== deleteData.chat_id));
-          // Note: We'll handle selection in useEffect to avoid stale closure
+          setMessagesByChat((prev) => {
+            const next = { ...prev };
+            delete next[deleteData.chat_id];
+            return next;
+          });
+          setVideoByChat((prev) => {
+            const next = { ...prev };
+            delete next[deleteData.chat_id];
+            return next;
+          });
         }
         break;
       }
@@ -143,40 +234,36 @@ function App() {
           timestamp: responseData.timestamp,
         };
 
-        setMessages((prev) => [...prev, assistantMessage]);
+        // Only ever append to the chat the response belongs to.
+        appendMessage(responseData.chat_id, assistantMessage);
 
         if (responseData.video_url) {
-          setCurrentVideoUrl(responseData.video_url);
+          setVideoByChat((prev) => ({ ...prev, [responseData.chat_id]: responseData.video_url || null }));
         }
 
-        setIsLoading(false);
-        
-        // Refresh chat list to update message counts
-        fetchUserChats(USER_ID).then(setChats);
+        if (pendingRequestChatId === responseData.chat_id) {
+          clearPendingRequest(responseData.chat_id);
+        }
+        // The server stores both the user message and this assistant reply.
+        incrementChatCount(responseData.chat_id, 2);
         break;
       }
 
       case 'error': {
-        const errorData = data.data as { message: string };
+        const errorData = data.data as { message: string; chat_id?: string };
         console.error('WebSocket error:', errorData.message);
-        setIsLoading(false);
-        // Show error to user
-        const errorMessage: ChatMessage = {
-          id: uuidv4(),
-          role: 'assistant',
-          content: `⚠️ Error: ${errorData.message}`,
-          screenshots: [],
-          timestamp: new Date().toISOString(),
-        };
-        setMessages((prev) => [...prev, errorMessage]);
+        const chatId = errorData.chat_id || selectedChatIdRef.current;
+        if (chatId) {
+          addErrorBubble(chatId, errorData.message);
+          clearPendingRequest(chatId);
+        }
         break;
       }
 
-      case 'pong':
-        console.log('Pong received');
+      default:
         break;
     }
-  }, [fetchUserChats, sendMessageToChat]);
+  }, [appendMessage, addErrorBubble, clearPendingRequest, incrementChatCount, pendingRequestChatId, sendMessageToChat]);
 
   const handleWsConnect = useCallback(() => {
     console.log('WebSocket connected');
@@ -186,100 +273,110 @@ function App() {
     console.log('WebSocket disconnected');
   }, []);
 
-  // Create a wrapper that includes sendMessage in the callback
   const wsMessageHandler = useCallback((data: Record<string, unknown>) => {
     handleWebSocketMessage(data, sendMessage);
   }, [handleWebSocketMessage]);
 
   const { isConnected, sendMessage } = useWebSocket({
-    userId: USER_ID,
-    enabled: isAuthenticated,
+    enabled: !!user,
     onMessage: wsMessageHandler,
     onConnect: handleWsConnect,
     onDisconnect: handleWsDisconnect,
   });
 
-  // Handle chat deletion selection
+  // ============== chat list / selection ==============
+  // Load chats after auth.
   useEffect(() => {
-    if (selectedChatId && !chats.find(c => c.id === selectedChatId)) {
-      // Selected chat was deleted
-      if (chats.length > 0) {
-        handleSelectChat(chats[0].id);
-      } else {
-        setSelectedChatId(null);
-        setMessages([]);
-        setCurrentVideoUrl(null);
-      }
-    }
-  }, [chats, selectedChatId]);
-
-  // Load chats on mount (only when authenticated)
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    
-    const loadChats = async () => {
-      console.log('Loading user chats');
-      const userChats = await fetchUserChats(USER_ID);
+    if (!user) return;
+    let cancelled = false;
+    fetchUserChats().then((userChats) => {
+      if (cancelled) return;
       setChats(userChats);
-
-      // Auto-select first chat if exists
-      if (userChats.length > 0 && !selectedChatId) {
-        handleSelectChat(userChats[0].id);
-      }
+    });
+    return () => {
+      cancelled = true;
     };
+  }, [user, fetchUserChats]);
 
-    loadChats();
-  }, [isAuthenticated, fetchUserChats]);
-
-  // Load chat details when selected (using HTTP GET - kept as per requirements)
-  const handleSelectChat = async (chatId: string) => {
+  const handleSelectChat = useCallback(async (chatId: string) => {
     setSelectedChatId(chatId);
     setPendingScreenshots([]);
 
-    const chatDetail = await fetchChat(chatId, USER_ID);
+    const chatDetail = await fetchChat(chatId);
+    // Stale guard: an old response must not overwrite a newer selection.
+    if (selectedChatIdRef.current !== chatId) return;
     if (chatDetail) {
-      setMessages(chatDetail.messages);
-      setCurrentVideoUrl(chatDetail.current_video_url);
+      setMessagesByChat((prev) => ({ ...prev, [chatId]: chatDetail.messages }));
+      setVideoByChat((prev) => ({ ...prev, [chatId]: chatDetail.current_video_url }));
+    } else {
+      addErrorBubble(chatId, 'Failed to load this chat. Please try again.');
     }
-  };
+  }, [fetchChat, addErrorBubble]);
 
-  // Create new chat via WebSocket
-  const handleNewChat = () => {
-    sendMessage('create_chat', { title: 'New Chat' });
-  };
-
-  // Delete chat via WebSocket
-  const handleDeleteChat = (chatId: string) => {
-    sendMessage('delete_chat', { chat_id: chatId });
-  };
-
-  // Add screenshot from video panel
-  const handleScreenshotCapture = (screenshot: PendingScreenshot) => {
-    setPendingScreenshots((prev) => [...prev, screenshot]);
-  };
-
-  // Remove pending screenshot
-  const handleRemoveScreenshot = (id: string) => {
-    setPendingScreenshots((prev) => prev.filter((ss) => ss.id !== id));
-  };
-
-  // Send message via WebSocket
-  const handleSendMessage = (prompt: string, screenshots: PendingScreenshot[]) => {
-    if (!selectedChatId) {
-      // No chat selected - create a new chat and queue the message
-      pendingMessageRef.current = { prompt, screenshots };
-      sendMessage('create_chat', { title: prompt.slice(0, 50) || 'New Chat' });
+  // Auto-select the first chat after load; when the selected chat disappears
+  // (deleted), move to another one; when no chats remain, clear everything.
+  useEffect(() => {
+    if (!chats.length) {
+      if (selectedChatId) {
+        setSelectedChatId(null);
+        setMessagesByChat({});
+        setVideoByChat({});
+      }
       return;
     }
+    const valid = selectedChatId && chats.some((c) => c.id === selectedChatId);
+    if (!valid) {
+      handleSelectChat(chats[0].id);
+    }
+  }, [chats, selectedChatId, handleSelectChat]);
 
-    // Send directly to the selected chat
+  // ============== UI actions ==============
+  const handleNewChat = useCallback(() => {
+    sendMessage('create_chat', { title: 'New Chat' });
+  }, [sendMessage]);
+
+  const handleDeleteChat = useCallback((chatId: string) => {
+    sendMessage('delete_chat', { chat_id: chatId });
+  }, [sendMessage]);
+
+  const handleScreenshotCapture = useCallback((screenshot: PendingScreenshot) => {
+    setPendingScreenshots((prev) => [...prev, screenshot]);
+  }, []);
+
+  const handleRemoveScreenshot = useCallback((id: string) => {
+    setPendingScreenshots((prev) => prev.filter((ss) => ss.id !== id));
+  }, []);
+
+  const handleSendMessage = useCallback((prompt: string, screenshots: PendingScreenshot[]) => {
+    if (!selectedChatId) {
+      // No chat selected - create a chat and queue the message(s).
+      pendingChatMessagesRef.current.push({ prompt, screenshots });
+      const ok = sendMessage('create_chat', { title: prompt.slice(0, 50) || 'New Chat' });
+      if (!ok) {
+        // The create_chat itself is queued by the hook; warn the user.
+        addErrorBubble(null, 'No connection right now - the message will be sent when the connection returns.');
+      }
+      return;
+    }
     sendMessageToChat(selectedChatId, prompt, screenshots, sendMessage);
-  };
+  }, [selectedChatId, sendMessage, sendMessageToChat, addErrorBubble]);
 
-  // Show login screen if not authenticated
-  if (!isAuthenticated) {
-    return <LoginScreen onLogin={handleLogin} />;
+  // ============== render ==============
+  if (authChecking) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-dark-900">
+        <div className="w-8 h-8 border-2 border-accent-primary/30 border-t-accent-primary rounded-full animate-spin" />
+      </div>
+    );
   }
+
+  if (!user) {
+    return <LoginScreen onLogin={handleLogin} onSignup={handleSignup} />;
+  }
+
+  const selectedMessages = selectedChatId ? messagesByChat[selectedChatId] || [] : [];
+  const currentVideoUrl = selectedChatId ? videoByChat[selectedChatId] || null : null;
+  const isLoading = pendingRequestChatId !== null && pendingRequestChatId === selectedChatId;
 
   return (
     <div className="h-screen flex overflow-hidden bg-dark-900">
@@ -310,7 +407,7 @@ function App() {
         {/* Chat Panel */}
         <div className="w-2/5 min-w-[320px] max-w-[500px] border-r border-dark-600">
           <ChatPanel
-            messages={messages}
+            messages={selectedMessages}
             pendingScreenshots={pendingScreenshots}
             onRemoveScreenshot={handleRemoveScreenshot}
             onSendMessage={handleSendMessage}

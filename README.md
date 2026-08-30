@@ -26,7 +26,9 @@ An interactive educational platform that generates AI-powered animated videos to
 
 - **Real-time Communication**: WebSocket-based messaging for instant interactions
 - **Educational Video Generation**: AI-powered Manim animations for science topics
-- **Simple Authentication**: Hardcoded gatekeeper (admin/yesko)
+- **Real Authentication**: signup/login with bcrypt-hashed passwords and revocable
+  HttpOnly session cookies; user identity is derived server-side, never trusted
+  from the client
 - **Chat History**: Persistent chat storage with MongoDB
 
 ## Quick Start
@@ -45,7 +47,10 @@ cd spoon-unified
 # Copy environment template
 cp .env.example .env
 
-# Edit .env and add your GEMINI_API_KEY
+# Edit .env:
+#   1. set AGENT_SECRET to a long random string (backend and agent must share it)
+#   2. add your GEMINI_API_KEY (without it the app still runs, but AI features
+#      reply with a polite "AI functions unavailable" message)
 ```
 
 ### 2. Start Services
@@ -57,7 +62,7 @@ docker compose up --build -d
 ### 3. Access the Application
 
 - **Frontend**: http://localhost:3000
-- **Login**: Username: `admin`, Password: `yesko`
+- First time? Click **Create Account**, then **Sign In**.
 
 ## Services
 
@@ -72,12 +77,18 @@ docker compose up --build -d
 
 | Variable              | Required | Default        | Description                    |
 |-----------------------|----------|----------------|--------------------------------|
-| GEMINI_API_KEY        | Yes      | -              | Google Gemini API key          |
+| GEMINI_API_KEY        | No*      | -              | Google Gemini API key          |
+| AGENT_SECRET          | Yes      | -              | Shared secret for the agent channel (must match backend & agent) |
 | DEFAULT_LLM_PROVIDER  | No       | gemini         | LLM provider to use            |
 | DEFAULT_MODEL         | No       | gemini-2.5-pro | Default model                  |
 | DATABASE_NAME         | No       | anyq_db        | MongoDB database name          |
 | FRONTEND_PORT         | No       | 3000           | Port to expose frontend        |
 | MANIM_ALLOW_LATEX     | No       | 1              | Enable LaTeX in Manim          |
+| CORS_ORIGINS          | No       | localhost:3000 | Comma-separated allowed origins (credentials are enabled, so no "*") |
+| COOKIE_SECURE         | No       | 0              | Set to 1 when serving over HTTPS |
+
+\* Without `GEMINI_API_KEY` the app runs but AI features are unavailable
+(polite message instead of an LLM response, no crashes).
 
 ## Project Structure
 
@@ -104,15 +115,25 @@ anyq/
 ## API Endpoints
 
 ### HTTP (REST)
-- `GET /api/users/{user_id}/chats` - List user's chats
-- `GET /api/users/{user_id}/chats/{chat_id}` - Get chat with messages
+- `POST /api/auth/signup` - Create an account (sets the `anyq_session` cookie)
+- `POST /api/auth/login` - Sign in (sets the `anyq_session` cookie)
+- `POST /api/auth/logout` - Sign out (revokes the session)
+- `GET /api/auth/me` - Current user from the session cookie
+- `GET /api/chats` - List current user's chats
+- `GET /api/chats/{chat_id}` - Get chat with messages
+- `GET /media/{filename}` - Video file (authenticated)
 
 ### WebSocket
-- `WS /ws/{user_id}` - UI client connection
+- `WS /ws` - UI client connection (authenticated via the session cookie)
   - Send: `{"type": "user_message", "data": {...}}`
   - Send: `{"type": "create_chat", "data": {...}}`
   - Send: `{"type": "delete_chat", "data": {...}}`
   - Receive: `{"type": "ai_response", "data": {...}}`
+  - Receive: `{"type": "error", "data": {"message": "...", "chat_id": ...}}`
+
+The agent channel `WS /ws/agent` is **not** exposed through nginx (403); the
+agent connects to the backend directly over the internal docker network and
+authenticates with `AGENT_SECRET` before processing anything.
 
 ## Troubleshooting
 

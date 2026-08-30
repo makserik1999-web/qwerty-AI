@@ -45,7 +45,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     }
   };
 
-  const canSend = (inputValue.trim() || pendingScreenshots.length > 0) && !isLoading;
+  const canSend = (inputValue.trim() || pendingScreenshots.length > 0) && !isLoading && isConnected;
 
   return (
     <div className="flex flex-col h-full bg-dark-800">
@@ -224,6 +224,11 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           <span className="text-gray-500">
             {isConnected ? 'Connected' : 'Disconnected'}
           </span>
+          {!isConnected && (
+            <span className="text-amber-400/90 ml-1">
+              - sending is paused; queued messages will be sent when the connection returns
+            </span>
+          )}
         </div>
       </div>
     </div>

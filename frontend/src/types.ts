@@ -1,3 +1,10 @@
+export interface User {
+  id: string;
+  username: string;
+  email?: string | null;
+  created_at?: string | null;
+}
+
 export interface Screenshot {
   id: string;
   image_base64: string;
@@ -26,13 +33,7 @@ export interface ChatDetail extends Chat {
   messages: ChatMessage[];
 }
 
-export interface WebSocketMessage {
-  type: string;
-  data: Record<string, unknown>;
-}
-
 export interface PendingScreenshot {
   id: string;
   dataUrl: string;
 }
-

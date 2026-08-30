@@ -90,7 +90,7 @@ export const VideoPanel: React.FC<VideoPanelProps> = ({
     const newHistory = history.slice(0, historyIndex + 1);
     newHistory.push({ imageData });
     
-    if (newHistory.length > 50) {
+    if (newHistory.length > 15) {
       newHistory.shift();
     }
     
@@ -473,6 +473,11 @@ export const VideoPanel: React.FC<VideoPanelProps> = ({
               height={canvasSize.height}
               className={`absolute pointer-events-none ${isPaused ? 'pointer-events-auto' : ''}`}
               style={{
+                left: '50%',
+                top: '50%',
+                transform: 'translate(-50%, -50%)',
+                width: canvasSize.width,
+                height: canvasSize.height,
                 cursor: isPaused ? (currentTool === 'eraser' ? 'cell' : 'crosshair') : 'pointer',
               }}
               onMouseDown={startDrawing}
