@@ -159,6 +159,50 @@ for these fixes.
   `logs/backend_smoke.py` and currently passes 38/38 against the real app with
   mongomock-motor (not committed - `logs/` is gitignored).
 
+### Verification results (this pass)
+
+- `python -m py_compile` on every backend + agent python file: PASS.
+- `agent/check.sh` (via the `logs/` spoon_ai stub on Windows): 39/39 PASS,
+  including the new `validate_manim_script` accept/reject cases and the
+  hashed-telemetry key set.
+- `logs/backend_smoke.py` (real app + mongomock-motor): 38/38 PASS - covers
+  401 gates, signup/dup/short-password, login/logout/me round-trip, chat list
+  + invalid chat_id, media auth + traversal, WS without cookie rejected, WS
+  chat create + invalid chat_id error frame, agent handshake wrong/right
+  secret, server-side uuid4 request_id, ai_response/error frames keyed by
+  chat_id, cross-user chat isolation (alice 404 on carol's chat).
+- Frontend: `npm run lint` 0 warnings, `tsc --noEmit` clean, `npm run build`
+  6 builds OK (chunk-size warning only).
+- Docker: `docker compose config` valid; all three images built
+  (qwerty-ai-agent 5.75GB/1.57GB, backend 273MB, frontend 96MB) with the new
+  Dockerfiles; `docker compose up --build -d` completed its build phase.
+- NOT re-verified end-to-end against running containers: Docker Desktop's
+  engine wedged mid-`up` (containers created but never started; `docker start`
+  and `docker compose up` hang; a Docker Desktop restart took >2 min to bring
+  the named pipe back). The in-process smoke test covers the same backend
+  code paths, so the gap is the nginx layer (/ws/agent 403, /ws proxy) and
+  the real Mongo/Manim runtime. See the final report for exactly what was
+  verified vs. what needs a container run to confirm.
+- One real bug was caught by the smoke test and fixed: a Mongo uniqueness
+  query that treated `{"email": None}` as "matches everyone without email",
+  making the second signup fail with "Email already registered" (see "Bugs
+  caught by verification" above).
+- Live-stack verification (after Docker Desktop recovered): `docker compose up
+  -d` brought all four containers up; mongo/backend/agent/frontend all
+  HEALTHY. Agent log shows "Connected to backend as AI Agent" +
+  "Agent authenticated (handshake ok)"; backend log shows "AI Agent
+  authenticated / AI Agent connected". Through nginx (localhost:3000):
+  `/` 200, `/health` 200, `/api/auth/me` without cookie 401, `/ws/agent` 403
+  (blocked). Full auth round-trip through nginx: signup 201 -> me 200 ->
+  logout 200 -> me 401 -> login 200 -> me 200.
+- Live fix found by the frontend healthcheck: nginx binds `0.0.0.0:3000`
+  (IPv4) inside the container, but `localhost` resolves to `::1` first in the
+  official nginx image, so the healthcheck `wget http://localhost:3000/`
+  always got Connection refused. Changed to `http://127.0.0.1:3000/`. Docker
+  Desktop's engine also wedged once mid-`up --build` (containers created but
+  never started; a Docker Desktop restart was needed) - unrelated to the
+  project code.
+
 ---
 
 ## Prompt integrity log
