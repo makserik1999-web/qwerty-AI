@@ -38,6 +38,7 @@ from anyq.config import (
     AGENT_HANDSHAKE_TIMEOUT_SEC,
     AGENT_SECRET,
     DEFAULT_WS_URL,
+    GEMINI_API_KEY,
     MAX_IMAGES,
     MAX_IMAGE_B64_LEN,
     MAX_IMAGE_BYTES,
@@ -105,6 +106,15 @@ def _safe_error_text(exc: Exception, limit: int = 300) -> str:
     return f"{type(exc).__name__}: {str(exc)[:limit]}"
 
 
+def _no_key_message() -> str:
+    """Polite explanation shown when GEMINI_API_KEY is not configured."""
+    return (
+        "AI-функции сейчас недоступны: добавьте GEMINI_API_KEY в .env "
+        "(backend и agent) и перезапустите контейнеры, чтобы включить "
+        "генерацию объяснений и видео."
+    )
+
+
 async def process_request(payload: Dict[str, Any]) -> Dict[str, Any]:
     """
     Runs the science manim graph agent for a single websocket request.
@@ -139,6 +149,17 @@ async def process_request(payload: Dict[str, Any]) -> Dict[str, Any]:
             initial["image_paths"] = tmp_image_paths
             if len(tmp_image_paths) == 1:
                 initial["image_path"] = tmp_image_paths[0]
+
+        if not image_data and not GEMINI_API_KEY:
+            # Polite degradation: without a key the LLM cannot run. Reply with a
+            # clear message instead of surfacing a crash to the user.
+            telemetry.record(status="complete")
+            return {
+                "request_id": request_id,
+                "status": "complete",
+                "text": _no_key_message(),
+                "video_path": "",
+            }
 
         result = await app.invoke(initial)
         final_text = (result.get("final_text") or "").strip()

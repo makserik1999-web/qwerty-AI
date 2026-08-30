@@ -121,6 +121,13 @@ services:
       - DEFAULT_LLM_PROVIDER=${DEFAULT_LLM_PROVIDER:-gemini}
       - DEFAULT_MODEL=${DEFAULT_MODEL:-gemini-2.5-pro}
       - GEMINI_MAX_TOKENS=${GEMINI_MAX_TOKENS:-20000}
+      # spoon_ai reads the model from {PROVIDER}_MODEL (GEMINI_MODEL), not
+      # DEFAULT_MODEL; keep both in sync.
+      - GEMINI_MODEL=${GEMINI_MODEL:-${DEFAULT_MODEL:-gemini-2.5-pro}}
+      # Test mode: render a stub Manim video without calling any LLM
+      # (used for sandbox/render regression checks; a real LLM key is
+      # otherwise required for AI features).
+      - DOC_SNIPPET_MODE=${DOC_SNIPPET_MODE:-0}
       - MANIM_ALLOW_LATEX=${MANIM_ALLOW_LATEX:-1}
       - MANIM_MCP_SERVER_SCRIPT=/app/manim-mcp-server/src/manim_server.py
       # Explicit output dir (the shared media volume is mounted below).

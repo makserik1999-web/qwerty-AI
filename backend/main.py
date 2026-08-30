@@ -604,10 +604,15 @@ async def signup(body: SignupRequest, request: Request):
     try:
         user = {
             "username": username,
-            "email": email,
             "password_hash": _hash_password(password),
             "created_at": datetime.now(timezone.utc),
         }
+        # Only store email when provided. The sparse unique index on email
+        # treats explicit null as a VALUE (not "missing"), so writing
+        # email=None here would make every subsequent signup without an email
+        # collide with this document (DuplicateKeyError).
+        if email:
+            user["email"] = email
         result = await db.db.users.insert_one(user)
     except Exception:
         raise HTTPExceptionJson(409, "Username or email already registered")

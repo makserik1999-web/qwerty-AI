@@ -80,7 +80,8 @@ docker compose up --build -d
 | GEMINI_API_KEY        | No*      | -              | Google Gemini API key          |
 | AGENT_SECRET          | Yes      | -              | Shared secret for the agent channel (must match backend & agent) |
 | DEFAULT_LLM_PROVIDER  | No       | gemini         | LLM provider to use            |
-| DEFAULT_MODEL         | No       | gemini-2.5-pro | Default model                  |
+| DEFAULT_MODEL         | No       | gemini-3-flash-preview | Default model (spoon_ai reads the model from `GEMINI_MODEL`) |
+| GEMINI_MODEL          | No       | = DEFAULT_MODEL | Gemini model actually used by the LLM client |
 | DATABASE_NAME         | No       | anyq_db        | MongoDB database name          |
 | FRONTEND_PORT         | No       | 3000           | Port to expose frontend        |
 | MANIM_ALLOW_LATEX     | No       | 1              | Enable LaTeX in Manim          |

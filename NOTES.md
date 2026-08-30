@@ -203,6 +203,35 @@ for these fixes.
   never started; a Docker Desktop restart was needed) - unrelated to the
   project code.
 
+### Live-stack LLM round-trip (this pass, with a temporary Gemini key)
+
+- **Model discovery**: default `gemini-2.5-pro` is no longer served to new
+  accounts (404 "no longer available to new users"). The API approves
+  `gemini-3-flash-preview` / `gemini-3.1-pro-preview`.
+- **spoon_ai env quirk**: the model is read from `{PROVIDER}_MODEL`
+  (`GEMINI_MODEL`), NOT `DEFAULT_MODEL`. The compose file now forwards
+  `GEMINI_MODEL` (defaulting to `DEFAULT_MODEL`) and `.env.example` documents
+  both.
+- Full round-trip passed with the live stack: signup -> WS /ws -> create chat
+  -> "Explain gravity" -> agent classified (kk, Physics) -> LLM wrote the
+  educator text AND the Manim script -> AST validator accepted it -> Manim
+  rendered a real 762 KB mp4 -> `/media` served it (200 with cookie, 401
+  without). Telemetry showed `educator_text_len: 2413/2578` (the parallel
+  group fix holds in production) and `render_ok: true`.
+- **No-key behaviour** (final .env state): with `GEMINI_API_KEY` empty the
+  agent replies with the polite Russian "AI-функции сейчас недоступны…"
+  message as a normal `ai_response` (no crash, no error frame). Implemented
+  in `agent_ws_client.process_request` before calling the graph.
+- **Second real bug caught in the live stack**: the users collection in Mongo
+  has a `sparse unique` index on email, and signup stored `email: None`
+  explicitly. A sparse index treats explicit null as a VALUE (not "missing"),
+  so every subsequent signup without an email hit DuplicateKeyError ->
+  "Username or email already registered" 409. Fixed by only writing the
+  `email` field when an email was actually provided (backend/main.py). The
+  in-memory smoke test could not catch this because mongomock does not model
+  sparse-index null semantics. (This supersedes the earlier $or-only fix from
+  the smoke test - both changes are in the code.)
+
 ---
 
 ## Prompt integrity log
