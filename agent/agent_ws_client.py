@@ -38,6 +38,7 @@ from anyq.config import (
     AGENT_HANDSHAKE_TIMEOUT_SEC,
     AGENT_SECRET,
     DEFAULT_WS_URL,
+    DOC_SNIPPET_MODE,
     GEMINI_API_KEY,
     MAX_IMAGES,
     MAX_IMAGE_B64_LEN,
@@ -150,9 +151,11 @@ async def process_request(payload: Dict[str, Any]) -> Dict[str, Any]:
             if len(tmp_image_paths) == 1:
                 initial["image_path"] = tmp_image_paths[0]
 
-        if not image_data and not GEMINI_API_KEY:
+        if not image_data and not GEMINI_API_KEY and DOC_SNIPPET_MODE != "1":
             # Polite degradation: without a key the LLM cannot run. Reply with a
             # clear message instead of surfacing a crash to the user.
+            # (DOC_SNIPPET_MODE=1 renders a stub video WITHOUT the LLM, so it
+            # must still reach the graph below.)
             telemetry.record(status="complete")
             return {
                 "request_id": request_id,

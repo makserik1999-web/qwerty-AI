@@ -232,6 +232,26 @@ for these fixes.
   sparse-index null semantics. (This supersedes the earlier $or-only fix from
   the smoke test - both changes are in the code.)
 
+### Browser regression (Playwright on system Edge, this pass)
+
+- `logs/ui_regression.py`: 9/9 PASS through the real UI: signup form -> main
+  screen -> send message (no-key polite reply shown in chat) -> chat switching
+  WITHOUT cross-contamination (chat 1 shows only its own messages) -> logout
+  clears chat state and returns to login -> login restores chats -> second
+  user has no chats and cannot read the first user's chat (404).
+- `logs/ui_video.py`: 8/8 PASS in DOC_SNIPPET_MODE=1 with a real rendered mp4:
+  video element + loaded data, pen tool enabled after pause, drawing on the
+  canvas, undo/redo re-activation, screenshot capture (data: thumbnail).
+  Notes: the app's CSP forbids unsafe-eval, so the tests use locator APIs
+  only (page.evaluate is blocked by our own hardening - good). Earlier
+  headless flakiness on drawing was a test-harness issue; a canvas click
+  probe reliably triggers the undo entry.
+- Interaction fix discovered while testing: the no-key early return in
+  `agent_ws_client.process_request` fired BEFORE the graph, breaking
+  `DOC_SNIPPET_MODE=1` (stub render needs no LLM key but never reached the
+  graph, so is_science stayed false). Now the early return is skipped when
+  `DOC_SNIPPET_MODE == "1"`.
+
 ---
 
 ## Prompt integrity log
