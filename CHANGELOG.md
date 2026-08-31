@@ -5,6 +5,39 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### Phase D (partial) - the video player
+
+**Fixed**
+
+- **The scrub bar could not seek.** Three independent causes, all measured on
+  the running stack:
+  1. `/media` ignored `Range` (starlette 0.36's `FileResponse` always answers
+     200). Asking for 101 bytes of a 784KB video returned all 784KB. Range is
+     now implemented in the endpoint, with `ETag`, `If-Range` and 416.
+  2. Manim wrote the `moov` atom at the END of the file (measured at 99% of
+     the way in), so the browser could not build a seek index without
+     downloading everything. Renders are now remuxed with `+faststart`.
+  3. The client cleared its "seeking" flag from `mouseup` on the range input;
+     releasing anywhere else stranded the flag and froze the bar. Replaced
+     with a pointer-capture bar driven by the video's `seeking`/`seeked`.
+- **The brush turned itself on.** The canvas took pointer events whenever the
+  video was paused, so clicks meant to resume playback drew instead. Drawing
+  is now an explicit toggle (button or `D`), off by default.
+- `message_count` was 0 for every chat: the aggregation joined an ObjectId
+  against a string `chat_id`.
+- Error bubbles rendered as `role: "assistant"`, so a failed pipeline looked
+  like an answer. They now carry `data-role="error"`.
+
+**Changed**
+
+- `VideoPanel.tsx` (756 lines) split into `features/player/`.
+- Canvas honours `devicePixelRatio` and survives a resize; annotations are no
+  longer wiped when playback resumes; the pen has a colour palette; player
+  controls carry ARIA roles and labels.
+- Keyboard: space play/pause, arrows seek 5s (10s with shift), `D` draw mode,
+  `P`/`E` pen and eraser.
+
+
 ### Phase A - repository cleanup and structure
 
 **Security**
