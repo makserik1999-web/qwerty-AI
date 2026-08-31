@@ -65,3 +65,30 @@ _MEDIA_TYPES = {
 # ============== Auth validation ==============
 _USERNAME_RE = re.compile(r"^[A-Za-z0-9_]{3,30}$")
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+# ============== Answer cache ==============
+# Bump PIPELINE_VERSION whenever the prompts, the model or the renderer change:
+# it is part of every cache key, so raising it retires every stored answer at
+# once instead of serving output the current pipeline would no longer produce.
+PIPELINE_VERSION = os.getenv("PIPELINE_VERSION", "v1")
+
+# Questions longer than this are somebody's specific problem, not a topic that
+# repeats, so they are never cached.
+CACHE_MAX_QUESTION_LEN = int(os.getenv("CACHE_MAX_QUESTION_LEN", "200"))
+
+# A fresh answer is kept briefly; it only earns the long tier once the same
+# question actually comes back this many times.
+CACHE_EPHEMERAL_TTL_HOURS = int(os.getenv("CACHE_EPHEMERAL_TTL_HOURS", "48"))
+CACHE_WARM_TTL_DAYS = int(os.getenv("CACHE_WARM_TTL_DAYS", "30"))
+CACHE_WARM_PROMOTION_HITS = int(os.getenv("CACHE_WARM_PROMOTION_HITS", "3"))
+
+# Master switch, so the cache can be turned off without a redeploy.
+CACHE_ENABLED = os.getenv("CACHE_ENABLED", "1") == "1"
+
+# Usernames allowed to read cache statistics. Empty (the default) means nobody:
+# the endpoint has to be opened deliberately, not left ajar.
+ADMIN_USERS = {
+    u.strip() for u in os.getenv("ADMIN_USERS", "").split(",") if u.strip()
+}
+

@@ -7,6 +7,7 @@ interface ChatPanelProps {
   pendingScreenshots: PendingScreenshot[];
   onRemoveScreenshot: (id: string) => void;
   onSendMessage: (prompt: string, screenshots: PendingScreenshot[]) => void;
+  onRegenerate?: (prompt: string) => void;
   isLoading: boolean;
   isConnected: boolean;
 }
@@ -16,6 +17,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   pendingScreenshots,
   onRemoveScreenshot,
   onSendMessage,
+  onRegenerate,
   isLoading,
   isConnected,
 }) => {
@@ -101,6 +103,38 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                   ) : (
                     <MarkdownMessage content={message.content} />
                   )
+                )}
+
+                {/* Served from the library rather than generated just now.
+                    Shown because an answer that normally takes minutes
+                    arriving instantly is otherwise unexplained. */}
+                {message.fromCache && (
+                  <div
+                    data-testid="from-cache-badge"
+                    className="mt-2 pt-2 border-t border-white/10 flex items-center
+                               justify-between gap-3 text-xs"
+                  >
+                    <span className="flex items-center gap-1.5 text-gray-400">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                              d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                      </svg>
+                      {message.cacheTier === 'curated'
+                        ? 'From the library - reviewed'
+                        : 'From the library'}
+                    </span>
+                    {onRegenerate && message.sourcePrompt && (
+                      <button
+                        onClick={() => onRegenerate(message.sourcePrompt as string)}
+                        disabled={isLoading || !isConnected}
+                        data-testid="regenerate-button"
+                        className="text-accent-primary hover:underline disabled:text-gray-600
+                                   disabled:no-underline whitespace-nowrap"
+                      >
+                        Generate a new one
+                      </button>
+                    )}
+                  </div>
                 )}
 
                 {/* Video indicator */}

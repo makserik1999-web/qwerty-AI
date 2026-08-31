@@ -22,6 +22,12 @@ export interface ChatMessage {
    * never persisted, so they disappear when the chat history is reloaded.
    */
   isError?: boolean;
+  /** Served from the answer library instead of being generated just now. */
+  fromCache?: boolean;
+  /** Which storage tier it came from; "curated" means a reviewed video. */
+  cacheTier?: string;
+  /** The question that produced it, so it can be asked again from scratch. */
+  sourcePrompt?: string;
 }
 
 export interface Chat {

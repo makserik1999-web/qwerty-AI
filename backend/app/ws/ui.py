@@ -7,12 +7,13 @@ import uuid
 from bson import ObjectId
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from app.config import COOKIE_NAME
+from app.config import CACHE_ENABLED, COOKIE_NAME
 from app.db import db
 from app.repositories.chats import create_chat, delete_chat_by_id
 from app.repositories.messages import save_message
 from app.security.origins import _is_allowed_origin
 from app.security.sessions import _user_from_token
+from app.services import cache_service
 from app.validators import (
     _validate_chat_id,
     _validate_prompt,
@@ -97,6 +98,42 @@ async def _handle_ui_frame(websocket: WebSocket, user_id: str, data: dict) -> No
             })
             return
 
+        # Cache first: a stored answer costs a couple of database reads, while
+        # a miss costs three LLM calls and minutes of rendering. This runs
+        # BEFORE the agent-availability check on purpose - a question we have
+        # already answered can be served even while the agent is down.
+        # `force_regenerate` lets the user insist on a fresh answer.
+        cached = None
+        if CACHE_ENABLED and not payload.get("force_regenerate"):
+            try:
+                cached = await cache_service.lookup(prompt, screenshots)
+            except Exception as e:
+                # The cache must never be the reason a question goes unanswered.
+                print(f"cache lookup failed, falling through to the agent: {type(e).__name__}: {e}")
+
+        if cached:
+            await save_message(chat_id, "user", prompt, screenshots)
+            await websocket.send_json({"type": "message_received"})
+            msg_data = await save_message(
+                chat_id, "assistant", cached.get("educator_text", ""),
+                video_url=cached.get("video_url"),
+            )
+            await websocket.send_json({
+                "type": "ai_response",
+                "data": {
+                    "message_id": msg_data["id"],
+                    "chat_id": chat_id,
+                    "content": msg_data["content"],
+                    "video_url": msg_data["video_url"],
+                    "timestamp": msg_data["timestamp"],
+                    # The UI marks these, so nobody is left wondering why an
+                    # answer that normally takes minutes arrived instantly.
+                    "from_cache": True,
+                    "cache_tier": cached.get("tier", ""),
+                },
+            })
+            return
+
         # Check agent availability BEFORE saving anything (no orphan messages).
         if not agent_manager.agent_connection:
             await websocket.send_json({
@@ -116,6 +153,10 @@ async def _handle_ui_frame(websocket: WebSocket, user_id: str, data: dict) -> No
             "user_id": user_id,
             "chat_id": chat_id,
             "created_at": time.monotonic(),
+            # Carried so the answer can be filed under the question that
+            # produced it once the agent replies.
+            "prompt": prompt,
+            "screenshots": screenshots,
         }
         try:
             await agent_manager.send_to_agent(

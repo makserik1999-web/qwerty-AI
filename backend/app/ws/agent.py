@@ -7,8 +7,14 @@ import secrets
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from app.config import _SAFE_MEDIA_RE, AGENT_HANDSHAKE_TIMEOUT_SEC, AGENT_SECRET
+from app.config import (
+    _SAFE_MEDIA_RE,
+    AGENT_HANDSHAKE_TIMEOUT_SEC,
+    AGENT_SECRET,
+    CACHE_ENABLED,
+)
 from app.repositories.messages import save_message
+from app.services import cache_service
 from app.ws.manager import _notify_pending_failures, agent_manager, ui_manager
 
 router = APIRouter()
@@ -115,6 +121,21 @@ async def websocket_agent_endpoint(websocket: WebSocket):
                         "timestamp": msg_data["timestamp"],
                     },
                 })
+
+                # File the answer under the question that produced it. Done
+                # after the user already has their reply, and never allowed to
+                # fail the request: a cache write is an optimisation, not part
+                # of answering.
+                if CACHE_ENABLED:
+                    try:
+                        await cache_service.remember(
+                            prompt=request_info.get("prompt", ""),
+                            screenshots=request_info.get("screenshots", []),
+                            text=response_text,
+                            video_url=video_url,
+                        )
+                    except Exception as e:
+                        print(f"cache write failed: {type(e).__name__}: {e}")
 
     except WebSocketDisconnect:
         pass

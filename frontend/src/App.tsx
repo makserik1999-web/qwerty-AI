@@ -34,6 +34,9 @@ function App() {
   const pendingChatMessagesRef = useRef<PendingMessage[]>([]);
   const loadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectedChatIdRef = useRef<string | null>(null);
+  // The question each chat is waiting on, so "generate a fresh one"
+  // can re-send it with the cache bypassed.
+  const lastPromptByChatRef = useRef<Record<string, string>>({});
 
   const { fetchUserChats, fetchChat, fetchMe, login, signup, logout } = useApi();
 
@@ -141,6 +144,7 @@ function App() {
     prompt: string,
     screenshots: PendingScreenshot[],
     sendMessageFn: (type: string, data: Record<string, unknown>) => boolean,
+    forceRegenerate = false,
   ) => {
     const userMessage: ChatMessage = {
       id: uuidv4(),
@@ -154,6 +158,7 @@ function App() {
     };
 
     appendMessage(chatId, userMessage);
+    lastPromptByChatRef.current[chatId] = prompt;
     setPendingScreenshots([]);
     setPendingRequestChatId(chatId);
     armLoadingTimeout(chatId);
@@ -165,6 +170,7 @@ function App() {
         id: ss.id,
         image_base64: ss.dataUrl,
       })),
+      force_regenerate: forceRegenerate,
     });
     if (!ok) {
       // Message is queued by the hook and will be flushed on reconnect.
@@ -224,6 +230,8 @@ function App() {
           content: string;
           video_url?: string;
           timestamp: string;
+          from_cache?: boolean;
+          cache_tier?: string;
         };
 
         const assistantMessage: ChatMessage = {
@@ -233,6 +241,10 @@ function App() {
           screenshots: [],
           video_url: responseData.video_url,
           timestamp: responseData.timestamp,
+          fromCache: Boolean(responseData.from_cache),
+          cacheTier: responseData.cache_tier,
+          // Remembered so "generate a fresh one" can re-ask the same thing.
+          sourcePrompt: lastPromptByChatRef.current[responseData.chat_id],
         };
 
         // Only ever append to the chat the response belongs to.
@@ -362,6 +374,12 @@ function App() {
     sendMessageToChat(selectedChatId, prompt, screenshots, sendMessage);
   }, [selectedChatId, sendMessage, sendMessageToChat, addErrorBubble]);
 
+  // "Not what I wanted": ask again, skipping the library.
+  const handleRegenerate = useCallback((prompt: string) => {
+    if (!selectedChatId || !prompt) return;
+    sendMessageToChat(selectedChatId, prompt, [], sendMessage, true);
+  }, [selectedChatId, sendMessage, sendMessageToChat]);
+
   // ============== render ==============
   if (authChecking) {
     return (
@@ -412,6 +430,7 @@ function App() {
             pendingScreenshots={pendingScreenshots}
             onRemoveScreenshot={handleRemoveScreenshot}
             onSendMessage={handleSendMessage}
+            onRegenerate={handleRegenerate}
             isLoading={isLoading}
             isConnected={isConnected}
           />
