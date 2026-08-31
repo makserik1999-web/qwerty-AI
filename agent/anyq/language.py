@@ -8,7 +8,6 @@ from typing import Optional
 
 from anyq.config import DEFAULT_OUTPUT_LANGUAGE, MANIM_TEXT_FONT
 
-
 # ============== Output language ==============
 _LANGUAGE_NAMES = {
     "kk": "Kazakh (қазақ тілі)",

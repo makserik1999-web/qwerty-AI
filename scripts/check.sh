@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# Anyq refactor checks. Run from anywhere:  agent/check.sh
+# Anyq refactor checks. Run from anywhere:  scripts/check.sh
 #
 # Verifies that the anyq/* extraction did not change anything observable:
 # module graph still imports, the re-exports agent_ws_client depends on are
 # still reachable, the pure helpers still behave, and the Manim system prompt
 # is still byte-for-byte what it was before the refactor.
 set -u
-cd "$(dirname "$0")"
+# The checks import the agent package, so run from agent/.
+cd "$(dirname "$0")/../agent"
 
 export PYTHONIOENCODING=utf-8
 

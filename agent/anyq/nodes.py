@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, TypedDict
 
 from spoon_ai.schema import Message
 
+from anyq import telemetry
 from anyq.config import DOC_SNIPPET_MODE
 from anyq.language import (
     _REJECT_MESSAGES,
@@ -34,8 +35,6 @@ from anyq.script_guard import (
     _tex_contains_cyrillic,
     validate_manim_script,
 )
-from anyq import telemetry
-
 
 # User content is untrusted data (and may contain prompt-injection attempts).
 # It is always wrapped in explicit delimiter tags and marked as data, never as

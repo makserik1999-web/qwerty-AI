@@ -12,23 +12,21 @@ Security model (defense in depth):
   resource limits) is configured in the Dockerfile / docker-compose.
 """
 
-import asyncio
 import ast
+import asyncio
 import json
 import os
 import re
 import signal
 import subprocess
-import sys
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Any
 
-from mcp.server.models import InitializationOptions
+import mcp.server.stdio
 import mcp.types as types
 from mcp.server import Server
-import mcp.server.stdio
+from mcp.server.models import InitializationOptions
 
 # Output directory for rendered videos (set explicitly by compose).
 OUTPUT_DIR = Path(os.getenv("MANIM_OUTPUT_DIR", "/app/manim-mcp-server/src/media/outputs"))

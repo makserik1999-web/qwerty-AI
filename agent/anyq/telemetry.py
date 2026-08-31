@@ -118,9 +118,8 @@ def write() -> None:
         # Stdout is the canonical sink (bounded by docker log rotation); the
         # file write is best-effort for local development.
         print(f"TELEMETRY {line}", flush=True)
-        with _write_lock:
-            with open(path, "a", encoding="utf-8") as f:
-                f.write(line + "\n")
-                f.flush()
+        with _write_lock, open(path, "a", encoding="utf-8") as f:
+            f.write(line + "\n")
+            f.flush()
     except Exception as e:
         print(f"[telemetry] failed to write run log: {type(e).__name__}: {e}", flush=True)

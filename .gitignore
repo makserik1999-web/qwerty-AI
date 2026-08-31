@@ -38,7 +38,6 @@ build/
 
 # Logs
 *.log
-logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -91,9 +90,15 @@ secrets/
 local_settings.py
 
 
-# Local Python virtualenvs (recreate with: python3.12 -m venv .venv)
+# Local Python virtualenvs (recreate with: make venv)
 .venv/
 venv/
 
 # Manim render output + intermediates (generated at runtime)
 agent/manim-mcp-server/src/media/
+
+# Throwaway run artefacts (telemetry dumps, screenshots, smoke output)
+.artifacts/
+
+# Tool caches
+.ruff_cache/

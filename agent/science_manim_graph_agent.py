@@ -20,7 +20,6 @@ from anyq.language import _detect_language  # noqa: F401 - re-exported
 from anyq.nodes import ScienceVideoState  # noqa: F401 - re-exported
 from anyq.script_guard import _latex_toolchain_healthy  # noqa: F401 - re-exported
 
-
 if __name__ == "__main__":
     import asyncio
 

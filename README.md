@@ -105,13 +105,40 @@ anyq/
 │   ├── main.py         # Main application
 │   └── Dockerfile
 ├── agent/              # AI agent service
+│   ├── anyq/           # Agent package (config, graph, nodes, render, guards)
 │   ├── agent_ws_client.py
 │   ├── science_manim_graph_agent.py
 │   └── Dockerfile
+├── tests/              # pytest suite
+│   ├── backend/        # API, websockets, agent channel (no docker needed)
+│   ├── agent/          # AST script validator, telemetry (no docker needed)
+│   ├── e2e/  ui/       # Full-stack and Playwright checks (need the stack)
+│   └── stubs/          # Minimal spoon_ai stand-in for host runs
+├── scripts/            # check.sh and debugging helpers
+├── docs/               # Architecture, audit, refactoring notes, roadmap
+├── Makefile            # make up / down / test / lint
 ├── docker-compose.yml  # Orchestration
 ├── .env.example        # Environment template
 └── .gitignore
 ```
+
+## Development
+
+```bash
+make venv     # create .venv and install dev dependencies (once)
+make up       # build and start the stack
+make test     # backend + agent tests, no docker required
+make test-all # everything, including e2e and Playwright (needs `make up`)
+make lint     # ruff for python, eslint for the frontend
+make down     # stop the stack
+```
+
+Run `make` with no arguments to list every target.
+
+> Upgrading from a checkout older than the Phase A cleanup? The containers were
+> renamed `spoon-*` to `anyq-*`. Run `docker compose down` once on the old
+> checkout first, so the previous containers do not linger as orphans. Named
+> volumes are unchanged, so chats and rendered videos are preserved.
 
 ## API Endpoints
 

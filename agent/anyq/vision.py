@@ -15,12 +15,12 @@ import time
 from typing import Any, Dict, List, Tuple
 
 from anyq.config import (
+    _LLM_RETRIES,
+    _LLM_RETRY_BASE_DELAY,
     DOC_SNIPPET_MODE,
     GEMINI_API_KEY,
     GEMINI_VISION_MODEL,
     MAX_IMAGES,
-    _LLM_RETRIES,
-    _LLM_RETRY_BASE_DELAY,
 )
 from anyq.llm_client import _is_transient_llm_error
 from anyq.script_guard import _safe_json_loads

@@ -10,7 +10,6 @@ from spoon_ai.llm import LLMManager
 
 from anyq.config import _LLM_RETRIES, _LLM_RETRY_BASE_DELAY
 
-
 llm = LLMManager()
 
 _TRANSIENT_LLM_MARKERS = (

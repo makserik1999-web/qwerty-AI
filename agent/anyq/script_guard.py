@@ -20,7 +20,6 @@ from typing import Any, Dict, Tuple
 from anyq.config import MANIM_ALLOW_LATEX
 from anyq.language import _pick_unicode_font
 
-
 _CODE_FENCE_RE = re.compile(r"^```[a-zA-Z0-9_-]*\n|\n```$", re.MULTILINE)
 
 

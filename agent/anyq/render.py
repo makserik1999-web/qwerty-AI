@@ -20,10 +20,10 @@ from spoon_ai.schema import Message
 from spoon_ai.tools.mcp_tool import MCPTool
 
 from anyq.config import (  # noqa: F401 - _RENDER_REPAIR_ATTEMPTS re-exported
+    _RENDER_REPAIR_ATTEMPTS,
     MANIM_EXECUTABLE,
     MANIM_MCP_PYTHON,
     MANIM_MCP_SERVER_SCRIPT,
-    _RENDER_REPAIR_ATTEMPTS,
 )
 from anyq.llm_client import _llm_chat
 from anyq.prompts import RENDER_REPAIR_SYSTEM_PROMPT

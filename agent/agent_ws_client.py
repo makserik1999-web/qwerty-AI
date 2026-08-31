@@ -30,7 +30,9 @@ import json
 import os
 import re
 import tempfile
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Tuple
+
+from anyq import telemetry
 
 # Environment and the user-facing failure message now live in the anyq package.
 # Importing anyq.config is also what calls load_dotenv().
@@ -40,9 +42,9 @@ from anyq.config import (
     DEFAULT_WS_URL,
     DOC_SNIPPET_MODE,
     GEMINI_API_KEY,
-    MAX_IMAGES,
     MAX_IMAGE_B64_LEN,
     MAX_IMAGE_BYTES,
+    MAX_IMAGES,
     RECONNECT_DELAY_SEC,
     REQUEST_DEADLINE_SEC,
     WS_MAX_MESSAGE_SIZE,
@@ -54,7 +56,6 @@ from anyq.language import (  # noqa: F401 - _GENERIC_FAILURE_MESSAGES re-exporte
     _GENERIC_FAILURE_MESSAGES,
     _friendly_failure_text,
 )
-from anyq import telemetry
 
 _DATA_URL_RE = re.compile(r"^data:(?P<mime>[^;]+);base64,(?P<b64>.+)$", re.DOTALL)
 

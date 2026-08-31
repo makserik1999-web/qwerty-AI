@@ -31,7 +31,7 @@ from pydantic import BaseModel
 
 # ============== Configuration ==============
 MONGO_URL = os.getenv("MONGO_URL", "mongodb://mongo:27017")
-DATABASE_NAME = os.getenv("DATABASE_NAME", "spoon_chat")
+DATABASE_NAME = os.getenv("DATABASE_NAME", "anyq_db")
 
 # Agent channel secret: both backend and agent must share it. When it is empty
 # the backend refuses every agent connection (fail closed).
@@ -615,7 +615,9 @@ async def signup(body: SignupRequest, request: Request):
             user["email"] = email
         result = await db.db.users.insert_one(user)
     except Exception:
-        raise HTTPExceptionJson(409, "Username or email already registered")
+        # `from None`: the DuplicateKeyError is deliberately dropped - the
+        # client is told "already registered" and never sees Mongo internals.
+        raise HTTPExceptionJson(409, "Username or email already registered") from None
 
     user_id = str(result.inserted_id)
     token = await _create_session(user_id)

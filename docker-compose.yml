@@ -2,12 +2,12 @@ services:
   # MongoDB Database
   mongo:
     image: mongo:7
-    container_name: spoon-mongo
+    container_name: anyq-mongo
     restart: unless-stopped
     volumes:
       - mongo_data:/data/db
     networks:
-      - spoon-network
+      - anyq-network
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
@@ -30,11 +30,11 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: spoon-backend
+    container_name: anyq-backend
     restart: unless-stopped
     environment:
       - MONGO_URL=mongodb://mongo:27017
-      - DATABASE_NAME=${DATABASE_NAME:-spoon_chat}
+      - DATABASE_NAME=${DATABASE_NAME:-anyq_db}
       # Agent channel secret - must match AGENT_SECRET on the agent service.
       # Set it in .env. Empty => backend refuses agent connections (fail closed).
       - AGENT_SECRET=${AGENT_SECRET:-}
@@ -47,7 +47,7 @@ services:
       mongo:
         condition: service_healthy
     networks:
-      - spoon-network
+      - anyq-network
     volumes:
       # Mount media outputs from agent for serving videos
       - media_data:/app/media
@@ -77,7 +77,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: spoon-frontend
+    container_name: anyq-frontend
     restart: unless-stopped
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
@@ -87,7 +87,7 @@ services:
       backend:
         condition: service_healthy
     networks:
-      - spoon-network
+      - anyq-network
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/"]
       interval: 15s
@@ -112,18 +112,18 @@ services:
     build:
       context: ./agent
       dockerfile: Dockerfile
-    container_name: spoon-agent
+    container_name: anyq-agent
     restart: unless-stopped
     environment:
       - AGENT_WS_URL=ws://backend:8000/ws/agent
       - AGENT_SECRET=${AGENT_SECRET:-}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - DEFAULT_LLM_PROVIDER=${DEFAULT_LLM_PROVIDER:-gemini}
-      - DEFAULT_MODEL=${DEFAULT_MODEL:-gemini-2.5-pro}
+      - DEFAULT_MODEL=${DEFAULT_MODEL:-gemini-3-flash-preview}
       - GEMINI_MAX_TOKENS=${GEMINI_MAX_TOKENS:-20000}
       # spoon_ai reads the model from {PROVIDER}_MODEL (GEMINI_MODEL), not
       # DEFAULT_MODEL; keep both in sync.
-      - GEMINI_MODEL=${GEMINI_MODEL:-${DEFAULT_MODEL:-gemini-2.5-pro}}
+      - GEMINI_MODEL=${GEMINI_MODEL:-${DEFAULT_MODEL:-gemini-3-flash-preview}}
       # Test mode: render a stub Manim video without calling any LLM
       # (used for sandbox/render regression checks; a real LLM key is
       # otherwise required for AI features).
@@ -142,7 +142,7 @@ services:
       backend:
         condition: service_healthy
     networks:
-      - spoon-network
+      - anyq-network
     volumes:
       # Persist generated videos. The whole media dir is mounted (manim writes
       # intermediates into media/videos as well as the final outputs/).
@@ -176,7 +176,7 @@ services:
         max-file: "3"
 
 networks:
-  spoon-network:
+  anyq-network:
     driver: bridge
 
 volumes:

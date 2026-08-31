@@ -1,0 +1,41 @@
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = [".venv", "tests/stubs", "agent/manim-mcp-server/src/media"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle
+    "F",    # pyflakes
+    "I",    # import sorting
+    "B",    # bugbear
+    "C4",   # comprehensions
+    "SIM",  # simplify
+]
+# "UP" (pyupgrade) is deliberately NOT enabled yet. It wants ~90 cosmetic
+# rewrites across backend/main.py and agent/ (Dict->dict, Optional[X]->X|None,
+# timezone.utc->UTC). Phase B of the improvement plan splits both of those into
+# packages and will rewrite the same lines anyway - doing it twice would just
+# make that diff unreadable. Enable "UP" right after Phase B lands.
+ignore = [
+    "E501",    # line length is enforced by the formatter, not the linter
+    "B008",    # FastAPI's Depends() in defaults is idiomatic
+    "SIM105",  # contextlib.suppress is not always clearer than try/except/pass
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests import modules after mutating sys.path/os.environ on purpose.
+"tests/**" = ["E402"]
+# The same deliberate late-import pattern, documented in the module docstrings.
+"agent/**" = ["E402"]
+"backend/**" = ["E402"]
+# `state: "ScienceVideoState"` is a quoted forward reference: importing the
+# TypedDict here would be circular (nodes.py imports these modules). It is
+# never evaluated at runtime. Phase B moves the TypedDict into a leaf module
+# `anyq/nodes/state.py`, after which these three can import it properly.
+"agent/anyq/language.py" = ["F821"]
+"agent/anyq/render.py" = ["F821"]
+"agent/anyq/vision.py" = ["F821"]
+
+[tool.ruff.format]
+quote-style = "double"
