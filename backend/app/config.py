@@ -92,3 +92,14 @@ ADMIN_USERS = {
     u.strip() for u in os.getenv("ADMIN_USERS", "").split(",") if u.strip()
 }
 
+# ============== Media retention ==============
+# Disk budget for rendered videos. Collection only starts above the high-water
+# mark and stops at the low-water one, so it runs rarely and in bulk instead of
+# deleting a file every few minutes.
+MEDIA_MAX_BYTES = int(os.getenv("MEDIA_MAX_BYTES", str(20 * 1024 * 1024 * 1024)))
+MEDIA_GC_HIGH_WATER = float(os.getenv("MEDIA_GC_HIGH_WATER", "0.9"))
+MEDIA_GC_LOW_WATER = float(os.getenv("MEDIA_GC_LOW_WATER", "0.75"))
+# A video must survive at least this long: someone may be watching it.
+MEDIA_MIN_AGE_HOURS = int(os.getenv("MEDIA_MIN_AGE_HOURS", "24"))
+MEDIA_GC_INTERVAL_SEC = int(os.getenv("MEDIA_GC_INTERVAL_SEC", "3600"))
+

@@ -42,10 +42,16 @@ async def lifespan(app: FastAPI):
     if not AGENT_SECRET:
         print("WARNING: AGENT_SECRET is not set - agent connections will be refused.")
 
+    # Imported here, not at module scope: retention needs `db`, which this
+    # module defines, so a top-level import would be circular.
+    from app.services.retention import retention_loop
+
     sweep_task = asyncio.create_task(_sweep_pending_requests_loop())
+    retention_task = asyncio.create_task(retention_loop())
     try:
         yield
     finally:
         sweep_task.cancel()
+        retention_task.cancel()
         db.client.close()
         print("Disconnected from MongoDB")

@@ -61,8 +61,8 @@ def seeded_answer():
 
 @pytest.fixture
 def signed_in(seeded_answer):
-    from playwright.sync_api import sync_playwright
     import httpx
+    from playwright.sync_api import sync_playwright
 
     username = f"cui_{uuid.uuid4().hex[:8]}"
     with httpx.Client(base_url=BASE, timeout=30) as hx:

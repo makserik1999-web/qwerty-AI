@@ -5,6 +5,28 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### Phase C (in progress) - the answer cache
+
+**Added**
+
+- Answers are cached and repeats are served in milliseconds. Storage policy:
+  every question increments a small counter, an answer starts in a 48-hour
+  tier, and it only earns 30-day storage once the question actually comes
+  back. Curated entries never expire.
+- Not cached, deliberately: anything with a screenshot, prompts over 200
+  characters, personal requests ("реши мою задачу"), and text-only replies -
+  which is what refusals and degraded-mode notices look like.
+- Media retention with a disk budget (`MEDIA_MAX_BYTES`, default 20GB).
+  Collection runs hourly, only above the high-water mark, and scores files by
+  hits, recency and size. Curated videos and anything under 24 hours old are
+  never deleted; when it cannot free enough it says so instead of deleting
+  protected content. Deleting a file also clears the references to it, so old
+  chats lose the video rather than gaining a broken player.
+- `/api/admin/cache/stats`, behind a username allowlist.
+- Cached answers are labelled "From the library" and offer "Generate a new
+  one", which re-asks with the cache bypassed.
+
+
 ### Phase B1 - backend/main.py split into a package
 
 **Changed**
