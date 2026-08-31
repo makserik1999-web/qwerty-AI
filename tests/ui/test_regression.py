@@ -1,6 +1,6 @@
 """UI regression via Playwright on system Edge (channel=msedge).
 
-Covers: signup form -> main screen -> send message (no-key = polite reply) ->
+Covers: signup form -> main screen -> send message -> assistant replies ->
 chat switching without cross-contamination -> logout clears state -> login
 restores -> chat isolation between two users.
 
@@ -50,11 +50,25 @@ def main():
         # after signup we land on the main screen (sidebar with New Chat)
         check("signup lands on main screen", page.get_by_text("New Chat").first.is_visible())
 
-        # 2. Send a message; agent replies polite no-key message
+        # 2. Send a message and wait for the assistant's reply
         page.get_by_placeholder("Ask about the video or a topic...").fill("Explain gravity")
         page.get_by_role("button", name=re.compile("Send|Ask", re.I)).click()
-        page.wait_for_selector("text=AI-функции", timeout=60000)
-        check("no-key polite reply visible", page.get_by_text("AI-функции").first.is_visible())
+        # Wait for the assistant to answer. What it says depends on the
+        # deployment: with GEMINI_API_KEY set it is a real explanation (and a
+        # render, so this can take minutes); without one it is the polite
+        # "AI functions unavailable" note. Both are a valid reply here - the
+        # test is about the exchange appearing in the right chat, not its text.
+        # An error bubble carries data-role="error", so a failed pipeline is
+        # never mistaken for an answer. Wait for whichever lands first: a real
+        # reply, or the failure notice.
+        page.wait_for_selector('[data-role="assistant"], [data-role="error"]', timeout=300000)
+        if page.locator('[data-role="error"]').count():
+            failure = page.locator('[data-role="error"]').first.inner_text().strip()
+            raise AssertionError(
+                "the agent did not answer - the UI shows a failure notice: " + failure
+            )
+        reply = page.locator('[data-role="assistant"]').first.inner_text().strip()
+        check("assistant replied", bool(reply), "assistant bubble is empty")
 
         # 3. Create a second chat and switch back and forth
         page.get_by_role("button", name="New Chat").click()
@@ -65,14 +79,22 @@ def main():
 
         # chat items live in a div.w-64 (the sidebar); capture its text once
         sidebar = page.locator("div.w-64").first
-        page.wait_for_timeout(1000)
         # the first chat's message bubbles must show the gravity text and NOT the second message
         sidebar.get_by_text("Explain gravity").first.click()
-        page.wait_for_timeout(1000)
+        # Wait for chat 1's history to actually render. A fixed sleep used to be
+        # enough only because the no-key deployment answered instantly; with a
+        # real key the second chat may still be rendering, so wait on the
+        # condition instead of on the clock.
+        page.wait_for_selector('[data-role="assistant"]', timeout=60000)
+        page.wait_for_function(
+            "() => document.body.innerText.includes('Explain gravity')", timeout=60000
+        )
         body_text = page.locator("main, body").inner_text()
         check("chat1 shows its own messages only", "Второй чат" not in body_text or "Second chat message" not in body_text,
               "cross-contamination check")
-        check("chat1 shows the gravity exchange", "Explain gravity" in body_text and "AI-функции" in body_text)
+        check("chat1 shows the gravity exchange",
+              "Explain gravity" in body_text
+              and page.locator('[data-role="assistant"]').count() > 0)
 
         # 4. Logout
         page.get_by_role("button", name=re.compile("Logout|Sign out", re.I)).click()

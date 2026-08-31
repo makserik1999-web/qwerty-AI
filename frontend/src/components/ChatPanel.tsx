@@ -64,6 +64,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           messages.map((message) => (
             <div
               key={message.id}
+              // Stable hook for the UI tests: styling classes are not a contract.
+              data-role={message.isError ? 'error' : message.role}
+              data-testid="chat-message"
               className={`animate-slide-up ${
                 message.role === 'user' ? 'flex justify-end' : 'flex justify-start'
               }`}

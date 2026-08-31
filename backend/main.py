@@ -476,11 +476,21 @@ async def get_chat_messages(chat_id: str) -> list:
 
 async def get_user_chats(user_id: str) -> list:
     """Get all chats for a user with message counts via aggregation (no N+1)."""
+    # messages.chat_id is stored as a STRING while chats._id is an ObjectId.
+    # Joining them directly compares two different BSON types, which never
+    # matches, so message_count came back 0 for every chat. Cast the id to a
+    # string first and join on that.
+    #
+    # This still pulls the matching message documents in order to size the
+    # array. That is fine at the current scale; when chats grow long the right
+    # fix is a counter denormalised onto the chat document, updated in
+    # save_message, rather than a smarter aggregation.
     pipeline = [
         {"$match": {"user_id": user_id}},
+        {"$addFields": {"_id_str": {"$toString": "$_id"}}},
         {"$lookup": {
             "from": "messages",
-            "localField": "_id",
+            "localField": "_id_str",
             "foreignField": "chat_id",
             "as": "msgs",
         }},

@@ -249,3 +249,39 @@ def test_a_user_cannot_read_another_users_chat(backend, client, new_user):
             foreign_chat_id = ws.receive_json()["data"]["id"]
 
     assert client.get(f"/api/chats/{foreign_chat_id}").status_code == 404
+
+
+# ============== 11. chat list metadata ==============
+def test_chat_list_reports_the_real_message_count(client, new_user, agent_secret):
+    """Regression: the $lookup used to join ObjectId against a string chat_id.
+
+    The types never matched, so `message_count` silently came back 0 for every
+    chat while the endpoint still returned 200.
+    """
+    new_user()
+    with client.websocket_connect("/ws/agent") as agent:
+        agent.send_json({"type": "auth", "token": agent_secret})
+        agent.receive_json()
+
+        with client.websocket_connect("/ws") as ws:
+            ws.send_json({"type": "create_chat", "data": {"title": "Counting"}})
+            chat_id = ws.receive_json()["data"]["id"]
+
+            ws.send_json({"type": "user_message", "data": {"chat_id": chat_id, "prompt": "hi"}})
+            ws.receive_json()  # message_received
+
+            request = agent.receive_json()
+            agent.send_json(
+                {
+                    "request_id": request["request_id"],
+                    "status": "complete",
+                    "text": "an answer",
+                    "video_path": "",
+                }
+            )
+            ws.receive_json()  # ai_response
+
+    chats = client.get("/api/chats").json()["items"]
+    chat = next(c for c in chats if c["id"] == chat_id)
+    # one question plus one answer
+    assert chat["message_count"] == 2, chats

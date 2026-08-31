@@ -14,7 +14,6 @@ pytestmark = [pytest.mark.e2e, pytest.mark.skipif(
 )]
 
 import json
-import sys
 import time
 import uuid
 
@@ -22,8 +21,10 @@ import httpx
 import websockets.sync.client
 
 BASE = "http://localhost:3000"
-username = sys.argv[1] if len(sys.argv) > 1 else f"e2e_{uuid.uuid4().hex[:10]}"
-print("username:", username)
+# A fresh account per run. This used to read sys.argv[1] when the file was a
+# standalone script; under pytest that argument is a test path, which is not a
+# valid username.
+username = f"e2e_{uuid.uuid4().hex[:10]}"
 
 
 def main():

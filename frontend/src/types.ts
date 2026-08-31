@@ -17,6 +17,11 @@ export interface ChatMessage {
   screenshots: Screenshot[];
   video_url?: string;
   timestamp: string;
+  /**
+   * Client-side failure notice, not something the assistant said. These are
+   * never persisted, so they disappear when the chat history is reloaded.
+   */
+  isError?: boolean;
 }
 
 export interface Chat {

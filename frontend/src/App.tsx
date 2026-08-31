@@ -104,6 +104,7 @@ function App() {
       id: uuidv4(),
       role: 'assistant',
       content: `⚠️ ${text}`,
+      isError: true,
       screenshots: [],
       timestamp: new Date().toISOString(),
     });
