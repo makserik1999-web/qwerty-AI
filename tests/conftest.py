@@ -12,6 +12,7 @@ import sys
 import tempfile
 import uuid
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -29,35 +30,50 @@ def agent_secret():
 
 @pytest.fixture(scope="session")
 def backend():
-    """The imported backend module, wired to an in-memory Mongo.
+    """The wired-up backend, on an in-memory Mongo.
 
-    Session-scoped: `backend/main.py` reads its configuration at import time,
-    so it is imported exactly once per test run.
+    Session-scoped: `app/config.py` reads the environment at import time, so
+    the package is imported exactly once per test run.
+
+    Returns a namespace rather than a module because the application is now a
+    package: the attributes below are what the tests actually reach for, and
+    keeping their names lets every test body stay as it was before the split.
     """
     os.environ["AGENT_SECRET"] = AGENT_SECRET
     os.environ["CORS_ORIGINS"] = "http://localhost:3000"
 
     sys.path.insert(0, str(REPO_ROOT / "backend"))
-    import main
+    from app import config
+    from app.db import db
+    from app.main import app as fastapi_app
+    from app.security.ratelimit import login_limiter
     from mongomock_motor import AsyncMongoMockClient
 
     client = AsyncMongoMockClient()
-    main.db.client = client
-    main.db.db = client["anyq_test"]
+    db.client = client
+    db.db = client["anyq_test"]
 
     # A media dir holding one fake video, for the /media auth checks.
+    # api/media.py reads config.MEDIA_DIR at call time, so pointing the config
+    # module at a temp dir is enough - no import-time path is frozen in.
     media = Path(tempfile.mkdtemp())
     (media / "rendered_1.mp4").write_bytes(b"fake-video-bytes")
-    main.MEDIA_DIR = media
+    config.MEDIA_DIR = media
 
     # No real Mongo on the host: the lifespan would try to build indexes.
     @contextlib.asynccontextmanager
     async def _noop_lifespan(app):
         yield
 
-    main.app.router.lifespan_context = _noop_lifespan
+    fastapi_app.router.lifespan_context = _noop_lifespan
 
-    return main
+    return SimpleNamespace(
+        app=fastapi_app,
+        db=db,
+        config=config,
+        MEDIA_DIR=media,
+        login_limiter=login_limiter,
+    )
 
 
 @pytest.fixture(autouse=True)

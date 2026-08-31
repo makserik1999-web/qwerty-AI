@@ -1,0 +1,45 @@
+"""Mongo client, index creation and the application lifespan."""
+
+import asyncio
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from motor.motor_asyncio import AsyncIOMotorClient
+
+from app.config import AGENT_SECRET, DATABASE_NAME, MONGO_URL
+from app.ws.manager import _sweep_pending_requests_loop
+
+
+class Database:
+    client: AsyncIOMotorClient = None
+    db = None
+
+
+db = Database()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    db.client = AsyncIOMotorClient(MONGO_URL, serverSelectionTimeoutMS=5000)
+    db.db = db.client[DATABASE_NAME]
+
+    await db.db.users.create_index("username", unique=True)
+    await db.db.users.create_index("email", unique=True, sparse=True)
+    # TTL index: expired sessions are removed automatically.
+    await db.db.sessions.create_index("expires_at", expireAfterSeconds=0)
+    await db.db.sessions.create_index("token_hash", unique=True)
+    await db.db.chats.create_index([("user_id", 1), ("updated_at", -1)])
+    await db.db.messages.create_index([("chat_id", 1), ("timestamp", 1)])
+
+    print(f"Connected to MongoDB at {MONGO_URL}")
+    if not AGENT_SECRET:
+        print("WARNING: AGENT_SECRET is not set - agent connections will be refused.")
+
+    sweep_task = asyncio.create_task(_sweep_pending_requests_loop())
+    try:
+        yield
+    finally:
+        sweep_task.cancel()
+        db.client.close()
+        print("Disconnected from MongoDB")

@@ -5,6 +5,27 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### Phase B1 - backend/main.py split into a package
+
+**Changed**
+
+- `backend/main.py` (1149 lines: config, database, auth, four routers, two
+  WebSocket endpoints and the connection managers in one file) is now the
+  `backend/app/` package. The largest module is 199 lines.
+- `backend/main.py` remains as a 13-line entry point, because the image runs
+  `uvicorn main:app`; the Dockerfile is unchanged.
+- Routes are registered through `APIRouter` instead of `@app.*` decorators.
+  The route table is identical - same paths, same methods, same handlers.
+- `api/media.py` reads `config.MEDIA_DIR` at call time rather than binding it
+  at import, so tests can point it at a temporary directory.
+
+Behaviour is unchanged by design (the standing refactoring rule): names,
+signatures and comments were moved verbatim. Verified by an AST diff showing
+all 59 functions/classes and all 31 module constants still present, an
+identical route table, and the full test suite passing with **unchanged test
+bodies** - only the conftest wiring moved.
+
+
 ### Phase D (partial) - the video player
 
 **Fixed**

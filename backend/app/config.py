@@ -1,0 +1,67 @@
+"""Every environment read and shared constant for the backend.
+
+Moved verbatim out of main.py. Other modules import these names instead of
+calling os.getenv themselves, mirroring how agent/anyq/config.py works.
+"""
+
+import os
+import re
+from datetime import timedelta
+from pathlib import Path
+
+MONGO_URL = os.getenv("MONGO_URL", "mongodb://mongo:27017")
+DATABASE_NAME = os.getenv("DATABASE_NAME", "anyq_db")
+
+# Agent channel secret: both backend and agent must share it. When it is empty
+# the backend refuses every agent connection (fail closed).
+AGENT_SECRET = os.getenv("AGENT_SECRET", "")
+
+# Cookie: HttpOnly + SameSite=Lax; Secure is enabled when the deployment sets
+# COOKIE_SECURE=1 (behind TLS). Compose sets it for you when HTTPS_TERMINATED=1.
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "0") == "1"
+SESSION_TTL_HOURS = int(os.getenv("SESSION_TTL_HOURS", "720"))
+SESSION_TTL = timedelta(hours=SESSION_TTL_HOURS)
+COOKIE_NAME = "anyq_session"
+
+# CORS allowlist (comma separated). Credentials are allowed, so origins must be
+# explicit - never "*".
+CORS_ORIGINS = [
+    o.strip()
+    for o in os.getenv(
+        "CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000"
+    ).split(",")
+    if o.strip()
+]
+
+# Media directory: the shared volume where the agent drops rendered videos.
+MEDIA_DIR = Path(os.getenv("MEDIA_DIR", "/app/media"))
+MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+
+# Payload limits
+MAX_PROMPT_LEN = int(os.getenv("MAX_PROMPT_LEN", "4000"))
+MAX_TITLE_LEN = int(os.getenv("MAX_TITLE_LEN", "100"))
+MAX_SCREENSHOTS = int(os.getenv("MAX_SCREENSHOTS", "3"))
+MAX_SCREENSHOT_BYTES = int(os.getenv("MAX_SCREENSHOT_BYTES", str(2 * 1024 * 1024)))
+MAX_SCREENSHOT_B64_LEN = MAX_SCREENSHOT_BYTES * 4 // 3 + 16
+
+# Login rate limiting (in-memory; single-process uvicorn)
+LOGIN_MAX_ATTEMPTS = int(os.getenv("LOGIN_MAX_ATTEMPTS", "5"))
+LOGIN_WINDOW_SEC = int(os.getenv("LOGIN_WINDOW_SEC", "900"))  # 15 min
+
+# Agent channel
+AGENT_HANDSHAKE_TIMEOUT_SEC = float(os.getenv("AGENT_HANDSHAKE_TIMEOUT_SEC", "10"))
+PENDING_REQUESTS_TTL_SEC = int(os.getenv("PENDING_REQUESTS_TTL_SEC", "1800"))
+PENDING_SWEEP_INTERVAL_SEC = int(os.getenv("PENDING_SWEEP_INTERVAL_SEC", "60"))
+
+_OBJECT_ID_RE = re.compile(r"^[0-9a-fA-F]{24}$")
+_SAFE_MEDIA_RE = re.compile(r"^[A-Za-z0-9_\-]+\.(mp4|webm|mov|m4v)$")
+_MEDIA_TYPES = {
+    ".mp4": "video/mp4",
+    ".webm": "video/webm",
+    ".mov": "video/quicktime",
+    ".m4v": "video/mp4",
+}
+
+# ============== Auth validation ==============
+_USERNAME_RE = re.compile(r"^[A-Za-z0-9_]{3,30}$")
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
