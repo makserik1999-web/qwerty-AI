@@ -158,6 +158,52 @@ def validate_manim_script(script: str) -> tuple:
     return True, ""
 
 
+FFMPEG_REMUX_TIMEOUT_SEC = int(os.getenv("FFMPEG_REMUX_TIMEOUT_SEC", "120"))
+
+
+def _remux_faststart(source: Path, destination: Path) -> bool:
+    """Rewrite the mp4 with its `moov` atom in front, and report success.
+
+    Manim leaves `moov` at the END of the file. A browser cannot build the seek
+    index until it has that atom, so without this pass the player has to
+    download the whole video before the scrub bar does anything - which is
+    exactly how it behaved.
+
+    `-c copy` only remuxes the container: no re-encode, no quality loss, and it
+    takes a fraction of a second. Returns False when ffmpeg is unavailable or
+    fails, so the caller can fall back to moving the original file: a video
+    that seeks badly still beats no video at all.
+    """
+    ffmpeg = os.getenv("FFMPEG_EXECUTABLE", "ffmpeg")
+    try:
+        proc = subprocess.run(
+            [
+                ffmpeg,
+                "-y",
+                "-loglevel", "error",
+                "-i", str(source),
+                "-c", "copy",
+                "-movflags", "+faststart",
+                str(destination),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=FFMPEG_REMUX_TIMEOUT_SEC,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        print(f"[faststart] skipped ({type(exc).__name__}); serving the original file")
+        return False
+
+    if proc.returncode != 0 or not destination.exists():
+        print(f"[faststart] ffmpeg failed: {(proc.stderr or '')[-300:]}")
+        # A half-written destination must not be mistaken for a good render.
+        destination.unlink(missing_ok=True)
+        return False
+
+    source.unlink(missing_ok=True)
+    return True
+
+
 def run_manim_script(code: str, quality: str = "l") -> dict:
     """
     Execute a Manim script and return the path to the rendered video.
@@ -280,7 +326,8 @@ def run_manim_script(code: str, quality: str = "l") -> dict:
             import shutil
 
             final_path = OUTPUT_DIR / f"{scene_name}_{script_id}.mp4"
-            shutil.move(str(expected_video), str(final_path))
+            if not _remux_faststart(expected_video, final_path):
+                shutil.move(str(expected_video), str(final_path))
 
             return {
                 "status": "ok",
