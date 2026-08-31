@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { LoginScreen } from './components/LoginScreen';
 import { ChatSidebar } from './components/ChatSidebar';
 import { ChatPanel } from './components/ChatPanel';
-import { VideoPanel } from './components/VideoPanel';
+import { VideoPlayer } from './features/player/VideoPlayer';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useApi, AuthResult } from './hooks/useApi';
 import { Chat, ChatMessage, PendingScreenshot, User } from './types';
@@ -419,7 +419,7 @@ function App() {
 
         {/* Video Panel */}
         <div className="flex-1 min-w-0">
-          <VideoPanel
+          <VideoPlayer
             videoUrl={currentVideoUrl}
             onScreenshotCapture={handleScreenshotCapture}
           />
