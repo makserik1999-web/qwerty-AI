@@ -28,6 +28,7 @@ from anyq.prompts import (
 from anyq.script_guard import (
     _contains_forbidden_manim,
     _contains_latex_objects,
+    _ensure_narration_base,
     _ensure_unicode_font,
     _latex_toolchain_healthy,
     _safe_json_loads,
@@ -72,11 +73,17 @@ class ScienceVideoState(TypedDict, total=False):
     # educator
     educator_text: str
 
+    # narration - carried from the request so one user's choice of voice, and
+    # of whether to have one at all, does not leak into another's video
+    narration: bool
+    narration_voice: str
+
     # manim
     manim_script: str
     video_path: str
     mcp_raw_result: str
     render_error: str
+    narrated: bool
 
     # output
     final_text: str
@@ -363,6 +370,12 @@ class Demo(Scene):
 
     # _pick_unicode_font can run manimpango.list_fonts() - blocking, off-thread.
     script = await asyncio.to_thread(_ensure_unicode_font, script)
+
+    # Supply the narrated base class the prompt asks for. Done here rather
+    # than left to the model because forgetting it fails at render time with
+    # an AttributeError on self.voiceover - a repair round trip to add a line
+    # we already know. The same script renders silently when narration is off.
+    script = _ensure_narration_base(script)
 
     # Final safety gate: a script that fails AST validation is NEVER rendered.
     ok, reason = validate_manim_script(script)

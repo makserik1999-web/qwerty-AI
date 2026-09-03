@@ -26,6 +26,10 @@ export interface ChatMessage {
   fromCache?: boolean;
   /** Which storage tier it came from; "curated" means a reviewed video. */
   cacheTier?: string;
+  /** "exact" or "semantic". A semantic hit answered a DIFFERENT wording. */
+  cacheMatch?: string;
+  /** The stored question a semantic hit was matched against. */
+  matchedQuestion?: string;
   /** The question that produced it, so it can be asked again from scratch. */
   sourcePrompt?: string;
 }

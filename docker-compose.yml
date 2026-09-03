@@ -43,6 +43,18 @@ services:
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
       # Media volume root as seen by the backend (the agent's outputs subdir).
       - MEDIA_DIR=/app/media/outputs
+      # Finished exports; written by the exporter, served from here.
+      - EXPORT_DIR=/app/media/exports
+      - EXPORT_MAX_PER_HOUR=${EXPORT_MAX_PER_HOUR:-5}
+      # Generation quotas: what makes "logged-in only" bound load rather
+      # than just keep anonymous users out. CONCURRENT is the one that
+      # matters - a render holds the single agent for about 90 seconds.
+      - GENERATION_MAX_CONCURRENT=${GENERATION_MAX_CONCURRENT:-1}
+      - GENERATION_MAX_PER_HOUR=${GENERATION_MAX_PER_HOUR:-15}
+      - GENERATION_MAX_PER_DAY=${GENERATION_MAX_PER_DAY:-50}
+      - GENERATION_QUEUE_MAX=${GENERATION_QUEUE_MAX:-20}
+      - SIGNUP_MAX_PER_HOUR=${SIGNUP_MAX_PER_HOUR:-100}
+      - EXPORT_TTL_HOURS=${EXPORT_TTL_HOURS:-24}
     depends_on:
       mongo:
         condition: service_healthy
@@ -83,6 +95,7 @@ services:
       - "${FRONTEND_PORT:-3000}:3000"
     environment:
       - BACKEND_URL=http://backend:8000
+      - DNS_RESOLVER=${DNS_RESOLVER:-127.0.0.11}
     depends_on:
       backend:
         condition: service_healthy
@@ -118,12 +131,25 @@ services:
       - AGENT_WS_URL=ws://backend:8000/ws/agent
       - AGENT_SECRET=${AGENT_SECRET:-}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - DEFAULT_LLM_PROVIDER=${DEFAULT_LLM_PROVIDER:-gemini}
-      - DEFAULT_MODEL=${DEFAULT_MODEL:-gemini-3-flash-preview}
+      - DEFAULT_LLM_PROVIDER=${DEFAULT_LLM_PROVIDER:-openrouter}
+      - DEFAULT_MODEL=${DEFAULT_MODEL:-google/gemini-3.7-flash}
       - GEMINI_MAX_TOKENS=${GEMINI_MAX_TOKENS:-20000}
       # spoon_ai reads the model from {PROVIDER}_MODEL (GEMINI_MODEL), not
       # DEFAULT_MODEL; keep both in sync.
-      - GEMINI_MODEL=${GEMINI_MODEL:-${DEFAULT_MODEL:-gemini-3-flash-preview}}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.7-flash}
+      # OpenRouter is the live chat path: one key reaches every model, so
+      # switching model is an env change rather than a code change. Vision
+      # still calls the Google API directly and needs GEMINI_API_KEY.
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-google/gemini-3.7-flash}
+      - OPENROUTER_MAX_TOKENS=${OPENROUTER_MAX_TOKENS:-20000}
+      - LLM_REASONING_EFFORT=${LLM_REASONING_EFFORT:-low}
+      # Narration. The key lives in the agent only; the render subprocess
+      # is handed finished audio, never a credential.
+      - AZURE_SPEECH_KEY=${AZURE_SPEECH_KEY:-}
+      - AZURE_SPEECH_REGION=${AZURE_SPEECH_REGION:-}
+      - NARRATION_ENABLED=${NARRATION_ENABLED:-1}
+      - NARRATION_VOICE=${NARRATION_VOICE:-aigul}
       # Test mode: render a stub Manim video without calling any LLM
       # (used for sandbox/render regression checks; a real LLM key is
       # otherwise required for AI features).
@@ -174,6 +200,57 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  # Export worker: GIF/mp4 clips, frames and teacher decks.
+  exporter:
+    build:
+      context: ./exporter
+      dockerfile: Dockerfile
+    container_name: anyq-exporter
+    restart: unless-stopped
+    environment:
+      - MONGO_URL=mongodb://mongo:27017
+      - DATABASE_NAME=${DATABASE_NAME:-anyq_db}
+      # Reads the rendered videos, writes results beside them. Same volume as
+      # the backend, which is what serves the finished file.
+      - MEDIA_DIR=/app/media/outputs
+      - EXPORT_DIR=/app/media/exports
+      - EXPORT_MAX_OUTPUT_BYTES=${EXPORT_MAX_OUTPUT_BYTES:-20971520}
+      - EXPORT_JOB_TIMEOUT_SEC=${EXPORT_JOB_TIMEOUT_SEC:-600}
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - anyq-network
+    volumes:
+      - media_data:/app/media
+    # ffmpeg is CPU-hungry by nature; cap it so an export cannot starve the
+    # renderer or the API on the same box.
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.5"
+          pids: 128
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # Healthy means the poll loop ran recently, not merely that the process is
+    # alive: a worker wedged on a dead connection would otherwise report fine
+    # while nothing gets encoded.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,time,sys;p='/tmp/exporter-heartbeat';sys.exit(0 if os.path.exists(p) and time.time()-os.path.getmtime(p)<60 else 1)"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 
 networks:
   anyq-network:

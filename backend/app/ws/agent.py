@@ -14,7 +14,7 @@ from app.config import (
     CACHE_ENABLED,
 )
 from app.repositories.messages import save_message
-from app.services import cache_service
+from app.services import cache_service, quota
 from app.ws.manager import _notify_pending_failures, agent_manager, ui_manager
 
 router = APIRouter()
@@ -36,8 +36,13 @@ async def websocket_agent_endpoint(websocket: WebSocket):
             and secrets.compare_digest(str(data.get("token") or ""), AGENT_SECRET)
         ):
             authed = True
+            features = data.get("features")
+            agent_manager.agent_features = (
+                {str(f) for f in features} if isinstance(features, list) else set()
+            )
             await websocket.send_json({"type": "auth_ok"})
-            print("AI Agent authenticated")
+            print(f"AI Agent authenticated (features: "
+                  f"{sorted(agent_manager.agent_features) or 'none'})")
         else:
             print("Agent handshake failed: wrong or missing AGENT_SECRET")
             await websocket.close(code=1008, reason="auth failed")
@@ -68,6 +73,20 @@ async def websocket_agent_endpoint(websocket: WebSocket):
                 continue
 
             request_id = data.get("request_id")
+
+            # Embedding replies are internal lookups, not answers to a user:
+            # they have no chat, no message and no quota behind them.
+            if data.get("type") == "embed_result":
+                agent_manager.resolve_embedding(
+                    request_id,
+                    None if data.get("error") else {
+                        "vector": data.get("vector") or [],
+                        "language": data.get("language") or "",
+                        "model": data.get("model") or "",
+                    },
+                )
+                continue
+
             response_text = data.get("text", "")
             status = data.get("status", "complete")
             video_path = data.get("video_path", "")
@@ -88,6 +107,12 @@ async def websocket_agent_endpoint(websocket: WebSocket):
             chat_id = request_info["chat_id"]
 
             if status == "error":
+                # Give the quota back: charging for a video the user never
+                # received is charging them for our failure.
+                try:
+                    await quota.refund(request_id)
+                except Exception as e:
+                    print(f"quota refund failed: {type(e).__name__}: {e}")
                 await ui_manager.send_to_user(user_id, {
                     "type": "error",
                     "data": {
@@ -133,6 +158,7 @@ async def websocket_agent_endpoint(websocket: WebSocket):
                             screenshots=request_info.get("screenshots", []),
                             text=response_text,
                             video_url=video_url,
+                            variant=request_info.get("variant", ""),
                         )
                     except Exception as e:
                         print(f"cache write failed: {type(e).__name__}: {e}")

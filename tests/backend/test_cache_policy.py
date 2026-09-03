@@ -184,8 +184,10 @@ async def test_bumping_the_pipeline_version_retires_old_answers(cache, backend, 
     assert await cache.lookup("Explain gravity", []) is not None
 
     # A prompt or model change means stored output no longer matches what the
-    # pipeline would produce now.
-    monkeypatch.setattr(cache, "PIPELINE_VERSION", "v2")
+    # pipeline would produce now. Derived rather than written out: this test
+    # once pinned "v2", which stopped being a bump the day the default became
+    # v2 and quietly turned the assertion into a tautology.
+    monkeypatch.setattr(cache, "PIPELINE_VERSION", cache.PIPELINE_VERSION + "-next")
     assert await cache.lookup("Explain gravity", []) is None
 
 

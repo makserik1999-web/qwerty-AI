@@ -1,0 +1,9 @@
+# English captions. The key set must match S[...] in scene.py exactly.
+title:   "What is gravity?"
+earth:   "Earth"
+force:   "Force of gravity"
+step1:   "Every object is pulled towards the Earth"
+step2:   "The pull is mutual: both bodies attract each other"
+formula: "F = G · m₁ · m₂ / r²"
+step3:   "The larger the masses and the smaller the distance, the stronger the pull"
+closing: "Gravity is the attraction between any two bodies"

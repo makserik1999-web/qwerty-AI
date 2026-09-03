@@ -87,3 +87,70 @@ def test_if_range_with_the_current_validator_still_slices(client, video):
 def test_range_still_requires_authentication(anon_client, video):
     response = anon_client.get(f"/media/{video['name']}", headers={"Range": "bytes=0-3"})
     assert response.status_code == 401
+
+
+class TestDownloadNaming:
+    """`?download=1` names the file after the question - whose question matters.
+
+    The answer cache serves one rendered file to everyone who asks the same
+    thing, so a lookup by video_url alone finds whichever user got there first.
+    Naming a download after a stranger's wording is a small leak with a large
+    surface: it lands in a folder, in a screenshot, in a shared drive.
+    """
+
+    async def _chat_with_video(self, backend, user_id, question, video="rendered_1.mp4"):
+        from datetime import datetime, timedelta, timezone
+
+        now = datetime.now(timezone.utc)
+        chat = await backend.db.db.chats.insert_one(
+            {"user_id": user_id, "title": "t", "updated_at": now}
+        )
+        await backend.db.db.messages.insert_one(
+            {"chat_id": str(chat.inserted_id), "role": "user", "content": question,
+             "timestamp": now - timedelta(seconds=1)}
+        )
+        await backend.db.db.messages.insert_one(
+            {"chat_id": str(chat.inserted_id), "role": "assistant", "content": "answer",
+             "video_url": f"/media/{video}", "timestamp": now}
+        )
+
+    async def test_the_download_is_named_after_your_own_question(
+        self, backend, client, new_user
+    ):
+        user = new_user()
+        client.post("/api/auth/login",
+                    json={"username": user["username"], "password": user["password"]})
+        await self._chat_with_video(backend, user["id"], "Что такое гравитация")
+
+        response = client.get("/media/rendered_1.mp4?download=1")
+
+        assert response.status_code == 200
+        assert "Chto-takoe-gravitatsiya" in response.headers["content-disposition"]
+
+    async def test_another_users_question_never_becomes_your_filename(
+        self, backend, client, new_user
+    ):
+        stranger = new_user()
+        await self._chat_with_video(backend, stranger["id"], "Мой личный вопрос")
+
+        mine = new_user()
+        client.post("/api/auth/login",
+                    json={"username": mine["username"], "password": mine["password"]})
+        # Same video file, reached through the cache - no message of my own.
+        response = client.get("/media/rendered_1.mp4?download=1")
+
+        assert response.status_code == 200
+        disposition = response.headers["content-disposition"]
+        assert "lichnyy" not in disposition.lower()
+        assert "anyq-export" in disposition, "should fall back to the neutral name"
+
+    async def test_a_plain_request_is_not_an_attachment(self, client, new_user):
+        """Playback must not download: the header would break the player."""
+        user = new_user()
+        client.post("/api/auth/login",
+                    json={"username": user["username"], "password": user["password"]})
+
+        response = client.get("/media/rendered_1.mp4")
+
+        assert response.status_code == 200
+        assert "content-disposition" not in response.headers

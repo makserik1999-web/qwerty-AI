@@ -18,6 +18,23 @@ server {
 
     client_max_body_size 4m;
 
+    # Re-resolve the backend's name instead of trusting the address it had at
+    # startup. nginx normally looks an upstream host up once, when the config
+    # is loaded, and keeps that address forever - so recreating the backend
+    # container gives it a new IP and every request here 502s until nginx is
+    # restarted too. That turns an ordinary backend deploy into a site outage,
+    # and the site looks broken rather than briefly unavailable.
+    #
+    # 127.0.0.11 is Docker's embedded DNS, present on user-defined networks.
+    # Overridable because it is a Docker detail, not a fact about nginx.
+    resolver ${DNS_RESOLVER} valid=10s ipv6=off;
+    resolver_timeout 5s;
+
+    # The name only gets re-resolved when proxy_pass contains a variable, which
+    # is why every proxy_pass below goes through $backend rather than naming
+    # the host directly.
+    set $backend ${BACKEND_URL};
+
     # Handle SPA routing
     location / {
         try_files $uri $uri/ /index.html;
@@ -34,7 +51,7 @@ server {
 
     # Proxy API requests to backend
     location /api {
-        proxy_pass ${BACKEND_URL};
+        proxy_pass $backend$request_uri;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -44,7 +61,7 @@ server {
 
     # Proxy UI WebSocket requests (exact /ws path only; /ws/agent is blocked above)
     location = /ws {
-        proxy_pass ${BACKEND_URL};
+        proxy_pass $backend$request_uri;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -60,7 +77,7 @@ server {
 
     # Proxy media requests to backend (for video files)
     location /media {
-        proxy_pass ${BACKEND_URL};
+        proxy_pass $backend$request_uri;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;

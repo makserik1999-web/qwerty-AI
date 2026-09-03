@@ -5,3 +5,6 @@ mongomock-motor==0.0.36
 httpx==0.28.1
 playwright==1.56.0
 ruff==0.15.1
+# Reads the curated content tree (scripts/seed_library.py). Host only:
+# no production image parses YAML.
+PyYAML==6.0.3

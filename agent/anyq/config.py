@@ -70,10 +70,65 @@ def _get_float(name: str, default: float, minimum: float = 0.0) -> float:
 _LLM_RETRIES = _get_int("GEMINI_RETRY_ATTEMPTS", 3)
 _LLM_RETRY_BASE_DELAY = _get_float("GEMINI_RETRY_BASE_DELAY", 2.0)
 
+# ============== Reasoning effort ==============
+# gemini-3.7-flash reasons before it writes, and on this workload the default
+# effort is a bad trade. Measured on the Manim script node: default took 24.4s
+# and the result rendered 2 times out of 4, "low" took 16.5s and rendered 4 out
+# of 4 - with MORE animated steps, not fewer, and a longer video.
+#
+# The reason is specific to this prompt rather than a general claim about the
+# model: build_manim_system_prompt already carries a Manim API reference, so
+# extra deliberation mostly invents API that is not in it (the two failures
+# were `ease_out_quad` and `AQUA`, neither of which exists).
+#
+# Empty disables the field. That is also what any provider other than
+# OpenRouter needs: extra_body is an OpenAI-wire concept, and the native
+# Gemini provider would reject it - so the gate below keeps
+# DEFAULT_LLM_PROVIDER=gemini working unchanged.
+_ALLOWED_REASONING_EFFORTS = {"minimal", "low", "medium", "high"}
+
+DEFAULT_LLM_PROVIDER = (os.getenv("DEFAULT_LLM_PROVIDER", "") or "").strip().lower()
+LLM_REASONING_EFFORT = (os.getenv("LLM_REASONING_EFFORT", "low") or "").strip().lower()
+
+if LLM_REASONING_EFFORT and LLM_REASONING_EFFORT not in _ALLOWED_REASONING_EFFORTS:
+    # Fail at startup rather than on every request: a typo here would 400 the
+    # upstream call for every question, and the graph would report it as an
+    # LLM outage.
+    print(
+        f"FATAL: LLM_REASONING_EFFORT must be one of "
+        f"{sorted(_ALLOWED_REASONING_EFFORTS)} or empty, got {LLM_REASONING_EFFORT!r}. "
+        "Fix .env and restart the agent.",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+
 # ============== Output language ==============
 # Explanations and all on-screen wording follow the user's language;
 # Kazakh is the product default.
 DEFAULT_OUTPUT_LANGUAGE = (os.getenv("DEFAULT_OUTPUT_LANGUAGE", "kk") or "kk").strip().lower()
+
+# ============== Narration ==============
+# Speech is synthesised here, in the agent, and never in the render
+# subprocess: that process executes model-written code and is given no
+# credentials on purpose (see safe_env in manim_server.run_manim_script).
+#
+# Azure rather than Google because Kazakh decides it. Gemini TTS covers 99
+# languages and Kazakh is not one of them, so the GEMINI_API_KEY above cannot
+# narrate the product's primary language.
+AZURE_SPEECH_KEY = os.getenv("AZURE_SPEECH_KEY", "").strip()
+AZURE_SPEECH_REGION = os.getenv("AZURE_SPEECH_REGION", "").strip()
+
+# On by default. Off renders the same script silently - the animation is
+# generated once either way, so this costs nothing at generation time.
+NARRATION_ENABLED = (os.getenv("NARRATION_ENABLED", "1") or "1").strip() != "0"
+
+# Which of the two Kazakh voices speaks: aigul (female) or daulet (male).
+# Russian and English follow with a voice of the same gender.
+NARRATION_VOICE = (os.getenv("NARRATION_VOICE", "aigul") or "aigul").strip().lower()
+
+# A school explanation, not a news read. Azure's SSML rate, relative.
+NARRATION_RATE = (os.getenv("NARRATION_RATE", "-8%") or "-8%").strip()
 
 # ============== Fonts ==============
 MANIM_TEXT_FONT = os.getenv("MANIM_TEXT_FONT", "").strip()

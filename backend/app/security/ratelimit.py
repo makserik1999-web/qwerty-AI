@@ -1,11 +1,11 @@
-"""In-memory login rate limiting."""
+"""In-memory rate limiting for the auth endpoints."""
 
 import time
 from typing import Dict, List
 
 from fastapi import Request
 
-from app.config import LOGIN_MAX_ATTEMPTS, LOGIN_WINDOW_SEC
+from app.config import LOGIN_MAX_ATTEMPTS, LOGIN_WINDOW_SEC, SIGNUP_MAX_PER_HOUR
 
 
 class LoginLimiter:
@@ -36,6 +36,12 @@ class LoginLimiter:
 
 
 login_limiter = LoginLimiter(LOGIN_MAX_ATTEMPTS, LOGIN_WINDOW_SEC)
+
+# Account creation, per IP per hour. Generous on purpose: a school computer
+# room shares one address, so a tight limit would lock out a whole class
+# signing up together while barely slowing a script down. The limit that
+# actually bounds cost is the per-user generation quota, not this one.
+signup_limiter = LoginLimiter(SIGNUP_MAX_PER_HOUR, 3600)
 
 
 def _client_ip(request: Request) -> str:

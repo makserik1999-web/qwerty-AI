@@ -7,13 +7,19 @@ import uuid
 from bson import ObjectId
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from app.config import CACHE_ENABLED, COOKIE_NAME
+from app.config import (
+    CACHE_ENABLED,
+    COOKIE_NAME,
+    NARRATION_DEFAULT,
+    NARRATION_VOICE_DEFAULT,
+    NARRATION_VOICES,
+)
 from app.db import db
 from app.repositories.chats import create_chat, delete_chat_by_id
 from app.repositories.messages import save_message
 from app.security.origins import _is_allowed_origin
 from app.security.sessions import _user_from_token
-from app.services import cache_service
+from app.services import cache_service, quota
 from app.validators import (
     _validate_chat_id,
     _validate_prompt,
@@ -103,10 +109,20 @@ async def _handle_ui_frame(websocket: WebSocket, user_id: str, data: dict) -> No
         # BEFORE the agent-availability check on purpose - a question we have
         # already answered can be served even while the agent is down.
         # `force_regenerate` lets the user insist on a fresh answer.
+        # What the asker wants made, not just asked. Validated against a
+        # closed set before it goes anywhere near a cache key: a voice taken
+        # straight from the client would let anyone mint unlimited entries for
+        # one question.
+        narration = bool(payload.get("narration", NARRATION_DEFAULT))
+        voice = str(payload.get("narration_voice") or NARRATION_VOICE_DEFAULT)
+        if voice not in NARRATION_VOICES:
+            voice = NARRATION_VOICE_DEFAULT
+        variant = cache_service.render_variant(narration, voice)
+
         cached = None
         if CACHE_ENABLED and not payload.get("force_regenerate"):
             try:
-                cached = await cache_service.lookup(prompt, screenshots)
+                cached = await cache_service.lookup(prompt, screenshots, variant)
             except Exception as e:
                 # The cache must never be the reason a question goes unanswered.
                 print(f"cache lookup failed, falling through to the agent: {type(e).__name__}: {e}")
@@ -130,6 +146,34 @@ async def _handle_ui_frame(websocket: WebSocket, user_id: str, data: dict) -> No
                     # answer that normally takes minutes arrived instantly.
                     "from_cache": True,
                     "cache_tier": cached.get("tier", ""),
+                    # "exact" or "semantic". A semantic hit answered a
+                    # DIFFERENT wording, so the reader is shown which question
+                    # was matched - they can see it is not what they meant.
+                    "cache_match": cached.get("match", "exact"),
+                    "matched_question": cached.get("matched_question", ""),
+                },
+            })
+            return
+
+        # Only a real generation is charged for, and only once the cache has
+        # had its chance: an answer from the library costs a couple of reads,
+        # so billing it would penalise exactly what protects the system.
+        verdict = await quota.check(
+            user_id,
+            in_flight=agent_manager.in_flight_for(user_id),
+            queue_depth=agent_manager.queue_depth(),
+        )
+        if not verdict.allowed:
+            await websocket.send_json({
+                "type": "error",
+                "data": {
+                    "message": verdict.reason,
+                    "chat_id": chat_id,
+                    "quota": {
+                        "remaining_hour": verdict.remaining_hour,
+                        "remaining_day": verdict.remaining_day,
+                        "retry_after_sec": verdict.retry_after_sec,
+                    },
                 },
             })
             return
@@ -157,7 +201,11 @@ async def _handle_ui_frame(websocket: WebSocket, user_id: str, data: dict) -> No
             # produced it once the agent replies.
             "prompt": prompt,
             "screenshots": screenshots,
+            # The answer must be filed under the same variant it was asked
+            # for, or the next asker gets the wrong kind of video.
+            "variant": variant,
         }
+        await quota.record(user_id, request_id)
         try:
             await agent_manager.send_to_agent(
                 request_id=request_id,
@@ -165,9 +213,13 @@ async def _handle_ui_frame(websocket: WebSocket, user_id: str, data: dict) -> No
                 chat_id=chat_id,
                 text=prompt,
                 screenshots=screenshots,
+                narration=narration,
+                narration_voice=voice,
             )
         except Exception as e:
             agent_manager.pending_requests.pop(request_id, None)
+            # Nothing was rendered, so nothing is owed.
+            await quota.refund(request_id)
             await websocket.send_json({
                 "type": "error",
                 "data": {

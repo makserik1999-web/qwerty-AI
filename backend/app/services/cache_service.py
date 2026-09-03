@@ -6,12 +6,19 @@ none saves nothing. So: count every question, keep only answers that are
 expensive to produce and safe to repeat.
 """
 
+import asyncio
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from app import config
+from app.cache import semantic
 from app.cache.normalize import cache_key, normalize_question
-from app.config import CACHE_MAX_QUESTION_LEN, PIPELINE_VERSION
+from app.config import (
+    CACHE_EMBED_TIMEOUT_SEC,
+    CACHE_MAX_QUESTION_LEN,
+    CACHE_SEMANTIC_ENABLED,
+    PIPELINE_VERSION,
+)
 from app.repositories import library
 
 # Signals that a question is personal rather than a general topic. A cached
@@ -61,13 +68,28 @@ def cacheable_request(prompt: str, screenshots: List[Any]) -> Tuple[bool, str]:
     return True, "ok"
 
 
-def key_for(prompt: str) -> Tuple[str, str]:
+def render_variant(narration: bool, voice: str) -> str:
+    """What the request chose about the video, as a cache-key fragment.
+
+    Two people asking the same question get the same answer only if they asked
+    for the same thing to be made. Narration is the first setting where that
+    stops being automatic: the words are identical, the video is not.
+
+    The voice is not interpolated blindly - callers pass a value already
+    checked against NARRATION_VOICES, because this string ends up in a hash
+    and free text there means unlimited keys for one question.
+    """
+    return f"voice={voice}" if narration else "silent"
+
+
+def key_for(prompt: str, variant: str = "") -> Tuple[str, str]:
     """The (normalised question, cache key) pair for a prompt."""
     normalized = normalize_question(prompt)
-    return normalized, cache_key(normalized, PIPELINE_VERSION)
+    return normalized, cache_key(normalized, PIPELINE_VERSION, variant)
 
 
-async def lookup(prompt: str, screenshots: List[Any]) -> Optional[Dict[str, Any]]:
+async def lookup(prompt: str, screenshots: List[Any],
+                 variant: str = "") -> Optional[Dict[str, Any]]:
     """Return a stored answer for this question, or None.
 
     Also records the question in the counters, because a miss is exactly the
@@ -78,21 +100,53 @@ async def lookup(prompt: str, screenshots: List[Any]) -> Optional[Dict[str, Any]
     if not allowed:
         return None
 
-    normalized, key = key_for(prompt)
+    normalized, key = key_for(prompt, variant)
     hits = await library.record_question(key, normalized)
 
     entry = await library.get_entry(key)
-    if not entry:
-        return None
+    if entry and _usable(entry):
+        await library.touch_entry(key, hits)
+        entry["match"] = "exact"
+        return entry
 
-    # The answer may reference a video that retention has since removed.
-    # Serving a dead link is worse than regenerating.
+    # Nothing with this exact wording. Ask whether the same question is
+    # already answered under different words - which costs a round trip to
+    # the agent, so it runs only after the free lookup has failed.
+    return await _semantic_lookup(prompt, normalized)
+
+
+def _usable(entry: Dict[str, Any]) -> bool:
+    """An entry is only servable while the video it points at still exists.
+
+    Retention may have collected it since; a dead player is worse than the
+    wait for a fresh render.
+    """
     video_url = entry.get("video_url")
-    if video_url and not _media_present(video_url):
+    return not video_url or _media_present(video_url)
+
+
+async def _semantic_lookup(prompt: str, normalized: str) -> Optional[Dict[str, Any]]:
+    if not CACHE_SEMANTIC_ENABLED:
         return None
 
-    await library.touch_entry(key, hits)
-    return entry
+    # Imported here rather than at module scope: the manager is part of the
+    # WebSocket layer, and the cache is used from it.
+    from app.ws.manager import agent_manager
+
+    embedding = await agent_manager.request_embedding(prompt, CACHE_EMBED_TIMEOUT_SEC)
+    if not embedding or not embedding.get("vector") or not embedding.get("language"):
+        return None
+
+    match = await semantic.find_similar(embedding["vector"], embedding["language"])
+    if not match or not _usable(match):
+        return None
+
+    await library.touch_entry(match["cache_key"], question_hits=1)
+    match["match"] = "semantic"
+    # The stored question was worded differently, so the reader is told which
+    # one was answered - they can see it is not what they meant and ask again.
+    match["matched_question"] = match.get("normalized_question", "")
+    return match
 
 
 def _media_present(video_url: str) -> bool:
@@ -107,6 +161,7 @@ async def remember(
     screenshots: List[Any],
     text: str,
     video_url: Optional[str],
+    variant: str = "",
 ) -> bool:
     """Store a freshly generated answer, if it qualifies. Returns whether it did.
 
@@ -121,7 +176,7 @@ async def remember(
     if not video_url or not text.strip():
         return False
 
-    normalized, key = key_for(prompt)
+    normalized, key = key_for(prompt, variant)
     await library.store_entry(
         cache_key=key,
         normalized=normalized,
@@ -129,4 +184,48 @@ async def remember(
         video_url=video_url,
         pipeline_version=PIPELINE_VERSION,
     )
+    _schedule_embedding(key, prompt)
     return True
+
+
+# Fire-and-forget tasks, held so the garbage collector cannot cancel them
+# mid-flight - asyncio keeps only a weak reference to a running task.
+_embedding_tasks: set = set()
+
+
+def _schedule_embedding(key: str, prompt: str) -> None:
+    """Attach a vector to the stored answer, in the background.
+
+    Background, not awaited, and that is not an optimisation - it is required.
+    This runs from the agent's receive loop, and asking the agent for an
+    embedding means waiting for a frame that only that same loop can read.
+    Awaiting here deadlocks until the request times out, silently, and no
+    answer ever gets a vector.
+    """
+    if not CACHE_SEMANTIC_ENABLED:
+        return
+    task = asyncio.create_task(_attach_embedding(key, prompt))
+    _embedding_tasks.add(task)
+    task.add_done_callback(_embedding_tasks.discard)
+
+
+async def _attach_embedding(key: str, prompt: str) -> None:
+    """Give the stored answer a vector, so later phrasings can find it.
+
+    Failures are swallowed: the entry is already saved and servable by exact
+    match, and an answer without a vector is simply invisible to the semantic
+    layer rather than broken.
+    """
+    from app.ws.manager import agent_manager
+
+    try:
+        embedding = await agent_manager.request_embedding(prompt, CACHE_EMBED_TIMEOUT_SEC)
+        if not embedding or not embedding.get("vector"):
+            print(f"[cache] no embedding for {key[:12]} - stays exact-match only")
+            return
+        await semantic.attach_embedding(
+            key, embedding["vector"], embedding.get("language", ""),
+            embedding.get("model", ""),
+        )
+    except Exception as e:  # noqa: BLE001
+        print(f"embedding write failed: {type(e).__name__}: {e}")

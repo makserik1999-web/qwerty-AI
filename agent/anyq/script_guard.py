@@ -31,12 +31,41 @@ def _strip_code_fences(text: str) -> str:
     return "\n".join(lines).strip()
 
 
+# The first {...} block in a reply, for models that introduce their JSON with
+# a sentence. Non-greedy from the first brace to the last is wrong for nested
+# objects, so this matches balanced-enough text and json.loads does the rest.
+_JSON_OBJECT_RE = re.compile(r"\{.*\}", re.DOTALL)
+
+
 def _safe_json_loads(text: str) -> Dict[str, Any]:
-    try:
-        data = json.loads(text)
-        return data if isinstance(data, dict) else {}
-    except Exception:
-        return {}
+    """Parse a JSON object out of a model reply.
+
+    Asking for "ONLY valid JSON" is not enough: gemini-3.7-flash returns the
+    correct object wrapped in a ```json fence, and other models introduce it
+    with a sentence. Both used to parse as nothing, and because every caller
+    reads the result with .get(), the failure was silent - classify_intent
+    saw no "is_science" key and rejected every question as non-scientific.
+    So: try the text as given, then without fences, then the first object in
+    it.
+    """
+    raw = text or ""
+    for candidate in (raw, _strip_code_fences(raw)):
+        try:
+            data = json.loads(candidate)
+        except Exception:
+            continue
+        if isinstance(data, dict):
+            return data
+
+    match = _JSON_OBJECT_RE.search(_strip_code_fences(raw))
+    if match:
+        try:
+            data = json.loads(match.group(0))
+            if isinstance(data, dict):
+                return data
+        except Exception:
+            pass
+    return {}
 
 
 _TEX_CALL_RE = re.compile(r"\b(?:MathTex|Tex)\s*\(((?:[^()]|\([^()]*\))*)\)", re.DOTALL)
@@ -70,6 +99,38 @@ def _ensure_unicode_font(script: str) -> str:
             return "\n".join(lines)
 
     return f'from manim import *\n\n{directive}\n\n{script}'
+
+
+_SCENE_BASE_RE = re.compile(
+    r"^(class\s+\w+\s*\(\s*)Scene(\s*\)\s*:)", re.MULTILINE
+)
+
+
+def _ensure_narration_base(script: str) -> str:
+    """Make the script inherit VoiceoverScene whether or not the model did.
+
+    The same shape renders with or without sound - anyq_narration decides
+    which - so this is safe to apply unconditionally, and applying it
+    unconditionally is the point: when the model forgets the base class its
+    voiceover blocks raise AttributeError at render time, which costs a repair
+    round trip to fix something we can simply supply.
+    """
+    if not script.strip():
+        return script
+
+    script = _SCENE_BASE_RE.sub(r"\1VoiceoverScene\2", script)
+
+    if "from anyq_narration import" in script:
+        return script
+
+    lines = script.splitlines()
+    for idx, line in enumerate(lines):
+        if line.strip().startswith("from manim import"):
+            lines.insert(idx + 1, "from anyq_narration import VoiceoverScene")
+            return "\n".join(lines)
+
+    return ("from manim import *\n"
+            "from anyq_narration import VoiceoverScene\n\n" + script)
 
 
 def _contains_latex_objects(script: str) -> bool:
@@ -145,13 +206,24 @@ Test $x^2$
 # anything that is not a plain Manim scene: whitelisted imports only, no
 # module-level code beyond imports/classes/simple assignments, and no
 # dangerous builtins anywhere.
-_ALLOWED_IMPORT_MODULES = {"manim", "numpy", "math", "random", "typing"}
+# anyq_narration is ours, not the model's: it supplies the VoiceoverScene
+# base class and is injected the same way the font directive is. It has no
+# network code and reads only audio the agent already synthesised, so
+# allowing the import does not widen what a generated script can reach.
+_ALLOWED_IMPORT_MODULES = {"manim", "numpy", "math", "random", "typing",
+                          "anyq_narration"}
 _ALLOWED_DUNDER_ATTRS = {"__init__", "__name__"}
 _FORBIDDEN_NAMES = {
     "eval", "exec", "open", "input", "breakpoint", "compile", "__import__",
     "globals", "locals", "vars", "memoryview", "exit", "quit", "help",
     "getattr", "setattr", "delattr", "socket", "requests", "os", "sys",
     "subprocess", "importlib", "ctypes",
+    # Narration: the service decides which voice speaks and where the
+    # audio comes from. A model-chosen voice would silently disagree with
+    # the voice the cache key was computed from, and a model-chosen
+    # service is model-written configuration of an outside call. Both are
+    # set by anyq_narration instead.
+    "set_speech_service",
 }
 
 

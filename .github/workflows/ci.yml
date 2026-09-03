@@ -23,10 +23,10 @@ jobs:
           pip install -r backend/requirements.txt -r requirements-dev.txt
 
       - name: Lint
-        run: ruff check backend agent tests
+        run: ruff check backend agent exporter scripts tests
 
       - name: Test (no docker needed)
-        run: pytest tests/backend tests/agent
+        run: pytest tests/backend tests/agent tests/curated
 
   frontend:
     name: Lint and build (frontend)

@@ -9,9 +9,11 @@ from fastapi.responses import FileResponse, Response, StreamingResponse
 
 from app import config
 from app.config import _MEDIA_TYPES, _SAFE_MEDIA_RE
+from app.db import db
 from app.errors import HTTPExceptionJson
 from app.security.cookies import _cookie_token
 from app.security.sessions import _user_from_token
+from app.services.export_naming import content_disposition, download_filename
 
 router = APIRouter()
 
@@ -85,9 +87,49 @@ def _iter_file_range(path: Path, start: int, end: int):
             yield chunk
 
 
+async def _video_download_name(filename: str, user_id: str) -> str:
+    """Name the download after the question THIS user asked to get it.
+
+    Scoped to the caller's own chats, and that is not a detail: the answer
+    cache deliberately serves one rendered file to everybody who asks the same
+    thing, so "the message with this video_url" is very often somebody else's
+    message - and their wording would end up in this user's downloads folder.
+
+    A user with no message for the file (a curated video, a cleared chat) gets
+    the neutral fallback rather than a name belonging to a stranger.
+    """
+    chat_ids = [
+        str(chat["_id"])
+        async for chat in db.db.chats.find({"user_id": user_id}, {"_id": 1})
+    ]
+    title = ""
+    if chat_ids:
+        message = await db.db.messages.find_one(
+            {"video_url": f"/media/{filename}", "role": "assistant",
+             "chat_id": {"$in": chat_ids}},
+            sort=[("timestamp", -1)],
+        )
+        if message:
+            # The assistant's reply is the explanation; the question just
+            # before it in the same chat is the better name.
+            question = await db.db.messages.find_one(
+                {"chat_id": message["chat_id"], "role": "user",
+                 "timestamp": {"$lte": message.get("timestamp")}},
+                sort=[("timestamp", -1)],
+            )
+            title = (question or {}).get("content", "") or message.get("content", "")
+    return download_filename(str(title)[:120], Path(filename).suffix or ".mp4")
+
+
 @router.get("/media/{filename}")
-async def get_media(filename: str, request: Request):
-    """Served only to authenticated users, only known video types, no traversal."""
+async def get_media(filename: str, request: Request, download: int = 0):
+    """Served only to authenticated users, only known video types, no traversal.
+
+    `?download=1` adds a Content-Disposition naming the file after the question
+    it answers, so a downloaded video is findable later. Range handling is
+    skipped for it: a download wants the whole file, and a partial response
+    with an attachment header is how browsers save truncated files.
+    """
     user = await _user_from_token(_cookie_token(request))
     if not user:
         raise HTTPExceptionJson(401, "Not authenticated")
@@ -110,6 +152,15 @@ async def get_media(filename: str, request: Request):
         "ETag": etag,
         "Cache-Control": "private, max-age=604800, immutable",
     }
+
+    if download:
+        return FileResponse(
+            path,
+            media_type=media_type,
+            headers={**headers, "Content-Disposition": content_disposition(
+                await _video_download_name(filename, str(user["_id"]))
+            )},
+        )
 
     range_header = request.headers.get("range")
     # If-Range: when the validator no longer matches, the client's partial copy

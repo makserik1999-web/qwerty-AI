@@ -163,3 +163,95 @@ async def cache_stats() -> Dict[str, Any]:
         "questions_repeated": repeated,
         "top_questions": top,
     }
+
+
+# --------------------------------------------------------------------------
+# Curated entries
+#
+# A curated entry is not a cached answer that happened to survive - it is a
+# video a person watched and approved, so it is written by the seeding tool
+# rather than earned by repetition. Two things follow: it never expires, and
+# it is addressed by (topic_id, language) so re-seeding can replace exactly
+# the keys a topic used to own.
+# --------------------------------------------------------------------------
+
+
+async def replace_curated_topic(
+    topic_id: str,
+    language: str,
+    keys: Dict[str, str],
+    educator_text: str,
+    video_url: str,
+    pipeline_version: str = "",
+) -> Dict[str, int]:
+    """Publish one language of one topic, and retire the keys it dropped.
+
+    `keys` maps cache_key -> normalised question, one per alias. Aliases the
+    topic no longer lists are deleted, otherwise an alias removed from
+    topic.yaml would keep resolving to the video forever.
+    """
+    now = datetime.now(timezone.utc)
+    written = 0
+    for cache_key, normalized in keys.items():
+        await db.db.library_entries.update_one(
+            {"cache_key": cache_key},
+            {
+                "$set": {
+                    "normalized_question": normalized,
+                    "educator_text": educator_text,
+                    "video_url": video_url,
+                    "language": language,
+                    "pipeline_version": pipeline_version,
+                    "tier": TIER_CURATED,
+                    "topic_id": topic_id,
+                    "last_hit_at": now,
+                },
+                # A curated entry has no expiry at all: the TTL index skips
+                # documents without the field, so it is never swept.
+                "$unset": {"expires_at": ""},
+                "$setOnInsert": {"created_at": now, "hits": 0},
+            },
+            upsert=True,
+        )
+        written += 1
+
+    stale = await db.db.library_entries.delete_many(
+        {
+            "topic_id": topic_id,
+            "language": language,
+            "tier": TIER_CURATED,
+            "cache_key": {"$nin": list(keys)},
+        }
+    )
+    return {"written": written, "retired": stale.deleted_count}
+
+
+async def curated_entry_for(topic_id: str, language: str) -> Optional[Dict[str, Any]]:
+    """Any published entry for this topic and language, to reuse its video."""
+    return await db.db.library_entries.find_one(
+        {"topic_id": topic_id, "language": language, "tier": TIER_CURATED}
+    )
+
+
+async def curated_topics() -> Dict[str, Dict[str, Any]]:
+    """What is published right now, keyed by "<topic_id>/<language>"."""
+    published: Dict[str, Dict[str, Any]] = {}
+    async for entry in db.db.library_entries.find({"tier": TIER_CURATED}):
+        topic_id = entry.get("topic_id")
+        if not topic_id:
+            continue
+        slot = f"{topic_id}/{entry.get('language', '')}"
+        row = published.setdefault(
+            slot,
+            {
+                "topic_id": topic_id,
+                "language": entry.get("language", ""),
+                "video_url": entry.get("video_url"),
+                "pipeline_version": entry.get("pipeline_version", ""),
+                "aliases": 0,
+                "hits": 0,
+            },
+        )
+        row["aliases"] += 1
+        row["hits"] += int(entry.get("hits", 0))
+    return published

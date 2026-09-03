@@ -3,7 +3,9 @@ import { v4 as uuidv4 } from 'uuid';
 import { LoginScreen } from './components/LoginScreen';
 import { ChatSidebar } from './components/ChatSidebar';
 import { ChatPanel } from './components/ChatPanel';
+import type { NarrationVoice } from './components/NarrationToggle';
 import { VideoPlayer } from './features/player/VideoPlayer';
+import { useQuota } from './useQuota';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useApi, AuthResult } from './hooks/useApi';
 import { Chat, ChatMessage, PendingScreenshot, User } from './types';
@@ -19,6 +21,9 @@ interface PendingMessage {
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
+  // Gated on the session: fetching before login returns 401, and the hook
+  // would then hold null forever because nothing re-triggers it afterwards.
+  const { quota, refreshQuota } = useQuota(!!user);
   const [authChecking, setAuthChecking] = useState(true);
   const [chats, setChats] = useState<Chat[]>([]);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
@@ -26,6 +31,43 @@ function App() {
   const [messagesByChat, setMessagesByChat] = useState<Record<string, ChatMessage[]>>({});
   const [videoByChat, setVideoByChat] = useState<Record<string, string | null>>({});
   const [pendingScreenshots, setPendingScreenshots] = useState<PendingScreenshot[]>([]);
+
+  // Narration, remembered locally. Someone who turned the voice off does not
+  // want to turn it off again on every question, and this is a per-device
+  // preference rather than something worth a round trip to store.
+  const [narration, setNarration] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('anyq.narration') !== '0';
+    } catch {
+      // Private windows and blocked site data throw on access, not on read.
+      return true;
+    }
+  });
+  const [narrationVoice, setNarrationVoice] = useState<NarrationVoice>(() => {
+    try {
+      return localStorage.getItem('anyq.voice') === 'daulet' ? 'daulet' : 'aigul';
+    } catch {
+      return 'aigul';
+    }
+  });
+
+  const changeNarration = useCallback((enabled: boolean) => {
+    setNarration(enabled);
+    try {
+      localStorage.setItem('anyq.narration', enabled ? '1' : '0');
+    } catch { /* a preference that cannot be stored is still usable this session */ }
+  }, []);
+
+  const changeNarrationVoice = useCallback((voice: NarrationVoice) => {
+    setNarrationVoice(voice);
+    try {
+      localStorage.setItem('anyq.voice', voice);
+    } catch { /* as above */ }
+  }, []);
+
+  // Read inside the send callback so choosing a voice does not rebuild it.
+  const narrationRef = useRef({ narration, narrationVoice });
+  narrationRef.current = { narration, narrationVoice };
   // The chat that is currently awaiting an AI response (drives the spinner).
   const [pendingRequestChatId, setPendingRequestChatId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -37,6 +79,7 @@ function App() {
   // The question each chat is waiting on, so "generate a fresh one"
   // can re-send it with the cache bypassed.
   const lastPromptByChatRef = useRef<Record<string, string>>({});
+  const refreshQuotaRef = useRef<(() => void) | null>(null);
 
   const { fetchUserChats, fetchChat, fetchMe, login, signup, logout } = useApi();
 
@@ -53,6 +96,10 @@ function App() {
       cancelled = true;
     };
   }, [fetchMe]);
+
+  useEffect(() => {
+    refreshQuotaRef.current = refreshQuota;
+  }, [refreshQuota]);
 
   useEffect(() => {
     selectedChatIdRef.current = selectedChatId;
@@ -171,6 +218,10 @@ function App() {
         image_base64: ss.dataUrl,
       })),
       force_regenerate: forceRegenerate,
+      // Part of the cache key on the server: the same question asked with the
+      // voice on and off are two different videos.
+      narration: narrationRef.current.narration,
+      narration_voice: narrationRef.current.narrationVoice,
     });
     if (!ok) {
       // Message is queued by the hook and will be flushed on reconnect.
@@ -231,6 +282,8 @@ function App() {
           video_url?: string;
           timestamp: string;
           from_cache?: boolean;
+          cache_match?: string;
+          matched_question?: string;
           cache_tier?: string;
         };
 
@@ -243,6 +296,8 @@ function App() {
           timestamp: responseData.timestamp,
           fromCache: Boolean(responseData.from_cache),
           cacheTier: responseData.cache_tier,
+          cacheMatch: responseData.cache_match,
+          matchedQuestion: responseData.matched_question,
           // Remembered so "generate a fresh one" can re-ask the same thing.
           sourcePrompt: lastPromptByChatRef.current[responseData.chat_id],
         };
@@ -259,6 +314,7 @@ function App() {
         }
         // The server stores both the user message and this assistant reply.
         incrementChatCount(responseData.chat_id, 2);
+        refreshQuotaRef.current?.();
         break;
       }
 
@@ -270,6 +326,9 @@ function App() {
           addErrorBubble(chatId, errorData.message);
           clearPendingRequest(chatId);
         }
+        // A refusal can be a quota one, and a refund can have given a slot
+        // back: either way the number on screen is now stale.
+        refreshQuotaRef.current?.();
         break;
       }
 
@@ -395,6 +454,11 @@ function App() {
 
   const selectedMessages = selectedChatId ? messagesByChat[selectedChatId] || [] : [];
   const currentVideoUrl = selectedChatId ? videoByChat[selectedChatId] || null : null;
+  // Exports are addressed by message, so the player needs to know which one
+  // the visible video came from. The last match wins: re-asking the same
+  // question produces a newer message pointing at the same file.
+  const currentVideoMessageId =
+    [...selectedMessages].reverse().find((m) => m.video_url === currentVideoUrl)?.id ?? null;
   const isLoading = pendingRequestChatId !== null && pendingRequestChatId === selectedChatId;
 
   return (
@@ -433,6 +497,11 @@ function App() {
             onRegenerate={handleRegenerate}
             isLoading={isLoading}
             isConnected={isConnected}
+            quota={quota}
+            narration={narration}
+            narrationVoice={narrationVoice}
+            onNarrationChange={changeNarration}
+            onNarrationVoiceChange={changeNarrationVoice}
           />
         </div>
 
@@ -440,6 +509,7 @@ function App() {
         <div className="flex-1 min-w-0">
           <VideoPlayer
             videoUrl={currentVideoUrl}
+            messageId={currentVideoMessageId}
             onScreenshotCapture={handleScreenshotCapture}
           />
         </div>

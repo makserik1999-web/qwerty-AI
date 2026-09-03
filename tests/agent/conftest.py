@@ -31,6 +31,13 @@ def validate_manim_script(agent_import_path):
     return validator
 
 
+@pytest.fixture(scope="session")
+def safe_json_loads(agent_import_path):
+    from anyq.script_guard import _safe_json_loads as loader
+
+    return loader
+
+
 @pytest.fixture
 def agent_telemetry(agent_import_path, monkeypatch):
     """The telemetry module, writing into a throwaway file."""

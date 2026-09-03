@@ -4,6 +4,7 @@ Moved here from science_manim_graph_agent.py (language, fonts, reject and
 render-fallback messages) and agent_ws_client.py (generic failure message).
 """
 
+import re
 from typing import Optional
 
 from anyq.config import DEFAULT_OUTPUT_LANGUAGE, MANIM_TEXT_FONT
@@ -15,16 +16,54 @@ _LANGUAGE_NAMES = {
     "en": "English",
 }
 
-# Letters unique to Kazakh Cyrillic - distinguish Kazakh from Russian input.
+# Letters unique to Kazakh Cyrillic - the cheapest signal when present.
 _KAZAKH_ONLY_CHARS = set("әғқңөұүһі")
+
+# Kazakh words that carry NO Kazakh-specific letter, so the character test
+# above misses them entirely. This matters more than it sounds: "X деген не?"
+# is the ordinary way to ask "what is X" in Kazakh, and for a topic like
+# "фотосинтез деген не" every letter is shared with Russian - so the question
+# was answered in Russian.
+#
+# Every word here is Kazakh and not a Russian word, which is what keeps the
+# test from firing on Russian input.
+#
+# Anchored on word boundaries, which is not cosmetic: without them "осы"
+# matches inside the Russian "волосы", and every question about hair
+# would be answered in Kazakh.
+_KAZAKH_MARKERS = re.compile(
+    r"\b(деген|дегенде|дегендер|немесе|болып|болады|болса|болу|керек|неге"
+    r"|туралы|осы|емес|сияқты|қалай|нешеу)\b",
+    re.IGNORECASE | re.UNICODE,
+)
+
+_CYRILLIC = re.compile(r"[Ѐ-ӿ]")
+# Three letters, not one: "E = mc^2" is a formula, not an English question,
+# and a single stray Latin character should not decide the answer language.
+_LATIN_WORD = re.compile(r"[A-Za-z]{3,}")
 
 
 def _detect_language(text: str) -> Optional[str]:
+    """Which of the three languages this text is written in, if any.
+
+    Order matters: Kazakh is checked before Russian because the two share an
+    alphabet and Kazakh is the narrower case, and Latin is checked last so a
+    stray English word inside a Cyrillic question does not flip the answer.
+
+    Returns None only when there are no letters at all - a bare formula, say -
+    and the caller then falls back to the configured default.
+    """
     low = (text or "").lower()
     if any(ch in _KAZAKH_ONLY_CHARS for ch in low):
         return "kk"
-    if any("Ѐ" <= ch <= "ӿ" for ch in low):
+    if _KAZAKH_MARKERS.search(low):
+        return "kk"
+    if _CYRILLIC.search(low):
         return "ru"
+    if _LATIN_WORD.search(low):
+        # Previously fell through to None, and the default is Kazakh - so an
+        # English question came back in Kazakh.
+        return "en"
     return None
 
 

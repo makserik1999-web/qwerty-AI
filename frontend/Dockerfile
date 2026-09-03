@@ -28,6 +28,8 @@ COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 
 # Default backend URL (can be overridden at runtime)
 ENV BACKEND_URL=http://backend:8000
+# Docker's embedded DNS, so the backend can move without taking the site down.
+ENV DNS_RESOLVER=127.0.0.11
 
 EXPOSE 3000
 

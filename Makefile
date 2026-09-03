@@ -7,7 +7,7 @@ PYTHON ?= .venv/Scripts/python.exe
 COMPOSE ?= docker compose
 
 .DEFAULT_GOAL := help
-.PHONY: help up down restart logs ps build test test-all lint fmt clean venv
+.PHONY: help up down restart logs ps build test test-all lint fmt clean venv seed seed-check seed-preview
 
 help:  ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -31,24 +31,33 @@ logs:  ## Tail logs of all services (make logs S=agent for one)
 build:  ## Rebuild images without starting
 	$(COMPOSE) build
 
-test:  ## Run the tests that need no docker (backend + agent)
-	$(PYTHON) -m pytest tests/backend tests/agent
+test:  ## Run the tests that need no docker (backend + agent + curated content)
+	$(PYTHON) -m pytest tests/backend tests/agent tests/curated
 
 test-all:  ## Run everything, including the e2e/ui suites (needs `make up`)
 	ANYQ_STACK_UP=1 $(PYTHON) -m pytest
 
 lint:  ## Lint python and the frontend
-	$(PYTHON) -m ruff check backend agent tests
+	$(PYTHON) -m ruff check backend agent exporter scripts tests
 	cd frontend && npm run lint
 
 fmt:  ## Auto-format python
-	$(PYTHON) -m ruff format backend agent tests
-	$(PYTHON) -m ruff check --fix backend agent tests
+	$(PYTHON) -m ruff format backend agent exporter scripts tests
+	$(PYTHON) -m ruff check --fix backend agent exporter scripts tests
 
 venv:  ## Create the local venv used by the test tasks
 	python -m venv .venv
 	$(PYTHON) -m pip install -U pip
 	$(PYTHON) -m pip install -r backend/requirements.txt -r requirements-dev.txt
+
+seed-check:  ## Validate the curated content tree (no docker, no rendering)
+	$(PYTHON) scripts/seed_library.py --check
+
+seed-preview:  ## Render every curated language for review, publish nothing
+	$(PYTHON) scripts/seed_library.py --preview
+
+seed:  ## Render and publish the approved curated languages
+	$(PYTHON) scripts/seed_library.py
 
 clean:  ## Remove local build artefacts and caches
 	rm -rf frontend/dist .pytest_cache .ruff_cache .artifacts/*

@@ -5,13 +5,13 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
-from app.config import _EMAIL_RE, _USERNAME_RE, SESSION_TTL_HOURS
+from app.config import _EMAIL_RE, _USERNAME_RE, SESSION_TTL_HOURS, SIGNUP_MAX_PER_HOUR
 from app.db import db
 from app.errors import HTTPExceptionJson
 from app.models import LoginRequest, SignupRequest
 from app.security.cookies import _cookie_token, _expired_session_cookie, _session_cookie
 from app.security.passwords import _hash_password, _verify_password
-from app.security.ratelimit import _client_ip, login_limiter
+from app.security.ratelimit import _client_ip, login_limiter, signup_limiter
 from app.security.sessions import _create_session, _hash_token, _user_from_token, _user_payload
 
 router = APIRouter()
@@ -19,6 +19,14 @@ router = APIRouter()
 
 @router.post("/api/auth/signup")
 async def signup(body: SignupRequest, request: Request):
+    # Checked before anything else: an open signup endpoint is how a bounded
+    # per-user quota gets turned into an unbounded one.
+    if not signup_limiter.allow(f"signup:{_client_ip(request)}"):
+        raise HTTPExceptionJson(
+            429, f"Too many accounts created from here. Try again in an hour "
+                 f"(limit {SIGNUP_MAX_PER_HOUR} per hour)."
+        )
+
     username = (body.username or "").strip()
     email = (body.email or "").strip() or None
     password = body.password or ""

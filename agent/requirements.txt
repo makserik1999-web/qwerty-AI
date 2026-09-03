@@ -1,7 +1,7 @@
 # Core
 spoon-ai-sdk==0.3.6
 websockets==15.0.1
-python-dotenv==1.2.1
+python-dotenv==1.2.2
 
 # Google Gemini
 google-genai==1.56.0
@@ -9,6 +9,13 @@ google-genai==1.56.0
 # Manim and rendering
 manim==0.19.1
 ManimPango==0.6.1
+# Narration. The plugin stretches each animation to the length of its
+# spoken line, which is the whole reason for using it rather than muxing
+# audio afterwards - without that the voice and the picture drift apart.
+# Azure specifically: it is the only major engine with Kazakh voices
+# (kk-KZ-AigulNeural, kk-KZ-DauletNeural). Gemini TTS covers 99 languages
+# and Kazakh is not among them.
+manim-voiceover[azure]==0.4.0
 
 # Async
 asyncio-throttle==1.0.2

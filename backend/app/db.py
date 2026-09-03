@@ -37,6 +37,17 @@ async def lifespan(app: FastAPI):
     await db.db.library_entries.create_index("expires_at", expireAfterSeconds=0)
     await db.db.library_entries.create_index([("tier", 1), ("last_hit_at", -1)])
     await db.db.question_stats.create_index([("hits", -1)])
+    # Export queue. The worker claims by (status, created_at); the TTL
+    # index drops finished jobs, and the worker removes their files first.
+    await db.db.export_jobs.create_index([("status", 1), ("created_at", 1)])
+    await db.db.export_jobs.create_index([("user_id", 1), ("created_at", -1)])
+    await db.db.export_jobs.create_index("expires_at", expireAfterSeconds=0)
+    # Generation quota counters. Tiny documents, one per started render;
+    # the TTL window is wider than the longest quota period so a day-old
+    # event cannot vanish while the daily count still needs it.
+    await db.db.generation_events.create_index([("user_id", 1), ("created_at", -1)])
+    await db.db.generation_events.create_index("request_id")
+    await db.db.generation_events.create_index("expires_at", expireAfterSeconds=0)
 
     print(f"Connected to MongoDB at {MONGO_URL}")
     if not AGENT_SECRET:

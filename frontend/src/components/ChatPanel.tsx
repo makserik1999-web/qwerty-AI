@@ -1,6 +1,8 @@
 import { useRef, useEffect, useState } from 'react';
 import { ChatMessage, PendingScreenshot } from '../types';
+import { Quota, shouldShowQuota } from '../useQuota';
 import { MarkdownMessage } from './MarkdownMessage';
+import { NarrationToggle, type NarrationVoice } from './NarrationToggle';
 
 interface ChatPanelProps {
   messages: ChatMessage[];
@@ -10,6 +12,13 @@ interface ChatPanelProps {
   onRegenerate?: (prompt: string) => void;
   isLoading: boolean;
   isConnected: boolean;
+  /** Remaining generation budget; shown only when it is running low. */
+  quota?: Quota | null;
+  /** Whether the next video speaks, and in whose voice. */
+  narration: boolean;
+  narrationVoice: NarrationVoice;
+  onNarrationChange: (enabled: boolean) => void;
+  onNarrationVoiceChange: (voice: NarrationVoice) => void;
 }
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({
@@ -20,6 +29,11 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   onRegenerate,
   isLoading,
   isConnected,
+  quota = null,
+  narration,
+  narrationVoice,
+  onNarrationChange,
+  onNarrationVoiceChange,
 }) => {
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -123,6 +137,20 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                         ? 'From the library - reviewed'
                         : 'From the library'}
                     </span>
+
+                    {/* A semantic hit answered a DIFFERENT wording. Saying
+                        which one is what lets the reader notice it is not
+                        what they meant - and the button beside it is how
+                        they ask again. */}
+                    {message.cacheMatch === 'semantic' && message.matchedQuestion && (
+                      <span
+                        data-testid="matched-question"
+                        className="text-gray-500 italic truncate"
+                        title={message.matchedQuestion}
+                      >
+                        answered: "{message.matchedQuestion}"
+                      </span>
+                    )}
                     {onRegenerate && message.sourcePrompt && (
                       <button
                         onClick={() => onRegenerate(message.sourcePrompt as string)}
@@ -255,6 +283,18 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           </button>
         </div>
         
+        {/* Narration choice, next to the connection status: both describe what
+            is about to happen rather than what already has. */}
+        <div className="flex items-center justify-between mt-2 text-xs">
+          <NarrationToggle
+            enabled={narration}
+            voice={narrationVoice}
+            onEnabledChange={onNarrationChange}
+            onVoiceChange={onNarrationVoiceChange}
+            disabled={isLoading}
+          />
+        </div>
+
         {/* Connection status */}
         <div className="flex items-center gap-2 mt-2 text-xs">
           <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
@@ -266,9 +306,20 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               - sending is paused; queued messages will be sent when the connection returns
             </span>
           )}
+
+          {/* Only when it is running out: a counter that is always on screen
+              turns every question into a transaction. */}
+          {shouldShowQuota(quota) && quota && (
+            <span
+              className={`ml-auto ${quota.remaining_hour <= 1 ? 'text-amber-400' : 'text-gray-500'}`}
+              data-testid="quota-remaining"
+              title={`${quota.remaining_day} of ${quota.limit_day} left today`}
+            >
+              {quota.remaining_hour} of {quota.limit_hour} videos left this hour
+            </span>
+          )}
         </div>
       </div>
     </div>
   );
 };
-

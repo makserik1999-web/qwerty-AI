@@ -7,7 +7,7 @@ wires them together, which is what `uvicorn main:app` ultimately loads.
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, chats, health, library, media
+from app.api import auth, chats, exports, health, library, media, quota
 from app.config import CORS_ORIGINS
 from app.db import lifespan
 from app.errors import HTTPExceptionJson, _http_exception_json_handler
@@ -31,6 +31,8 @@ app.include_router(auth.router)
 app.include_router(chats.router)
 app.include_router(media.router)
 app.include_router(library.router)
+app.include_router(exports.router)
+app.include_router(quota.router)
 
 # /ws/agent and /ws are exact paths (no path params)
 app.include_router(ws_agent.router)

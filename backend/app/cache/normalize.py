@@ -72,13 +72,26 @@ def normalize_question(text: str) -> str:
     return result
 
 
-def cache_key(normalized: str, pipeline_version: str) -> str:
+def cache_key(normalized: str, pipeline_version: str, variant: str = "") -> str:
     """The lookup id for a normalised question under a given pipeline.
 
     The output language is NOT part of the key on purpose: the agent derives
     it from the question text itself, so it is already a function of what is
-    hashed here. Should an explicit language selector ever reach the backend,
-    it must be added to this key - otherwise a Kazakh answer would be served
-    to someone who asked for English.
+    hashed here.
+
+    `variant` is for everything the request chooses that the question text
+    cannot imply. Narration is the first: the same question asked with the
+    voice on and with it off produces two different videos, and without this
+    the second asker would be handed the first one's - silent when they wanted
+    sound, or spoken by a voice they did not pick. The docstring used to warn
+    about exactly this for an explicit language selector; the warning stands
+    for anything else added later.
+
+    Callers must pass a value from a closed set. A variant taken straight from
+    a client would let anyone mint unlimited distinct keys, which is a cache
+    that never hits and a collection that never stops growing.
     """
-    return hashlib.sha256(f"{normalized}|{pipeline_version}".encode()).hexdigest()
+    material = f"{normalized}|{pipeline_version}"
+    if variant:
+        material = f"{material}|{variant}"
+    return hashlib.sha256(material.encode()).hexdigest()

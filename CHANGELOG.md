@@ -5,6 +5,146 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### Phase C1 L2 - the semantic cache layer, and two language bugs
+
+**Fixed (both live, both silent)**
+
+- Kazakh was detected only by its own letters (ә ғ қ ң ө ұ ү һ і), so
+  "фотосинтез деген не" - the ordinary way to ask "what is photosynthesis" -
+  had none and was answered **in Russian**. Kazakh function words are now
+  recognised too, anchored on word boundaries so "осы" inside the Russian
+  "волосы" does not turn a hair question Kazakh.
+- Latin text was not detected at all and the fallback is Kazakh, so an
+  **English question came back in Kazakh**. A formula like "E = mc^2" still
+  counts as no language and falls back, rather than being called English.
+
+**Added**
+
+- A semantic cache layer: the same question asked in different words now
+  finds the stored answer. Measured live at 0.8s against 89s for a fresh
+  generation.
+- Embeddings come from the agent over a new `embed` frame, because that is
+  where the Gemini key lives - OpenRouter, which now serves chat, has no
+  embedding models at all. 768 dimensions rather than the native 3072:
+  measured identical to the third decimal at a quarter of the storage.
+- The agent declares its features at handshake, and the backend will not send
+  an embed frame to a build that does not list `embed`. Without this, a
+  rolling deploy would have an older agent read the frame as a question and
+  render a video of it.
+- A semantic hit shows which stored question it matched, so a reader can see
+  it is not what they meant and use the existing "Generate a new one".
+
+**Calibration, not guesswork**
+
+The plan proposed a 0.92 threshold with no language rule. Measured on labelled
+pairs of this product's own questions, that is exactly wrong:
+
+| | cosine |
+|---|---|
+| same question, kk vs ru | **0.920** |
+| same question, one language, different words | 0.701 - 0.937 |
+| genuinely different questions | 0.633 - 0.797 |
+
+At 0.92 the first thing matched is a Kazakh question against a Russian video.
+So matching never crosses languages - not a tuning knob - and the threshold is
+**0.85**, above every observed different-question pair. That gives up about
+half the paraphrases on purpose: the bands overlap, and a false hit answers a
+question nobody asked. The measured scores are kept as a test, so moving the
+threshold moves the test.
+
+**Fixed during the work**
+
+- `remember()` awaited the agent's embedding reply from inside the agent's own
+  receive loop - the only place that reply could ever be read. It deadlocked
+  until the timeout, silently, and no answer ever got a vector. The write is
+  now a background task, with a regression test that fails if it is awaited
+  again.
+
+**Note**
+
+- Entries stored before this have no vector and no language; they stay
+  exact-match only rather than being matched unsafely.
+
+
+### Phase F6 - generation quotas
+
+**Added**
+
+- Per-user generation limits, because closing the service behind a login
+  stopped anonymous abuse and nothing else: signup is open, and one account
+  could previously queue unbounded renders and hold the only agent.
+- **One generation at a time per user** - the limit that actually protects the
+  agent. A render occupies it for about 90 seconds, so a single slot means
+  nobody can enqueue faster than the queue drains.
+- 15 per hour and 50 per day, as comfort ceilings on top of that. A global
+  queue cap of 20 answers honestly instead of promising a place in a line
+  nobody can reach.
+- **Answers from the library do not count**, so the cache doubles as load
+  protection rather than being taxed. **Failed generations are refunded** - on
+  agent error, on agent disconnect, and on the pending-request sweep.
+- Counters live in Mongo, not in memory: an in-memory budget would make
+  "crash the backend" a quota bypass.
+- `GET /api/quota`, and a line above the composer that appears only when the
+  budget is running low.
+- Signup rate limit, 100 per IP per hour. Deliberately loose: a school
+  computer room shares one address, and this is not the limit that bounds
+  cost. It is in-memory, so restarting the backend clears it.
+
+**Fixed**
+
+- The budget line never appeared: the quota was fetched once at mount, before
+  login, and nothing re-triggered it after the session existed.
+
+**Note**
+
+- A full test run creates around 50 accounts from one address. Raise
+  `SIGNUP_MAX_PER_HOUR` on a stack you test against, or restart the backend.
+
+
+### Phase E - export
+
+**Added**
+
+- A new `exporter` service. Encoding lives outside the other two on purpose:
+  the agent runs on a read-only rootfs so LLM-written Manim cannot do damage,
+  and an encode inside the backend's event loop would stall every request for
+  its duration - including the status polls asking how it is going.
+- `POST /api/export`, `GET /api/export/{id}`, `GET /api/export/{id}/download`.
+  Jobs are addressed by message, so the server checks the chat is yours; a
+  finished file is downloadable only by the user whose job produced it.
+- Cut a fragment as a **GIF or an mp4 clip**. Both formats are equally visible
+  buttons with a live size estimate under each; mp4 is preselected because it
+  measures ~6x smaller on this product's own output, but GIF is not hidden.
+- Size budget with shrink-and-retry: a result over `EXPORT_MAX_OUTPUT_BYTES`
+  is rebuilt at a lower width, then a lower frame rate, twice at most.
+  Selections are capped at 15 seconds, refused while the dialog is open
+  rather than after a minute of encoding.
+- "Download" on the player: `/media/{file}?download=1` names the file after
+  the question it answers, transliterating Kazakh and Russian for the ASCII
+  half of the RFC 6266 header.
+- "Deck": a PowerPoint built from the explanation, one slide per step. Frames
+  are chosen by ffmpeg scene detection rather than at fixed intervals, so the
+  slides land on the animation's own steps instead of mid-transition. The
+  full paragraph goes into the speaker notes.
+- 5 exports per hour per user; results are swept after 24 hours, file first
+  so a crash between the two retries rather than leaks.
+
+**Fixed**
+
+- `?download=1` named the file after whichever message shared the video URL,
+  which - because the answer cache serves one rendered file to everyone who
+  asks the same question - was very often **another user's wording**. The
+  lookup is now scoped to the caller's own chats, with a neutral fallback.
+- `transliterate("Жер")` produced "ZHer": a multi-letter replacement was
+  upper-cased whole instead of capitalised.
+
+**Known gaps**
+
+- The quiz slide the plan sketches is not built: it needs a model to write
+  the questions, and the exporter deliberately holds no API key.
+- Exports are swept on a fixed TTL and are not part of the media disk budget.
+
+
 ### Phase C (in progress) - the answer cache
 
 **Added**
@@ -25,6 +165,31 @@ All notable changes to Anyq are recorded here. The format follows
 - `/api/admin/cache/stats`, behind a username allowlist.
 - Cached answers are labelled "From the library" and offer "Generate a new
   one", which re-asks with the cache bypassed.
+- The curated library: hand-reviewed topics under `content/curated/`, rendered
+  and published by `scripts/seed_library.py`. One `scene.py` per topic with
+  every string in `strings.{kk,ru,en}.yaml`, so the animation is reviewed once
+  and each extra language costs only a read-through.
+- `seed_library.py --check` validates content without Docker: caption keys
+  agreeing across languages, every `S["..."]` the animation reads existing,
+  no translation hardcoded into the shared scene, no language left without
+  aliases. `--preview` renders every language without publishing, because a
+  video cannot be approved before it exists.
+- Nothing is published without an explicit approval record in `topic.yaml`,
+  per language. A language goes live as soon as it is approved, without
+  waiting for the others; an unapproved animation blocks all of them.
+- Aliases removed from `topic.yaml` are retired on the next publish, so a
+  wording that was dropped stops resolving.
+- A published video is reused when only `PIPELINE_VERSION` changed - the
+  script is frozen in git, so re-registering is enough. `--rerender` forces
+  a new render for a changed scene.
+
+**Changed**
+
+- The live LLM path now goes through OpenRouter (`DEFAULT_LLM_PROVIDER=openrouter`)
+  on `google/gemini-3.7-flash`. The previous `gemini-3-flash-preview` is on
+  Google's deprecation list. One key reaches every model, so trying another is
+  an env change rather than a code change. Screenshot analysis still calls the
+  Google API directly and still needs `GEMINI_API_KEY`.
 
 
 ### Phase B1 - backend/main.py split into a package

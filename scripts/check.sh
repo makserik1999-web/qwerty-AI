@@ -74,9 +74,14 @@ import sys
 
 sys.path.insert(0, ".")
 
-# sha256 of build_manim_system_prompt(True, "Kazakh (kazak tili)") taken before
-# the refactor started. The prompt must not move by a single byte.
-EXPECTED_PROMPT_SHA256 = "0cf849266f9ae68e4081397abd3309eaa7ec0a002b5cbe79224fe99506fcb045"
+# sha256 of build_manim_system_prompt(True, "Kazakh (kazak tili)").
+#
+# This guard exists so a refactor cannot change the prompt by accident, and
+# it did its job: the value below is the SECOND one. It moved on purpose
+# when narration was added - the model now has to write a spoken sentence
+# alongside each on-screen caption, which is a behaviour change and not a
+# refactor. Before 0cf84926... it was the pre-refactor prompt.
+EXPECTED_PROMPT_SHA256 = "740244fe3570b08a76a04ac6ec9d91834d6a543dca7e49e9efe581e72c5faa5c"
 
 failures = []
 
@@ -125,7 +130,11 @@ print("  PASS  from science_manim_graph_agent import app, _detect_language, DEFA
 print("[language]")
 check("_detect_language('privet') == 'ru'", _detect_language("\u043f\u0440\u0438\u0432\u0435\u0442"), "ru")
 check("_detect_language('salem') == 'kk'", _detect_language("\u0441\u04d9\u043b\u0435\u043c"), "kk")
-check("_detect_language('hello') is None", _detect_language("hello"), None)
+# Latin text used to return None, and the caller then fell back to the
+# default language - Kazakh - so "what is gravity" was answered in Kazakh.
+# That was a bug, not an invariant; these two lines now assert the fix.
+check("_detect_language('hello') == 'en'", _detect_language("hello"), "en")
+check("a bare formula still has no language", _detect_language("E = mc^2"), None)
 check("DEFAULT_OUTPUT_LANGUAGE == 'kk'", DEFAULT_OUTPUT_LANGUAGE, "kk")
 
 from anyq.language import _pick_unicode_font, _friendly_failure_text, _GENERIC_FAILURE_MESSAGES
@@ -140,8 +149,10 @@ check("_friendly_failure_text('privet') is the Russian message",
       _friendly_failure_text("\u043f\u0440\u0438\u0432\u0435\u0442"), _GENERIC_FAILURE_MESSAGES["ru"])
 check("_friendly_failure_text('salem') is the Kazakh message",
       _friendly_failure_text("\u0441\u04d9\u043b\u0435\u043c"), _GENERIC_FAILURE_MESSAGES["kk"])
-check("_friendly_failure_text('hello') falls back to the default language",
-      _friendly_failure_text("hello"), _GENERIC_FAILURE_MESSAGES[DEFAULT_OUTPUT_LANGUAGE])
+check("_friendly_failure_text('hello') is the English message",
+      _friendly_failure_text("hello"), _GENERIC_FAILURE_MESSAGES["en"])
+check("text with no language still falls back to the default",
+      _friendly_failure_text("E = mc^2"), _GENERIC_FAILURE_MESSAGES[DEFAULT_OUTPUT_LANGUAGE])
 
 print("[script guard]")
 from anyq.script_guard import (
@@ -189,7 +200,9 @@ class _FakeTool:
     def __init__(self, *a, **k):
         pass
 
-    async def call_mcp_tool(self, name, manim_code=None):
+    async def call_mcp_tool(self, name, manim_code=None, narration_manifest=""):
+        # narration_manifest is accepted and ignored: these checks cover the
+        # repair loop, and synthesising speech would need a live Azure key.
         return _FakeTool._replies.pop(0)
 
 

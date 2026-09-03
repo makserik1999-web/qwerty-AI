@@ -84,3 +84,23 @@ export const WarningIcon: React.FC<IconProps> = ({ className = 'w-16 h-16' }) =>
     <path d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
   </svg>
 );
+
+export const DownloadIcon: React.FC<IconProps> = ({ className = 'w-4 h-4' }) => (
+  <svg className={className} viewBox="0 0 24 24" aria-hidden="true" {...stroke}>
+    <path d="M12 4v12m0 0l-4-4m4 4l4-4M4 19h16" />
+  </svg>
+);
+
+export const ScissorsIcon: React.FC<IconProps> = ({ className = 'w-4 h-4' }) => (
+  <svg className={className} viewBox="0 0 24 24" aria-hidden="true" {...stroke}>
+    <path d="M6.5 9a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM6.5 20a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" />
+    <path d="M8.6 10.6L20 19M20 5L8.6 13.4" />
+  </svg>
+);
+
+export const SlidesIcon: React.FC<IconProps> = ({ className = 'w-4 h-4' }) => (
+  <svg className={className} viewBox="0 0 24 24" aria-hidden="true" {...stroke}>
+    <path d="M3 4h18v12H3z" />
+    <path d="M12 16v4m-3 0h6" />
+  </svg>
+);

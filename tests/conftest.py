@@ -46,7 +46,7 @@ def backend():
     from app import config
     from app.db import db
     from app.main import app as fastapi_app
-    from app.security.ratelimit import login_limiter
+    from app.security.ratelimit import login_limiter, signup_limiter
     from mongomock_motor import AsyncMongoMockClient
 
     client = AsyncMongoMockClient()
@@ -59,6 +59,11 @@ def backend():
     media = Path(tempfile.mkdtemp())
     (media / "rendered_1.mp4").write_bytes(b"fake-video-bytes")
     config.MEDIA_DIR = media
+    # Finished exports live beside the videos in production; in tests they
+    # need a real writable directory, not the container path.
+    exports = media.parent / "exports"
+    exports.mkdir(exist_ok=True)
+    config.EXPORT_DIR = exports
 
     # No real Mongo on the host: the lifespan would try to build indexes.
     @contextlib.asynccontextmanager
@@ -72,20 +77,26 @@ def backend():
         db=db,
         config=config,
         MEDIA_DIR=media,
+        EXPORT_DIR=exports,
         login_limiter=login_limiter,
+        signup_limiter=signup_limiter,
     )
 
 
 @pytest.fixture(autouse=True)
-def reset_login_limiter(backend):
-    """The limiter is in-memory and per-IP; every test starts from a clean slate.
+def reset_auth_limiters(backend):
+    """The limiters are in-memory and per-IP; every test starts clean.
 
     Without this, tests that exercise wrong passwords would burn the 5-attempt
-    budget for every later test coming from the same TestClient IP.
+    login budget for every later test from the same TestClient IP - and the
+    signup limiter would be exhausted outright, since the whole suite creates
+    far more than an hour's worth of accounts from one address.
     """
     backend.login_limiter._attempts.clear()
+    backend.signup_limiter._attempts.clear()
     yield
     backend.login_limiter._attempts.clear()
+    backend.signup_limiter._attempts.clear()
 
 
 @pytest.fixture

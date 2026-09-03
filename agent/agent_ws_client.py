@@ -138,6 +138,17 @@ async def process_request(payload: Dict[str, Any]) -> Dict[str, Any]:
             raise ValueError("Missing text")
 
         initial: Dict[str, Any] = {"user_message": text}
+
+        # Narration follows the request rather than this process's own setting,
+        # so two people asking the same question at the same time can get one
+        # spoken video and one silent one. The backend has already checked the
+        # voice against its closed set; an older backend sends neither field
+        # and the defaults below keep it working.
+        if "narration" in payload:
+            initial["narration"] = bool(payload.get("narration"))
+        if payload.get("narration_voice"):
+            initial["narration_voice"] = str(payload["narration_voice"])
+
         if image_data:
             if isinstance(image_data, list):
                 items = [str(i) for i in image_data if str(i).strip()]
@@ -206,6 +217,31 @@ async def process_request(payload: Dict[str, Any]) -> Dict[str, Any]:
         telemetry.write()
 
 
+_send_lock = asyncio.Lock()
+
+
+async def _send_json(websocket, payload: Dict[str, Any]) -> None:
+    async with _send_lock:
+        await websocket.send(json.dumps(payload, ensure_ascii=False))
+
+
+async def _handle_embed(websocket, request_id: str, text: str) -> None:
+    """Answer one embedding request, off the main receive loop."""
+    from anyq.embeddings import embed_question
+
+    result = await embed_question(text)
+    payload: Dict[str, Any] = {"type": "embed_result", "request_id": request_id}
+    if result:
+        payload.update(result)
+    else:
+        payload["error"] = "embedding unavailable"
+    try:
+        await _send_json(websocket, payload)
+    except Exception as e:  # noqa: BLE001 - the socket may have gone
+        print(f"Failed to send embedding for {request_id}: {type(e).__name__}: {e}",
+              flush=True)
+
+
 async def _authenticate(websocket) -> bool:
     """Send the AGENT_SECRET handshake and wait for auth_ok / auth_failed."""
     if not AGENT_SECRET:
@@ -216,7 +252,15 @@ async def _authenticate(websocket) -> bool:
         )
         return False
     try:
-        await websocket.send(json.dumps({"type": "auth", "token": AGENT_SECRET}))
+        await websocket.send(json.dumps({
+            "type": "auth",
+            "token": AGENT_SECRET,
+            # What this build understands beyond plain generation. The
+            # backend checks this before sending an embed request: an
+            # older agent would take the frame for a question and spend
+            # ninety seconds rendering a video of it.
+            "features": ["embed"],
+        }))
         raw = await asyncio.wait_for(
             websocket.recv(), timeout=AGENT_HANDSHAKE_TIMEOUT_SEC
         )
@@ -286,6 +330,15 @@ async def agent_client() -> None:
 
                     request_id = data.get("request_id")
                     text = data.get("text") or ""
+
+                    # An embedding request must not queue behind a render.
+                    # The loop below handles one generation at a time and each
+                    # takes about ninety seconds; a cache lookup waiting that
+                    # long would defeat the point of having a cache.
+                    if data.get("type") == "embed":
+                        asyncio.create_task(_handle_embed(websocket, request_id, text))
+                        continue
+
                     has_image = bool(data.get("image_data"))
                     # Redacted preview: never print user content.
                     print(
@@ -324,7 +377,7 @@ async def agent_client() -> None:
                             "error": _safe_error_text(e),
                         }
 
-                    await websocket.send(json.dumps(resp, ensure_ascii=False))
+                    await _send_json(websocket, resp)
                     print(
                         f"Sent response for {request_id}: {resp.get('status')}",
                         flush=True,

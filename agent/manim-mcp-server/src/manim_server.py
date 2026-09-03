@@ -42,13 +42,18 @@ server = Server("manim-mcp-server")
 # ================= AST safety validator (self-contained copy) =================
 # The agent runs the same validator upstream; this copy makes the MCP server
 # safe on its own, even if it is ever called directly with attacker input.
-_ALLOWED_IMPORT_MODULES = {"manim", "numpy", "math", "random", "typing"}
+# Kept identical to anyq/script_guard.py on purpose: this process must not
+# trust its caller, so it re-validates rather than assuming the agent did.
+# tests/agent/test_validator_parity.py fails if the two ever disagree.
+_ALLOWED_IMPORT_MODULES = {"manim", "numpy", "math", "random", "typing",
+                          "anyq_narration"}
 _ALLOWED_DUNDER_ATTRS = {"__init__", "__name__"}
 _FORBIDDEN_NAMES = {
     "eval", "exec", "open", "input", "breakpoint", "compile", "__import__",
     "globals", "locals", "vars", "memoryview", "exit", "quit", "help",
     "getattr", "setattr", "delattr", "socket", "requests", "os", "sys",
     "subprocess", "importlib", "ctypes",
+    "set_speech_service",
 }
 
 
@@ -204,13 +209,17 @@ def _remux_faststart(source: Path, destination: Path) -> bool:
     return True
 
 
-def run_manim_script(code: str, quality: str = "l") -> dict:
+def run_manim_script(code: str, quality: str = "l",
+                     narration_manifest: str = "") -> dict:
     """
     Execute a Manim script and return the path to the rendered video.
 
     Args:
         code: The Python Manim script to execute
         quality: Video quality - l (low 480p), m (medium 720p), h (high 1080p)
+        narration_manifest: Path to audio the agent already synthesised.
+            Empty renders the same script silently. Never a credential -
+            see the safe_env note below.
 
     Returns:
         dict with 'success', 'video_path', and 'error' keys
@@ -236,7 +245,8 @@ def run_manim_script(code: str, quality: str = "l") -> dict:
 
         # Find the Scene class name
         scene_match = re.search(
-            r'class\s+(\w+)\s*\(\s*(?:Scene|ThreeDScene|MovingCameraScene|ZoomedScene)\s*\)',
+            r'class\s+(\w+)\s*\(\s*(?:Scene|ThreeDScene|MovingCameraScene'
+            r'|ZoomedScene|VoiceoverScene)\s*\)',
             code,
         )
         if not scene_match:
@@ -273,7 +283,15 @@ def run_manim_script(code: str, quality: str = "l") -> dict:
             "MANIM_OUTPUT_DIR": str(OUTPUT_DIR),
             "LANG": os.environ.get("LANG", "C.UTF-8"),
             "LC_ALL": os.environ.get("LC_ALL", "C.UTF-8"),
+            # So `from anyq_narration import VoiceoverScene` resolves: manim
+            # puts the script's own directory on sys.path, not this one.
+            "PYTHONPATH": str(Path(__file__).resolve().parent),
         }
+        if narration_manifest:
+            # A file path, deliberately not a key. The agent synthesised the
+            # audio; this process only reads it, and PrerenderedService has no
+            # network code to fall back on.
+            safe_env["ANYQ_NARRATION_MANIFEST"] = narration_manifest
 
         # Run manim as a new process group so a timeout can kill the whole tree
         # (manim + ffmpeg + anything the script spawned) - no orphans.
@@ -378,6 +396,16 @@ async def handle_list_tools() -> list[types.Tool]:
                         "enum": ["l", "m", "h"],
                         "default": "l",
                         "description": "Video quality: l=480p, m=720p, h=1080p"
+                    },
+                    "narration_manifest": {
+                        "type": "string",
+                        "default": "",
+                        "description": (
+                            "Path to a manifest of speech the caller already "
+                            "synthesised. Empty renders the same script silently. "
+                            "This is a path, never a credential - this server "
+                            "does not synthesise and holds no key."
+                        )
                     }
                 },
                 "required": ["manim_code"]
@@ -397,13 +425,16 @@ async def handle_call_tool(name: str, arguments: dict | None) -> list[types.Text
 
     code = arguments["manim_code"]
     quality = arguments.get("quality", "l")
+    narration_manifest = str(arguments.get("narration_manifest") or "")
 
     if quality not in ("l", "m", "h"):
         raise ValueError("quality must be one of l, m, h")
 
     # Run in a thread pool to avoid blocking
     loop = asyncio.get_event_loop()
-    result = await loop.run_in_executor(None, run_manim_script, code, quality)
+    result = await loop.run_in_executor(
+        None, run_manim_script, code, quality, narration_manifest
+    )
 
     return [types.TextContent(type="text", text=json.dumps(result))]
 

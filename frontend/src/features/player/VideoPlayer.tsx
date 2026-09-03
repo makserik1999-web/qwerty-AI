@@ -2,16 +2,20 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { PendingScreenshot } from '../../types';
 import { AnnotationCanvas, AnnotationCanvasHandle, DrawingTool } from './AnnotationCanvas';
+import { DeckButton } from './DeckButton';
+import { ExportPanel } from './ExportPanel';
 import { ProgressBar } from './ProgressBar';
 import { hasUsableDuration, useVideoPlayer } from './useVideoPlayer';
 import {
   CameraIcon,
+  DownloadIcon,
   EraserIcon,
   NoVideoIcon,
   PauseIcon,
   PenIcon,
   PlayIcon,
   RedoIcon,
+  ScissorsIcon,
   SkipBackIcon,
   SkipForwardIcon,
   TrashIcon,
@@ -21,12 +25,22 @@ import {
 
 interface VideoPlayerProps {
   videoUrl: string | null;
+  /**
+   * The assistant message this video belongs to. Exports are addressed by
+   * message rather than by file so the server can check the chat is yours -
+   * a filename would be a bare capability anyone could guess.
+   */
+  messageId?: string | null;
   onScreenshotCapture: (screenshot: PendingScreenshot) => void;
 }
 
 const PEN_COLORS = ['#ef4444', '#f59e0b', '#22c55e', '#3b82f6', '#a855f7', '#ffffff'];
 
-export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoUrl, onScreenshotCapture }) => {
+export const VideoPlayer: React.FC<VideoPlayerProps> = ({
+  videoUrl,
+  messageId = null,
+  onScreenshotCapture,
+}) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasHandle = useRef<AnnotationCanvasHandle>(null);
 
@@ -54,12 +68,15 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoUrl, onScreenshot
   const [color, setColor] = useState(PEN_COLORS[0]);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
   const [historyVersion, setHistoryVersion] = useState(0);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [videoSize, setVideoSize] = useState({ width: 0, height: 0 });
 
   const onHistoryChange = useCallback(() => setHistoryVersion((v) => v + 1), []);
 
   useEffect(() => {
     setDrawMode(false);
     setHistoryVersion(0);
+    setExportOpen(false);
   }, [videoUrl]);
 
   // Match the canvas to the letterboxed video box, not to the container.
@@ -75,6 +92,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoUrl, onScreenshot
     const width = videoAspect > containerAspect ? rect.width : rect.height * videoAspect;
     const height = videoAspect > containerAspect ? rect.width / videoAspect : rect.height;
     setCanvasSize({ width, height });
+    setVideoSize({ width: video.videoWidth, height: video.videoHeight });
   }, [videoRef]);
 
   useEffect(() => {
@@ -258,6 +276,18 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoUrl, onScreenshot
         )}
       </div>
 
+      {videoUrl && !hasError && exportOpen && (
+        <ExportPanel
+          messageId={messageId}
+          duration={duration}
+          currentTime={currentTime}
+          videoWidth={videoSize.width}
+          videoHeight={videoSize.height}
+          onClose={() => setExportOpen(false)}
+          onPreviewSeek={seekTo}
+        />
+      )}
+
       {videoUrl && !hasError && (
         <div className="px-4 py-2 bg-dark-850 border-t border-dark-700">
           <div className="flex items-center gap-3">
@@ -422,20 +452,60 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoUrl, onScreenshot
             </button>
           </div>
 
-          <button
-            onClick={captureScreenshot}
-            disabled={!controlsEnabled}
-            data-testid="add-screenshot"
-            className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200
-                        flex items-center gap-2 ${
-                          controlsEnabled
-                            ? 'bg-accent-primary hover:bg-accent-secondary text-white shadow-lg shadow-accent-primary/20'
-                            : 'bg-dark-700 text-gray-600 cursor-not-allowed'
-                        }`}
-          >
-            <CameraIcon />
-            Add Screenshot
-          </button>
+          <div className="flex items-center gap-2">
+            <a
+              href={videoUrl ? `${videoUrl}?download=1` : undefined}
+              download
+              data-testid="download-video"
+              aria-disabled={!controlsEnabled}
+              className={`px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200
+                          flex items-center gap-2 ${
+                            controlsEnabled
+                              ? 'bg-dark-600 hover:bg-dark-500 text-white'
+                              : 'bg-dark-700 text-gray-600 pointer-events-none'
+                          }`}
+              title="Download the whole video"
+            >
+              <DownloadIcon />
+              Download
+            </a>
+
+            <button
+              onClick={() => setExportOpen((open) => !open)}
+              disabled={!controlsEnabled}
+              data-testid="export-toggle"
+              aria-pressed={exportOpen}
+              className={`px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200
+                          flex items-center gap-2 ${
+                            !controlsEnabled
+                              ? 'bg-dark-700 text-gray-600 cursor-not-allowed'
+                              : exportOpen
+                              ? 'bg-accent-primary text-white'
+                              : 'bg-dark-600 hover:bg-dark-500 text-white'
+                          }`}
+              title="Cut a GIF or an mp4 out of the video"
+            >
+              <ScissorsIcon />
+              Cut
+            </button>
+
+            <DeckButton messageId={messageId} disabled={!controlsEnabled} />
+
+            <button
+              onClick={captureScreenshot}
+              disabled={!controlsEnabled}
+              data-testid="add-screenshot"
+              className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200
+                          flex items-center gap-2 ${
+                            controlsEnabled
+                              ? 'bg-accent-primary hover:bg-accent-secondary text-white shadow-lg shadow-accent-primary/20'
+                              : 'bg-dark-700 text-gray-600 cursor-not-allowed'
+                          }`}
+            >
+              <CameraIcon />
+              Add Screenshot
+            </button>
+          </div>
         </div>
 
         {videoUrl && isLoaded && (
