@@ -59,6 +59,8 @@ def similarity(a: Sequence[float], b: Sequence[float]) -> float:
 async def find_similar(
     vector: Sequence[float],
     language: str,
+    pipeline_version: str = "",
+    variant: str = "",
     threshold: Optional[float] = None,
 ) -> Optional[Dict[str, Any]]:
     """The closest stored answer above the threshold, or None.
@@ -82,8 +84,22 @@ async def find_similar(
     best_score = cutoff
     scanned = 0
 
+    # Scoped to the same pipeline and the same request variant as the exact
+    # key would have been. This layer bypasses the key entirely, so anything
+    # the key encodes has to be re-stated here or it is silently lost: a live
+    # run served a SILENT video to a request made with narration on, because
+    # the wording matched and nothing else was being compared.
+    scope: Dict[str, Any] = {
+        "language": language,
+        "embedding": {"$exists": True, "$ne": []},
+    }
+    if pipeline_version:
+        scope["pipeline_version"] = pipeline_version
+    if variant:
+        scope["variant"] = variant
+
     cursor = db.db.library_entries.find(
-        {"language": language, "embedding": {"$exists": True, "$ne": []}},
+        scope,
         # Only what the comparison and the answer need; an entry's full text
         # is fetched once, for the winner.
         {"cache_key": 1, "embedding": 1, "normalized_question": 1},

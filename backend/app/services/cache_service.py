@@ -112,7 +112,7 @@ async def lookup(prompt: str, screenshots: List[Any],
     # Nothing with this exact wording. Ask whether the same question is
     # already answered under different words - which costs a round trip to
     # the agent, so it runs only after the free lookup has failed.
-    return await _semantic_lookup(prompt, normalized)
+    return await _semantic_lookup(prompt, normalized, variant)
 
 
 def _usable(entry: Dict[str, Any]) -> bool:
@@ -125,7 +125,8 @@ def _usable(entry: Dict[str, Any]) -> bool:
     return not video_url or _media_present(video_url)
 
 
-async def _semantic_lookup(prompt: str, normalized: str) -> Optional[Dict[str, Any]]:
+async def _semantic_lookup(prompt: str, normalized: str,
+                           variant: str = "") -> Optional[Dict[str, Any]]:
     if not CACHE_SEMANTIC_ENABLED:
         return None
 
@@ -137,7 +138,9 @@ async def _semantic_lookup(prompt: str, normalized: str) -> Optional[Dict[str, A
     if not embedding or not embedding.get("vector") or not embedding.get("language"):
         return None
 
-    match = await semantic.find_similar(embedding["vector"], embedding["language"])
+    match = await semantic.find_similar(
+        embedding["vector"], embedding["language"], PIPELINE_VERSION, variant
+    )
     if not match or not _usable(match):
         return None
 
@@ -183,6 +186,7 @@ async def remember(
         educator_text=text,
         video_url=video_url,
         pipeline_version=PIPELINE_VERSION,
+        variant=variant,
     )
     _schedule_embedding(key, prompt)
     return True

@@ -199,3 +199,84 @@ class TestTheAgentIsTold:
             agent_manager.agent_connection = None
 
         assert sent["narration"] is False
+
+
+# ------------------------------------------------------- the semantic path --
+
+
+class TestTheSemanticLayerRespectsTheVariant:
+    """Found live, not by reasoning: the fix above was only half of one.
+
+    The exact key carried the variant, so the second request missed it - and
+    then fell through to the semantic layer, which searches by meaning and
+    never sees a key. It matched the wording, ignored everything else, and
+    handed a SILENT video to a request made with narration on.
+
+    Anything the key encodes has to be re-stated here or it is lost. That is
+    true of the pipeline version too: bumping it retired old answers from the
+    exact lookup while leaving them reachable by meaning.
+    """
+
+    @pytest.fixture
+    def semantic(self, backend):
+        from app.cache import semantic as module
+
+        return module
+
+    async def _store(self, backend, semantic, key, question, vector, *,
+                     language="ru", pipeline="v2", variant="silent"):
+        from app.repositories.library import store_entry
+
+        await store_entry(
+            cache_key=key, normalized=question, educator_text="t",
+            video_url="/media/x.mp4", language=language,
+            pipeline_version=pipeline, variant=variant,
+        )
+        await semantic.attach_embedding(key, vector, language)
+
+    async def test_a_silent_answer_is_not_matched_for_a_spoken_request(
+            self, backend, semantic):
+        await self._store(backend, semantic, "s1", "что такое инерция",
+                          [1.0, 0.0, 0.0], variant="silent")
+
+        match = await semantic.find_similar([1.0, 0.0, 0.0], "ru", "v2", "voice=aigul")
+
+        assert match is None, "the exact bug: a mute video matched a spoken request"
+
+    async def test_one_voice_is_not_matched_for_another(self, backend, semantic):
+        await self._store(backend, semantic, "s2", "что такое инерция",
+                          [1.0, 0.0, 0.0], variant="voice=aigul")
+
+        assert await semantic.find_similar([1.0, 0.0, 0.0], "ru", "v2",
+                                           "voice=daulet") is None
+
+    async def test_an_old_pipeline_is_not_matched(self, backend, semantic):
+        """Bumping the version must retire answers from BOTH lookups."""
+        await self._store(backend, semantic, "s3", "что такое инерция",
+                          [1.0, 0.0, 0.0], pipeline="v1", variant="silent")
+
+        assert await semantic.find_similar([1.0, 0.0, 0.0], "ru", "v2",
+                                           "silent") is None
+
+    async def test_an_entry_recorded_before_variants_is_not_matched(
+            self, backend, semantic):
+        """Its rendering settings are unknown, so it cannot be claimed to match."""
+        from app.repositories.library import store_entry
+
+        await store_entry(cache_key="old", normalized="что такое инерция",
+                          educator_text="t", video_url="/media/x.mp4",
+                          language="ru", pipeline_version="v2")
+        await semantic.attach_embedding("old", [1.0, 0.0, 0.0], "ru")
+
+        assert await semantic.find_similar([1.0, 0.0, 0.0], "ru", "v2",
+                                           "silent") is None
+
+    async def test_the_matching_request_still_finds_it(self, backend, semantic):
+        """The scoping must not cost every semantic hit."""
+        await self._store(backend, semantic, "s4", "что такое инерция",
+                          [1.0, 0.02, 0.0], variant="voice=aigul")
+
+        match = await semantic.find_similar([1.0, 0.0, 0.0], "ru", "v2", "voice=aigul")
+
+        assert match is not None
+        assert match["normalized_question"] == "что такое инерция"

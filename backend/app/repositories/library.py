@@ -110,6 +110,7 @@ async def store_entry(
     video_url: Optional[str],
     language: str = "",
     pipeline_version: str = "",
+    variant: str = "",
     tier: str = TIER_EPHEMERAL,
 ) -> None:
     """Write an answer into the cache, replacing any earlier one for the key.
@@ -131,6 +132,10 @@ async def store_entry(
                 "video_url": video_url,
                 "language": language,
                 "pipeline_version": pipeline_version,
+                # Stored, not just hashed into the key: the semantic layer
+                # searches by meaning and never sees the key, so without this
+                # column it cannot tell a silent answer from a spoken one.
+                "variant": variant,
                 "tier": tier,
                 "expires_at": _expiry_for(tier),
                 "last_hit_at": now,
