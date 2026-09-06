@@ -16,7 +16,7 @@ import {
 } from '../components/ui'
 import { explanationFromAnswer, explanationFromChat, listChats, loadChat, toConversation } from '../lib/chats'
 import { useI18n } from '../lib/i18n'
-import { useLive, type AskStage } from '../lib/live'
+import { AgentError, useLive, type AskStage } from '../lib/live'
 import { EXAMPLE_QUESTIONS, PRICES } from '../lib/mockData'
 import { useStore } from '../lib/store'
 import type { Conversation, Explanation, Lang, LangChoice } from '../lib/types'
@@ -97,7 +97,11 @@ export function Explain() {
           charge('explanation', 1, asked.slice(0, 40))
         }
       } catch (error) {
-        setFailure(error instanceof Error ? error.message : null)
+        // Only the server's own words are worth showing: they say what to do
+        // next - the agent is down, the quota is spent. A dropped socket
+        // produces an internal string ("disconnected") that means nothing to
+        // the person reading it.
+        setFailure(error instanceof AgentError ? error.message : null)
         setState('error')
       }
     },
@@ -343,7 +347,8 @@ export function Explain() {
               >
                 {/* The server's own words when there are any - "the agent is
                     not available", a quota refusal - because they say what to
-                    do next, which a generic sentence cannot. */}
+                    do next, which a generic sentence cannot. Otherwise the
+                    generic sentence, which at least is in the right language. */}
                 {failure || t('explain.errorBody')}
               </Alert>
             ) : null}

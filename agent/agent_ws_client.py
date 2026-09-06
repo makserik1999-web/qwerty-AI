@@ -221,6 +221,11 @@ async def process_request(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 _send_lock = asyncio.Lock()
 
+# An answer that was finished but never delivered, waiting for the next
+# connection. At most one: the agent renders one request at a time, so there
+# can never be a second before this one has been dealt with.
+_undelivered: Dict[str, Any] | None = None
+
 
 async def _send_json(websocket, payload: Dict[str, Any]) -> None:
     async with _send_lock:
@@ -281,6 +286,8 @@ async def _authenticate(websocket) -> bool:
 
 
 async def agent_client() -> None:
+    global _undelivered
+
     try:
         import websockets
     except Exception as e:
@@ -311,6 +318,23 @@ async def agent_client() -> None:
                             flush=True,
                         )
                     raise RuntimeError("agent handshake failed")
+
+                # An answer that outlived its connection goes first, before
+                # reading anything new: the backend keeps the request for half
+                # an hour, and queueing this behind a fresh question would
+                # spend another two minutes before it got its turn.
+                if _undelivered is not None:
+                    held, _undelivered = _undelivered, None
+                    try:
+                        await _send_json(websocket, held)
+                        print(
+                            f"Delivered held answer for {held.get('request_id')}",
+                            flush=True,
+                        )
+                    except Exception as e:  # noqa: BLE001 - keep it for the next try
+                        _undelivered = held
+                        print(f"Held answer still undeliverable: {type(e).__name__}",
+                              flush=True)
 
                 while True:
                     try:
@@ -392,7 +416,19 @@ async def agent_client() -> None:
                     # The answer is the last word on this request; anything
                     # reported after it would arrive behind its own result.
                     progress.done()
-                    await _send_json(websocket, resp)
+                    try:
+                        await _send_json(websocket, resp)
+                    except Exception as send_error:
+                        # Keep it for the next connection. The backend holds
+                        # the request for half an hour after the drop, so a
+                        # reconnect within that window still lands it.
+                        _undelivered = resp
+                        print(
+                            f"Could not deliver {request_id}, holding it for "
+                            f"the next connection: {type(send_error).__name__}",
+                            flush=True,
+                        )
+                        raise
                     print(
                         f"Sent response for {request_id}: {resp.get('status')}",
                         flush=True,

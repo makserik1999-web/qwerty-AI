@@ -169,11 +169,28 @@ async def _refund_quietly(request_id: str) -> None:
 
 
 async def _notify_pending_failures(message: str):
-    """Tell every user with an in-flight request that the agent went away."""
+    """Tell every user with an in-flight request that the agent went away.
+
+    The entry is marked rather than dropped. A request is only in this table
+    while the agent is working on it, and the work does not stop because the
+    socket did: the agent goes on rendering, finishes, reconnects and delivers.
+    Dropping the entry here threw that away - a video that had been rendered
+    and written to disk was discarded because nothing remembered who had asked
+    for it.
+
+    The person is still told at once, and still refunded, because they should
+    not sit watching an indicator for a connection that has gone. If the answer
+    does arrive afterwards it is saved and cached, so asking again returns it
+    immediately instead of rendering it a second time.
+
+    The TTL sweep clears these on its own; `notified` stops it saying so twice.
+    """
     for request_id, info in list(agent_manager.pending_requests.items()):
         user_id = info.get("user_id")
         chat_id = info.get("chat_id")
-        agent_manager.pending_requests.pop(request_id, None)
+        if info.get("notified"):
+            continue
+        info["notified"] = True
         await _refund_quietly(request_id)
         if user_id:
             await ui_manager.send_to_user(user_id, {
@@ -182,26 +199,36 @@ async def _notify_pending_failures(message: str):
             })
 
 
+async def _sweep_once():
+    """One pass of the TTL sweep. Separate so a test can run it on demand."""
+    now = time.monotonic()
+    stale = [
+        rid for rid, info in agent_manager.pending_requests.items()
+        if now - info.get("created_at", now) > PENDING_REQUESTS_TTL_SEC
+    ]
+    for rid in stale:
+        info = agent_manager.pending_requests.pop(rid, None)
+        await _refund_quietly(rid)
+        if info and info.get("notified"):
+            # Already reported when the agent dropped; this is only the entry
+            # being cleared out, and saying so again would be a second failure
+            # for one question.
+            continue
+        if info and info.get("user_id"):
+            await ui_manager.send_to_user(info["user_id"], {
+                "type": "error",
+                "data": {
+                    "message": "Processing timed out. Please try again.",
+                    "chat_id": info.get("chat_id"),
+                },
+            })
+
+
 async def _sweep_pending_requests_loop():
     """TTL sweep for pending_requests (agent died mid-request -> no leak)."""
     while True:
         await asyncio.sleep(PENDING_SWEEP_INTERVAL_SEC)
         try:
-            now = time.monotonic()
-            stale = [
-                rid for rid, info in agent_manager.pending_requests.items()
-                if now - info.get("created_at", now) > PENDING_REQUESTS_TTL_SEC
-            ]
-            for rid in stale:
-                info = agent_manager.pending_requests.pop(rid, None)
-                await _refund_quietly(rid)
-                if info and info.get("user_id"):
-                    await ui_manager.send_to_user(info["user_id"], {
-                        "type": "error",
-                        "data": {
-                            "message": "Processing timed out. Please try again.",
-                            "chat_id": info.get("chat_id"),
-                        },
-                    })
+            await _sweep_once()
         except Exception as e:
             print(f"pending sweep error: {type(e).__name__}: {e}")
