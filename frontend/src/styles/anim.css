@@ -443,3 +443,77 @@
 .compare__tag--right {
   right: var(--space-md);
 }
+
+/* ---------------------------------------------------------------------------
+   The rendered answer.
+
+   Shares .player with the built-in scenes above, so both read as one control.
+   Only the stage differs: a file instead of an SVG recomputed each frame.
+   --------------------------------------------------------------------------- */
+
+.player__video {
+  display: block;
+  width: 100%;
+  /* Manim renders 16:9; reserving the box stops the page jumping when the
+     metadata arrives. */
+  aspect-ratio: 16 / 9;
+  background: #000;
+  cursor: pointer;
+}
+
+/* Covers the stage while the file is still arriving. Deliberately a dimmed
+   overlay rather than a spinner over black: the first frame is usually
+   decoded well before the video is playable, and hiding it would make a
+   loading video look like a broken one. */
+.player__waiting {
+  position: absolute;
+  inset: 0;
+  background: var(--overlay);
+  pointer-events: none;
+}
+
+.player__seek {
+  position: relative;
+}
+
+/* How much of the file has arrived, painted behind the track. */
+.player__buffered {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  height: 3px;
+  transform: translateY(-50%);
+  background: var(--border);
+  border-radius: var(--radius-full);
+  pointer-events: none;
+}
+
+.player__seek input[type='range'] {
+  position: relative;
+}
+
+.player__download {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  flex: none;
+}
+.player__download:hover {
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.player--failed {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-lg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--error-soft);
+  color: var(--text-error);
+}

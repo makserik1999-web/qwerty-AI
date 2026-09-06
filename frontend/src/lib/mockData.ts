@@ -1,4 +1,5 @@
 import type {
+  ExplanationBlock,
   Explanation,
   Lang,
   SceneId,
@@ -42,7 +43,7 @@ interface Seed {
   lang: Lang
   scene: SceneId
   duration: number
-  blocks: Explanation['blocks']
+  blocks: ExplanationBlock[]
 }
 
 export const EXPLANATION_SEEDS: Record<SceneId, Seed> = {

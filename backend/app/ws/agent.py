@@ -87,9 +87,29 @@ async def websocket_agent_endpoint(websocket: WebSocket):
                 )
                 continue
 
+            # A stage report, not an answer: the request stays open and
+            # nothing is saved. Forwarded so the person watching the three
+            # steps sees them move instead of one indicator for ninety
+            # seconds. `pop=False` matters - popping here would leave the real
+            # answer with nowhere to go.
+            if data.get("type") == "progress":
+                stage = str(data.get("stage") or "")
+                if stage in ("understand", "write", "render") and request_id:
+                    info = agent_manager.get_request_info(request_id, pop=False)
+                    if info:
+                        await ui_manager.send_to_user(info["user_id"], {
+                            "type": "progress",
+                            "data": {"chat_id": info["chat_id"], "stage": stage},
+                        })
+                continue
+
             response_text = data.get("text", "")
             status = data.get("status", "complete")
             video_path = data.get("video_path", "")
+            # Free text from the model, passed through rather than validated:
+            # it labels a badge, and the client maps what it recognises. A
+            # closed set here would just be a second place to keep in step.
+            subject = str(data.get("subject") or "")[:40]
             error = data.get("error", "")
 
             if not request_id:
@@ -144,6 +164,7 @@ async def websocket_agent_endpoint(websocket: WebSocket):
                         "content": response_text,
                         "video_url": video_url,
                         "timestamp": msg_data["timestamp"],
+                        "subject": subject,
                     },
                 })
 

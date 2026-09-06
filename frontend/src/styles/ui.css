@@ -869,3 +869,65 @@
   background: var(--border);
   margin: 0;
 }
+
+/* ---------------------------------------------------------------------------
+   Narration controls, beside the composer.
+   --------------------------------------------------------------------------- */
+
+.narration {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.narration__switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--fs-body-sm);
+  cursor: pointer;
+  transition: background var(--dur-micro) var(--ease), color var(--dur-micro) var(--ease);
+}
+.narration__switch:hover:not(:disabled) {
+  background: var(--surface);
+}
+.narration__switch.is-on {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.narration__switch:disabled {
+  color: var(--text-disabled);
+  cursor: not-allowed;
+}
+
+.narration__voices {
+  display: flex;
+  gap: 2px;
+}
+
+.narration__voice {
+  padding: var(--space-xs) var(--space-sm);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--fs-body-sm);
+  cursor: pointer;
+  transition: background var(--dur-micro) var(--ease), color var(--dur-micro) var(--ease);
+}
+.narration__voice:hover:not(:disabled) {
+  background: var(--surface);
+}
+.narration__voice.is-active {
+  background: var(--primary-soft);
+  color: var(--primary-deep);
+}
+.narration__voice:disabled {
+  color: var(--text-disabled);
+  cursor: not-allowed;
+}

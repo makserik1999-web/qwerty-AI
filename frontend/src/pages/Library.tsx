@@ -224,7 +224,16 @@ export function Library() {
                     <span className="visually-hidden">
                       {t('common.open')}: {item.question}
                     </span>
-                    <ScenePreview scene={item.scene} title={SCENE_TITLES[item.scene]} />
+                    {/* Saved answers from Explain are rendered video, not one
+                        of the seven built-in scenes, and there is no thumbnail
+                        for them until the library itself becomes real in Ф5. */}
+                    {item.scene ? (
+                      <ScenePreview scene={item.scene} title={SCENE_TITLES[item.scene]} />
+                    ) : (
+                      <span className="library-card__poster" aria-hidden="true">
+                        <Icon name="play" size={22} />
+                      </span>
+                    )}
                   </button>
 
                   <div className="library-card__body">

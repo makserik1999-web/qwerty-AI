@@ -6,10 +6,17 @@ export function Badge({
   tone = 'neutral',
   children,
   className,
+  title,
 }: {
   tone?: Tone
   children: React.ReactNode
   className?: string
+  /** Hover text, for a badge whose one word needs a sentence behind it. */
+  title?: string
 }) {
-  return <span className={cx('badge', `badge--${tone}`, className)}>{children}</span>
+  return (
+    <span className={cx('badge', `badge--${tone}`, className)} title={title}>
+      {children}
+    </span>
+  )
 }

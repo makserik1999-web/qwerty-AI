@@ -36,12 +36,34 @@ export interface Explanation {
   subject: SubjectId
   lang: Lang
   createdAt: string
-  scene: SceneId
-  /** Seconds — the length of the rendered animation. */
-  duration: number
-  blocks: ExplanationBlock[]
   status: ExplanationStatus
   saved: boolean
+
+  /* A real answer has `markdown` and `videoUrl`: the model writes prose with
+     formulas in it, and Manim renders an mp4 for that specific question.
+     `blocks`, `scene` and `duration` belong to the seeded library data, which
+     was authored before there was a server to ask - the landing page still
+     plays those scenes, and the library switches over in Ф5. Exactly one of
+     the two shapes is filled in for any given explanation. */
+
+  /** Markdown as the model wrote it, with LaTeX for the formulas. */
+  markdown?: string
+  /** Served from /media, behind the session cookie. */
+  videoUrl?: string
+
+  blocks?: ExplanationBlock[]
+  scene?: SceneId
+  /** Seconds — the length of a built-in scene. */
+  duration?: number
+
+  /** Served from the answer library instead of being generated just now. */
+  fromCache?: boolean
+  /** "exact" or "semantic". A semantic hit answered a DIFFERENT wording. */
+  cacheMatch?: string
+  /** The stored question a semantic hit was matched against. */
+  matchedQuestion?: string
+  /** The chat it was filed under, so the history can open it again. */
+  chatId?: string
 }
 
 export interface Conversation {

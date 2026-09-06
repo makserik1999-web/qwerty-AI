@@ -1058,3 +1058,15 @@ tr.is-selected {
 .plan {
   width: 100%;
 }
+
+/* A saved answer has a rendered video rather than one of the built-in scenes,
+   and no thumbnail for it yet. Placeholder until the library is real (Ф5). */
+.library-card__poster {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: var(--surface);
+  color: var(--text-secondary);
+}

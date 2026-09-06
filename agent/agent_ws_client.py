@@ -18,6 +18,7 @@ Outgoing message (JSON):
   "status": "complete" | "error",
   "text": "<final_text>",
   "video_path": "<path or empty>",
+  "subject": "<the subject the model decided on, free text>",
   "error": "<short error string if any>"
 }
 """
@@ -32,7 +33,7 @@ import re
 import tempfile
 from typing import Any, Dict, Tuple
 
-from anyq import telemetry
+from anyq import progress, telemetry
 
 # Environment and the user-facing failure message now live in the anyq package.
 # Importing anyq.config is also what calls load_dotenv().
@@ -196,6 +197,7 @@ async def process_request(payload: Dict[str, Any]) -> Dict[str, Any]:
             "status": "complete",
             "text": final_text,
             "video_path": video_path,
+            "subject": str(result.get("final_subject") or ""),
         }
     except Exception as e:
         # Honest status: the backend must know the request failed, not be
@@ -347,6 +349,16 @@ async def agent_client() -> None:
                         flush=True,
                     )
 
+                    # Stage reports go back on this socket while the graph
+                    # runs. Bound per connection so a reconnect cannot leave
+                    # reports pointing at a socket that has gone.
+                    progress.bind(
+                        lambda rid, stage: _send_json(
+                            websocket,
+                            {"type": "progress", "request_id": rid, "stage": stage},
+                        )
+                    )
+                    progress.begin(str(request_id or ""))
                     try:
                         resp = await asyncio.wait_for(
                             process_request(data), timeout=REQUEST_DEADLINE_SEC
@@ -377,6 +389,9 @@ async def agent_client() -> None:
                             "error": _safe_error_text(e),
                         }
 
+                    # The answer is the last word on this request; anything
+                    # reported after it would arrive behind its own result.
+                    progress.done()
                     await _send_json(websocket, resp)
                     print(
                         f"Sent response for {request_id}: {resp.get('status')}",
@@ -386,6 +401,7 @@ async def agent_client() -> None:
         except Exception as e:
             print(f"Connection error: {type(e).__name__}: {str(e)[-200:]}")
             print(f"Reconnecting in {RECONNECT_DELAY_SEC:.0f} seconds...")
+            progress.bind(None)
             await asyncio.sleep(RECONNECT_DELAY_SEC)
 
 

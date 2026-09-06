@@ -34,6 +34,8 @@ export type IconName =
   | 'sun'
   | 'trash'
   | 'upload'
+  | 'volumeOff'
+  | 'volumeOn'
   | 'wallet'
   | 'warning'
 
@@ -173,6 +175,8 @@ const PATHS: Record<IconName, React.ReactNode> = {
     </>
   ),
   upload: <path d="M12 20V9m0 0 4 4m-4-4-4 4M5 5h14" />,
+  volumeOn: <path d="M15.536 8.464a5 5 0 0 1 0 7.072M12 6 8 10H5v4h3l4 4V6Z" />,
+  volumeOff: <path d="M12 6 8 10H5v4h3l4 4V6ZM17 9l4 6m0-6-4 6" />,
   wallet: (
     <>
       <path d="M4 8a2 2 0 0 1 2-2h11v4" />
