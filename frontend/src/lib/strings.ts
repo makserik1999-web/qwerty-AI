@@ -136,7 +136,6 @@ export const kk = {
   'auth.signin.noAccount': 'Аккаунтыңыз жоқ па?',
   'auth.signin.forgot': 'Құпиясөзді ұмыттыңыз ба?',
   'auth.signin.invalid': 'Email немесе құпиясөз қате. Қайта көріңіз.',
-  'auth.signin.demoHint': 'Демо: кез келген email мен 6 таңбадан ұзын құпиясөз жарайды.',
   'auth.field.name': 'Аты-жөні',
   'auth.field.email': 'Email',
   'auth.field.password': 'Құпиясөз',
@@ -144,9 +143,13 @@ export const kk = {
   'auth.error.emailRequired': 'Email жазыңыз',
   'auth.error.emailInvalid': 'Email форматы дұрыс емес',
   'auth.error.passwordRequired': 'Құпиясөз жазыңыз',
-  'auth.error.passwordShort': 'Кемінде 6 таңба болсын',
+  'auth.error.passwordShort': 'Кемінде 8 таңба болсын',
   'auth.error.form': 'Форманы толық толтырыңыз.',
-  'auth.password.hint': 'Кемінде 6 таңба.',
+  'auth.error.emailTaken': 'Бұл email тіркелген. Кіріп көріңіз.',
+  'auth.error.tooMany': 'Тым көп әрекет. Біраз күте тұрыңыз.',
+  'auth.error.network': 'Сервер жауап бермеді. Байланысты тексеріңіз.',
+  'auth.error.unknown': 'Бірдеңе дұрыс болмады. Қайта көріңіз.',
+  'auth.password.hint': 'Кемінде 8 таңба.',
 
   // Explain ------------------------------------------------------------------
   'explain.title': 'Түсіндіру',
@@ -387,7 +390,6 @@ export const kk = {
   'settings.savedToast': 'Өзгерістер сақталды',
   'settings.saveError': 'Сақтау мүмкін болмады. Қайта көріңіз.',
   'settings.saving': 'Сақталуда',
-  'settings.demoFail': 'Демо: сақтау қатесін көрсету',
 } as const
 
 export type StringKey = keyof typeof kk
@@ -522,7 +524,6 @@ export const ru: Record<StringKey, string> = {
   'auth.signin.noAccount': 'Нет аккаунта?',
   'auth.signin.forgot': 'Забыли пароль?',
   'auth.signin.invalid': 'Неверный email или пароль. Попробуйте ещё раз.',
-  'auth.signin.demoHint': 'Демо: подойдёт любой email и пароль длиннее 6 символов.',
   'auth.field.name': 'Имя и фамилия',
   'auth.field.email': 'Email',
   'auth.field.password': 'Пароль',
@@ -530,9 +531,13 @@ export const ru: Record<StringKey, string> = {
   'auth.error.emailRequired': 'Укажите email',
   'auth.error.emailInvalid': 'Неверный формат email',
   'auth.error.passwordRequired': 'Укажите пароль',
-  'auth.error.passwordShort': 'Минимум 6 символов',
+  'auth.error.passwordShort': 'Минимум 8 символов',
   'auth.error.form': 'Заполните форму полностью.',
-  'auth.password.hint': 'Минимум 6 символов.',
+  'auth.error.emailTaken': 'Этот email уже зарегистрирован. Попробуйте войти.',
+  'auth.error.tooMany': 'Слишком много попыток. Подождите немного.',
+  'auth.error.network': 'Сервер не ответил. Проверьте соединение.',
+  'auth.error.unknown': 'Что-то пошло не так. Попробуйте ещё раз.',
+  'auth.password.hint': 'Минимум 8 символов.',
 
   'explain.title': 'Объяснить',
   'explain.history': 'История',
@@ -763,7 +768,6 @@ export const ru: Record<StringKey, string> = {
   'settings.savedToast': 'Изменения сохранены',
   'settings.saveError': 'Не удалось сохранить. Попробуйте ещё раз.',
   'settings.saving': 'Сохраняем',
-  'settings.demoFail': 'Демо: показать ошибку сохранения',
 }
 
 export const en: Record<StringKey, string> = {
@@ -897,8 +901,6 @@ export const en: Record<StringKey, string> = {
   'auth.signin.noAccount': 'No account yet?',
   'auth.signin.forgot': 'Forgot your password?',
   'auth.signin.invalid': 'Wrong email or password. Please try again.',
-  'auth.signin.demoHint':
-    'Demo: any email and a password longer than 6 characters works.',
   'auth.field.name': 'Full name',
   'auth.field.email': 'Email',
   'auth.field.password': 'Password',
@@ -906,9 +908,13 @@ export const en: Record<StringKey, string> = {
   'auth.error.emailRequired': 'Enter an email',
   'auth.error.emailInvalid': 'That email format is not valid',
   'auth.error.passwordRequired': 'Enter a password',
-  'auth.error.passwordShort': 'At least 6 characters',
+  'auth.error.passwordShort': 'At least 8 characters',
   'auth.error.form': 'Please complete the form.',
-  'auth.password.hint': 'At least 6 characters.',
+  'auth.error.emailTaken': 'That email is already registered. Try signing in.',
+  'auth.error.tooMany': 'Too many attempts. Wait a little.',
+  'auth.error.network': 'The server did not answer. Check your connection.',
+  'auth.error.unknown': 'Something went wrong. Try again.',
+  'auth.password.hint': 'At least 8 characters.',
 
   'explain.title': 'Explain',
   'explain.history': 'History',
@@ -1141,5 +1147,4 @@ export const en: Record<StringKey, string> = {
   'settings.savedToast': 'Changes saved',
   'settings.saveError': 'Could not save. Please try again.',
   'settings.saving': 'Saving',
-  'settings.demoFail': 'Demo: show the save error',
 }

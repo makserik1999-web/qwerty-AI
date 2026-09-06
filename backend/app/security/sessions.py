@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 
 from bson import ObjectId
 
-from app.config import SESSION_TTL
+from app.config import SESSION_TTL, USER_ROLE_DEFAULT
 from app.db import db
 
 
@@ -20,10 +20,19 @@ def _new_session_token() -> str:
 
 
 def _user_payload(user: Dict[str, Any]) -> Dict[str, Any]:
+    """What the client is told about itself.
+
+    `role` is read here and nowhere else on the way out, so the interface can
+    only learn a role that is stored on the account. Accounts created before
+    roles existed have no field, and they read as students - the same fallback
+    the signup path uses, and the safe direction to be wrong in.
+    """
     return {
         "id": str(user["_id"]),
         "username": user.get("username", ""),
         "email": user.get("email"),
+        "name": user.get("name") or user.get("username", ""),
+        "role": user.get("role") or USER_ROLE_DEFAULT,
         "created_at": user.get("created_at").isoformat()
         if isinstance(user.get("created_at"), datetime)
         else None,

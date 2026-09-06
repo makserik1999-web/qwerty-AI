@@ -115,6 +115,9 @@ export interface Transaction {
 }
 
 export interface User {
+  id: string
+  /** Derived from the email at signup; the account's stable handle. */
+  username: string
   name: string
   email: string
   role: Role

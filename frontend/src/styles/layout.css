@@ -465,3 +465,15 @@
   color: var(--text-secondary);
   font-size: var(--fs-caption);
 }
+
+/* Shown while /api/auth/me decides whether there is a session. Centred in the
+   viewport rather than in a page shell, because which shell to draw is
+   precisely what is not known yet. */
+.session-check {
+  min-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+}

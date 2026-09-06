@@ -2,10 +2,11 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Logo } from '../components/layout/Logo'
 import { Alert, Button, Card, Field, Icon, Input, RadioCard } from '../components/ui'
+import { describeAuthError } from '../lib/authErrors'
 import { useI18n } from '../lib/i18n'
 import { useStore } from '../lib/store'
 import type { Role } from '../lib/types'
-import { isValidEmail, sleep } from '../lib/utils'
+import { isValidEmail } from '../lib/utils'
 
 interface Errors {
   role?: string
@@ -34,7 +35,7 @@ export function SignUp() {
     if (!email.trim()) next.email = t('auth.error.emailRequired')
     else if (!isValidEmail(email)) next.email = t('auth.error.emailInvalid')
     if (!password) next.password = t('auth.error.passwordRequired')
-    else if (password.length < 6) next.password = t('auth.error.passwordShort')
+    else if (password.length < 8) next.password = t('auth.error.passwordShort')
     return next
   }
 
@@ -48,9 +49,19 @@ export function SignUp() {
     }
     setFormError(null)
     setSubmitting(true)
-    await sleep(900)
-    signUp({ name: name.trim(), email: email.trim(), role: role as Role })
-    navigate('/app/explain', { replace: true })
+    try {
+      await signUp({
+        name: name.trim(),
+        email: email.trim(),
+        password,
+        role: role as Role,
+      })
+      navigate('/app/explain', { replace: true })
+    } catch (error) {
+      const failure = describeAuthError(error, 'auth.error.unknown')
+      setFormError(failure.detail ?? t(failure.key))
+      setSubmitting(false)
+    }
   }
 
   return (

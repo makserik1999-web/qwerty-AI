@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Logo } from '../components/layout/Logo'
 import { Alert, Button, Card, Field, Input } from '../components/ui'
+import { describeAuthError } from '../lib/authErrors'
 import { useI18n } from '../lib/i18n'
 import { useStore } from '../lib/store'
-import { isValidEmail, sleep } from '../lib/utils'
+import { isValidEmail } from '../lib/utils'
 
 export function SignIn() {
   const { t } = useI18n()
@@ -28,18 +29,17 @@ export function SignIn() {
 
     setFormError(null)
     setSubmitting(true)
-    await sleep(900)
-
-    // Demo rule: passwords shorter than six characters are rejected so the
-    // invalid-credentials state stays reachable.
-    if (password.length < 6) {
+    try {
+      await signIn({ email: email.trim(), password })
+      navigate('/app/explain', { replace: true })
+    } catch (error) {
+      // A wrong password and an address nobody has registered both answer 401,
+      // deliberately: saying which one was wrong tells a stranger whether an
+      // address has an account here.
+      const failure = describeAuthError(error, 'auth.signin.invalid')
+      setFormError(failure.detail ?? t(failure.key))
       setSubmitting(false)
-      setFormError(t('auth.signin.invalid'))
-      return
     }
-
-    signIn({ email: email.trim() })
-    navigate('/app/explain', { replace: true })
   }
 
   return (
@@ -91,7 +91,6 @@ export function SignIn() {
             </Button>
           </form>
 
-          <p className="caption auth__hint">{t('auth.signin.demoHint')}</p>
 
           <p className="text-sm text-secondary auth__foot">
             {t('auth.signin.noAccount')} <Link to="/signup">{t('common.signUp')}</Link>

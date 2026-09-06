@@ -66,6 +66,18 @@ _MEDIA_TYPES = {
 _USERNAME_RE = re.compile(r"^[A-Za-z0-9_]{3,30}$")
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
+# What a person is called on screen. Free text, because names are, so the only
+# rule is a length that cannot be used to push anything else off the page.
+NAME_MAX_LEN = 80
+
+# Which interface a person gets. A closed set for the same reason the narration
+# voices are one: this value is chosen by the client, and anything outside the
+# set has to fall back rather than be stored. The default is deliberately the
+# lesser of the two - a request with no role, or with a role we do not
+# recognise, must never come out the other side as a teacher.
+USER_ROLES = ("student", "teacher")
+USER_ROLE_DEFAULT = "student"
+
 
 # ============== Narration ==============
 # The speech itself is synthesised in the agent, which holds the Azure key;

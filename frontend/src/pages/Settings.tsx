@@ -12,11 +12,13 @@ import {
   SegmentedControl,
   useToast,
 } from '../components/ui'
+import { ApiError } from '../lib/api'
+import { describeAuthError } from '../lib/authErrors'
 import { useI18n } from '../lib/i18n'
 import { useStore, type ThemePreference } from '../lib/store'
 import { UI_LANGUAGES } from '../lib/languages'
 import type { Lang, UiLang } from '../lib/types'
-import { isValidEmail, sleep } from '../lib/utils'
+import { isValidEmail } from '../lib/utils'
 
 type SectionState = 'idle' | 'saving' | 'saved' | 'error'
 
@@ -80,7 +82,7 @@ export function Settings() {
   const [email, setEmail] = useState(user?.email ?? '')
   const [emailError, setEmailError] = useState<string | undefined>()
   const [profileState, setProfileState] = useState<SectionState>('idle')
-  const [demoFail, setDemoFail] = useState(false)
+  const [profileError, setProfileError] = useState<string | undefined>()
 
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [confirmWord, setConfirmWord] = useState('')
@@ -96,24 +98,48 @@ export function Settings() {
     }
     setEmailError(undefined)
     setProfileState('saving')
-    await sleep(800)
-    if (demoFail) {
+    try {
+      await updateProfile({ name: name.trim(), email: email.trim() })
+      setProfileState('saved')
+      setProfileError(undefined)
+      toast(t('settings.savedToast'))
+    } catch (error) {
+      const failure = describeAuthError(error, 'auth.error.unknown')
+      const message = failure.detail ?? t(failure.key)
+
+      // A taken address belongs to the field, the same way an malformed one
+      // does in the check above - and that check does not raise the section
+      // either. Two complaints about one field read as two problems.
+      if (error instanceof ApiError && error.status === 409) {
+        setEmailError(message)
+        setProfileState('idle')
+        setProfileError(undefined)
+        return
+      }
+
+      // Everything else has no field to belong to: a dead server, a rate
+      // limit, an expired session. Those go on the section.
       setProfileState('error')
-      return
+      setProfileError(message)
     }
-    updateProfile({ name: name.trim(), email: email.trim() })
-    setProfileState('saved')
-    toast(t('settings.savedToast'))
   }
 
-  function confirmDelete() {
+  async function confirmDelete() {
     if (confirmWord.trim() !== deleteWord) {
       setConfirmError(t('settings.deleteMismatch'))
       return
     }
-    deleteAccount()
-    setDeleteOpen(false)
-    navigate('/', { replace: true })
+    setConfirmError(undefined)
+    try {
+      await deleteAccount()
+      setDeleteOpen(false)
+      navigate('/', { replace: true })
+    } catch (error) {
+      // The dialog stays open: the account still exists, and closing it would
+      // leave someone believing it was gone.
+      const failure = describeAuthError(error, 'auth.error.unknown')
+      setConfirmError(failure.detail ?? t(failure.key))
+    }
   }
 
   return (
@@ -131,7 +157,7 @@ export function Settings() {
           description={t('settings.profileDesc')}
           state={profileState}
           savedLabel={t('settings.savedToast')}
-          errorLabel={t('settings.saveError')}
+          errorLabel={profileError ?? t('settings.saveError')}
           footer={
             <Button type="submit" variant="primary" loading={profileState === 'saving'}>
               {t('common.save')}
@@ -174,15 +200,6 @@ export function Settings() {
               />
             )}
           </Field>
-
-          <label className="demo-bar demo-bar--inline">
-            <input
-              type="checkbox"
-              checked={demoFail}
-              onChange={(event) => setDemoFail(event.target.checked)}
-            />
-            {t('settings.demoFail')}
-          </label>
         </Section>
       </form>
 

@@ -6,6 +6,8 @@ import {
   useMemo,
   useState,
 } from 'react'
+import * as api from './api'
+import type { ApiUser } from './api'
 import { buildLibrary, buildSubmissions, buildTransactions, PRICES } from './mockData'
 import type {
   Conversation,
@@ -31,6 +33,8 @@ const BALANCE_PRESETS: Record<BalanceState, number> = {
 
 interface AppState {
   user: User | null
+  /** True until /api/auth/me has answered, so nothing redirects too early. */
+  checkingSession: boolean
   uiLang: UiLang
   explainLang: Lang
   theme: ThemePreference
@@ -45,11 +49,18 @@ interface AppState {
 }
 
 interface AppActions {
-  signUp: (input: { name: string; email: string; role: Role }) => void
-  signIn: (input: { email: string }) => void
-  signOut: () => void
-  updateProfile: (input: { name: string; email: string }) => void
-  deleteAccount: () => void
+  /* These four talk to the server and can fail, so they return promises and
+     let the caller show the error - the store has no opinion about copy. */
+  signUp: (input: {
+    name: string
+    email: string
+    password: string
+    role: Role
+  }) => Promise<void>
+  signIn: (input: { email: string; password: string }) => Promise<void>
+  signOut: () => Promise<void>
+  updateProfile: (input: { name: string; email: string }) => Promise<void>
+  deleteAccount: () => Promise<void>
   setUiLang: (lang: UiLang) => void
   setExplainLang: (lang: Lang) => void
   setTheme: (theme: ThemePreference) => void
@@ -72,10 +83,39 @@ type Store = AppState & AppActions
 
 const StoreContext = createContext<Store | null>(null)
 
+/**
+ * The account as the interface uses it.
+ *
+ * `email` is nullable on the server - accounts made before the new sign-up
+ * screen have only a username - but every screen that shows an address treats
+ * it as text, so it is flattened here rather than in nine places.
+ */
+function toUser(found: ApiUser): User {
+  return {
+    id: found.id,
+    username: found.username,
+    name: found.name || found.username,
+    email: found.email ?? '',
+    role: found.role,
+  }
+}
+
 const PERSIST_KEY = 'anyq.session.v1'
 
+/**
+ * The session is deliberately NOT in here.
+ *
+ * It used to be, and that made the browser the authority on who someone was -
+ * including their role, which decides whether the teacher screens appear.
+ * Editing one line of local storage was enough to become a teacher. The
+ * session now comes from /api/auth/me on every load, against a cookie the
+ * page cannot read, so the answer comes from the server or not at all.
+ *
+ * Language and theme stay: they are preferences, they are read by the inline
+ * script in index.html before the first paint, and being wrong about them
+ * costs a repaint rather than an access decision.
+ */
 interface Persisted {
-  user: User | null
   uiLang: UiLang
   explainLang: Lang
   theme: ThemePreference
@@ -101,7 +141,8 @@ function writePersisted(value: Persisted): void {
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const persisted = useMemo(readPersisted, [])
 
-  const [user, setUser] = useState<User | null>(persisted.user ?? null)
+  const [user, setUser] = useState<User | null>(null)
+  const [checkingSession, setCheckingSession] = useState(true)
   const [uiLang, setUiLangState] = useState<UiLang>(persisted.uiLang ?? 'kk')
   const [explainLang, setExplainLangState] = useState<Lang>(persisted.explainLang ?? 'kk')
   const [theme, setThemeState] = useState<ThemePreference>(persisted.theme ?? 'system')
@@ -119,8 +160,33 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [submissions, setSubmissionsState] = useState<Submission[]>([])
 
   useEffect(() => {
-    writePersisted({ user, uiLang, explainLang, theme })
-  }, [user, uiLang, explainLang, theme])
+    writePersisted({ uiLang, explainLang, theme })
+  }, [uiLang, explainLang, theme])
+
+  /* Ask the server who the cookie belongs to. Runs once, before anything is
+     allowed to redirect: without the flag, every reload of a signed-in page
+     would bounce to /signin for the length of this request and lose the
+     route the person was on. */
+  useEffect(() => {
+    let cancelled = false
+    api
+      .currentUser()
+      .then((found) => {
+        if (!cancelled) setUser(found ? toUser(found) : null)
+      })
+      .catch(() => {
+        // Unreachable server: show the signed-out interface rather than a
+        // half-working one. Signing in again is the recovery, and it works
+        // the moment the server does.
+        if (!cancelled) setUser(null)
+      })
+      .finally(() => {
+        if (!cancelled) setCheckingSession(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   /* Theme is applied to the document root so tokens.css can switch palettes. */
   useEffect(() => {
@@ -148,25 +214,36 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     })
   }, [])
 
-  const signUp = useCallback<AppActions['signUp']>(({ name, email, role }) => {
-    setUser({ name, email, role })
+  const signUp = useCallback<AppActions['signUp']>(async (input) => {
+    setUser(toUser(await api.signUp(input)))
   }, [])
 
-  const signIn = useCallback<AppActions['signIn']>(({ email }) => {
-    // Demo sign-in: the role is inferred from the address so both variants of
-    // the shell are reachable without a backend.
-    const role: Role = /teacher|mugalim|ustaz/i.test(email) ? 'teacher' : 'student'
-    const name = email.split('@')[0].replace(/[._-]+/g, ' ')
-    setUser({ name: name.charAt(0).toUpperCase() + name.slice(1), email, role })
+  const signIn = useCallback<AppActions['signIn']>(async (input) => {
+    // The role is whatever the account says it is. It used to be guessed from
+    // the address - anything containing "teacher" got the teacher shell -
+    // which was a demo affordance, not a rule.
+    setUser(toUser(await api.signIn(input)))
   }, [])
 
-  const signOut = useCallback(() => setUser(null), [])
-
-  const updateProfile = useCallback<AppActions['updateProfile']>(({ name, email }) => {
-    setUser((prev) => (prev ? { ...prev, name, email } : prev))
+  const signOut = useCallback(async () => {
+    try {
+      await api.signOut()
+    } finally {
+      // Local state goes even if the request failed: staying signed in on
+      // screen after someone asked to leave is the worse of the two wrongs,
+      // and the cookie is dropped by the response when there is one.
+      setUser(null)
+      setConversations([])
+      setExplanations({})
+    }
   }, [])
 
-  const deleteAccount = useCallback(() => {
+  const updateProfile = useCallback<AppActions['updateProfile']>(async ({ name, email }) => {
+    setUser(toUser(await api.updateProfile({ name, email })))
+  }, [])
+
+  const deleteAccount = useCallback(async () => {
+    await api.deleteAccount()
     setUser(null)
     setLibrary([])
     setConversations([])
@@ -275,6 +352,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<Store>(
     () => ({
       user,
+      checkingSession,
       uiLang,
       explainLang,
       theme,
@@ -308,6 +386,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }),
     [
       user,
+      checkingSession,
       uiLang,
       explainLang,
       theme,
