@@ -61,6 +61,7 @@ class AgentConnectionManager:
         # pending_requests: those are user-visible generations with a quota
         # and a chat behind them, these are a sub-second internal lookup.
         self.pending_embeddings: Dict[str, asyncio.Future] = {}
+        self.pending_assessments: Dict[str, asyncio.Future] = {}
         # Declared by the agent at handshake. Empty means an older build
         # that only understands generation requests.
         self.agent_features: set = set()
@@ -90,6 +91,46 @@ class AgentConnectionManager:
             return None
         finally:
             self.pending_embeddings.pop(request_id, None)
+
+    async def request_assessment(self, spec: dict, timeout: float) -> dict:
+        """Ask the agent to write one assessment paper.
+
+        Kept separate from request_embedding, which swallows every failure and
+        returns None: an embedding is an optimisation and its absence costs a
+        cache miss, while this is the teacher's actual request. They have to be
+        told the difference between "the agent is down" and "come back in a
+        minute", so the reasons are distinguished and returned.
+        """
+        if not self.agent_connection:
+            return {"error": "agent_unavailable"}
+        if "assessment" not in self.agent_features:
+            # An older agent that only knows how to render videos.
+            return {"error": "agent_unavailable"}
+
+        request_id = f"assess-{uuid.uuid4().hex[:16]}"
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future = loop.create_future()
+        self.pending_assessments[request_id] = future
+        try:
+            await self.agent_connection.send_json(
+                {"type": "assessment", "request_id": request_id, "spec": spec}
+            )
+            return await asyncio.wait_for(future, timeout=timeout)
+        except asyncio.TimeoutError:
+            return {"error": "timeout"}
+        except Exception as e:  # noqa: BLE001
+            print(f"assessment request failed: {type(e).__name__}: {e}")
+            return {"error": "agent_unavailable"}
+        finally:
+            self.pending_assessments.pop(request_id, None)
+
+    def resolve_assessment(self, request_id: str, payload: dict) -> bool:
+        """Hand an agent's paper to whoever asked for it."""
+        future = self.pending_assessments.pop(request_id, None)
+        if future is None or future.done():
+            return False
+        future.set_result(payload)
+        return True
 
     def resolve_embedding(self, request_id: str, payload: Optional[dict]) -> bool:
         """Hand an agent's reply to whoever asked for it."""

@@ -232,6 +232,26 @@ async def _send_json(websocket, payload: Dict[str, Any]) -> None:
         await websocket.send(json.dumps(payload, ensure_ascii=False))
 
 
+async def _handle_assessment(websocket, request_id: str, spec: Dict[str, Any]) -> None:
+    """Write one assessment paper, off the main receive loop.
+
+    Same reason as embeddings: this is a single text call that takes seconds,
+    and the loop below handles one video at a time at about ninety seconds
+    each. A teacher waiting on a СОР behind somebody else's animation would be
+    waiting for no reason at all.
+    """
+    from anyq.assessments import generate_assessment
+
+    result = await generate_assessment(spec)
+    payload: Dict[str, Any] = {"type": "assessment_result", "request_id": request_id}
+    payload.update(result)
+    try:
+        await _send_json(websocket, payload)
+    except Exception as e:  # noqa: BLE001 - the socket may have gone
+        print(f"Failed to send assessment for {request_id}: {type(e).__name__}: {e}",
+              flush=True)
+
+
 async def _handle_embed(websocket, request_id: str, text: str) -> None:
     """Answer one embedding request, off the main receive loop."""
     from anyq.embeddings import embed_question
@@ -266,7 +286,7 @@ async def _authenticate(websocket) -> bool:
             # backend checks this before sending an embed request: an
             # older agent would take the frame for a question and spend
             # ninety seconds rendering a video of it.
-            "features": ["embed"],
+            "features": ["embed", "assessment"],
         }))
         raw = await asyncio.wait_for(
             websocket.recv(), timeout=AGENT_HANDSHAKE_TIMEOUT_SEC
@@ -363,6 +383,17 @@ async def agent_client() -> None:
                     # long would defeat the point of having a cache.
                     if data.get("type") == "embed":
                         asyncio.create_task(_handle_embed(websocket, request_id, text))
+                        continue
+
+                    # An assessment is text, not a video: it does not go
+                    # through the graph and must not queue behind a render.
+                    if data.get("type") == "assessment":
+                        spec = data.get("spec")
+                        asyncio.create_task(
+                            _handle_assessment(
+                                websocket, request_id, spec if isinstance(spec, dict) else {}
+                            )
+                        )
                         continue
 
                     has_image = bool(data.get("image_data"))

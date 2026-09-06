@@ -1,6 +1,6 @@
 """Request bodies accepted by the HTTP endpoints."""
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -53,3 +53,23 @@ class ExportRequest(BaseModel):
     type: str
     message_id: str
     params: Dict[str, Any] = Field(default_factory=dict)
+
+
+class AssessmentRequest(BaseModel):
+    """What paper to write. Every field is checked against a closed set in the
+    endpoint before it goes anywhere near a prompt - the topic is the only free
+    text, and it is wrapped as untrusted data in the agent."""
+
+    subject: str
+    grade: int
+    topic: str
+    type: str
+    difficulty: str
+    lang: str
+    count: int = 5
+
+
+class QuestionsUpdate(BaseModel):
+    """The paper as the teacher edited it: reworded, reordered or shortened."""
+
+    questions: List[Dict[str, Any]]

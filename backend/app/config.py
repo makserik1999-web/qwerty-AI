@@ -79,6 +79,24 @@ USER_ROLES = ("student", "teacher")
 USER_ROLE_DEFAULT = "student"
 
 
+# ============== Assessments ==============
+# Closed sets, because every one of these reaches a prompt. Free text there is
+# somebody else's instructions with extra steps, and the interface only ever
+# offers these values anyway.
+ASSESSMENT_SUBJECTS = ("math", "geometry", "physics", "chemistry", "biology", "informatics")
+ASSESSMENT_TYPES = ("sor", "soch", "quiz")
+ASSESSMENT_DIFFICULTIES = ("easy", "medium", "hard")
+ASSESSMENT_LANGUAGES = ("kk", "ru")
+ASSESSMENT_GRADES = tuple(range(5, 12))
+ASSESSMENT_MAX_QUESTIONS = 20
+ASSESSMENT_TOPIC_MAX_LEN = 200
+# Writing a paper is one text call, so this is generous next to the video
+# quota - but not unbounded: it still costs tokens, and a loop in somebody's
+# script should not be able to spend the month's budget in an afternoon.
+ASSESSMENT_MAX_PER_HOUR = int(os.getenv("ASSESSMENT_MAX_PER_HOUR", "40"))
+ASSESSMENT_TIMEOUT_SEC = float(os.getenv("ASSESSMENT_TIMEOUT_SEC", "90"))
+
+
 # ============== Narration ==============
 # The speech itself is synthesised in the agent, which holds the Azure key;
 # the backend only records what was asked for, so it can key the cache on

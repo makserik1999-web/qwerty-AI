@@ -1070,3 +1070,54 @@ tr.is-selected {
   background: var(--surface);
   color: var(--text-secondary);
 }
+
+/* ---------------------------------------------------------------------------
+   Printing an assessment.
+
+   The teacher's route to a PDF today: every browser's print dialog offers
+   "save as PDF", so the paper needs no server to leave the screen. What it
+   does need is to leave alone - the navigation, the form and the marking key
+   are not part of what a student receives.
+   --------------------------------------------------------------------------- */
+
+@media print {
+  /* Everything except the document itself. The sidebar, the composer, the
+     buttons and the empty states all belong to making the paper, not to the
+     paper. */
+  .app-shell__nav,
+  .page__header,
+  .split--form > .card:first-child,
+  .row--actions,
+  .tabs,
+  .document__actions,
+  .footer {
+    display: none !important;
+  }
+
+  /* A printed page is white whatever the reader's theme is, and the dark one
+     would otherwise put light text on it. */
+  :root,
+  :root[data-theme='dark'] {
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --surface-raised: #ffffff;
+    --text-primary: #000000;
+    --text-secondary: #333333;
+    --border: #999999;
+  }
+
+  body {
+    background: #ffffff;
+  }
+
+  .document {
+    border: 0;
+    box-shadow: none;
+    padding: 0;
+  }
+
+  /* A question split across a page break is a question a student loses. */
+  .document__question {
+    break-inside: avoid;
+  }
+}

@@ -103,6 +103,15 @@ async def websocket_agent_endpoint(websocket: WebSocket):
                         })
                 continue
 
+            # A written paper, not an answer to a chat message: no chat, no
+            # saved message, no quota of its own.
+            if data.get("type") == "assessment_result":
+                agent_manager.resolve_assessment(request_id, {
+                    k: v for k, v in data.items()
+                    if k in ("questions", "total_marks", "requested", "error")
+                })
+                continue
+
             response_text = data.get("text", "")
             status = data.get("status", "complete")
             video_path = data.get("video_path", "")

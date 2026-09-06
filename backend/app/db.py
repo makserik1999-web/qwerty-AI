@@ -30,6 +30,8 @@ async def lifespan(app: FastAPI):
     await db.db.sessions.create_index("expires_at", expireAfterSeconds=0)
     await db.db.sessions.create_index("token_hash", unique=True)
     await db.db.chats.create_index([("user_id", 1), ("updated_at", -1)])
+    # The only way a paper is ever read: this teacher's, newest first.
+    await db.db.assessments.create_index([("user_id", 1), ("created_at", -1)])
     await db.db.messages.create_index([("chat_id", 1), ("timestamp", 1)])
     # Answer cache. The TTL index skips documents with no `expires_at`, which
     # is exactly how curated entries stay forever while generated ones age out.

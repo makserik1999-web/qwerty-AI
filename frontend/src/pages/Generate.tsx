@@ -18,13 +18,15 @@ import {
   Textarea,
   useToast,
 } from '../components/ui'
-import { useI18n } from '../lib/i18n'
+import { ApiError } from '../lib/api'
 import {
-  exportDocument,
   generateAssessment,
   regenerateQuestion,
-  type GenerateAssessmentInput,
-} from '../lib/mockApi'
+  saveQuestions,
+  type GenerateInput,
+} from '../lib/assessments'
+import { describeAuthError } from '../lib/authErrors'
+import { useI18n } from '../lib/i18n'
 import { GRADES, SUBJECTS } from '../lib/mockData'
 import { useStore } from '../lib/store'
 import type {
@@ -51,28 +53,18 @@ export function Generate() {
   const [count, setCount] = useState(5)
   const [difficulty, setDifficulty] = useState<Difficulty>('medium')
   const [docLang, setDocLang] = useState<Lang>('kk')
-  const [demoFail, setDemoFail] = useState(false)
 
   const [status, setStatus] = useState<Status>('idle')
   const [assessment, setAssessment] = useState<Assessment | null>(null)
   const [topicError, setTopicError] = useState<string | undefined>()
+  const [failure, setFailure] = useState<string | undefined>()
   const [busyQuestion, setBusyQuestion] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
-  const [exporting, setExporting] = useState<'pdf' | 'docx' | null>(null)
   const [tab, setTab] = useState<PreviewTab>('document')
 
-  function currentInput(): GenerateAssessmentInput {
-    return {
-      subject,
-      grade,
-      topic: topic.trim(),
-      type,
-      difficulty,
-      lang: docLang,
-      count,
-      shouldFail: demoFail,
-    }
+  function currentInput(): GenerateInput {
+    return { subject, grade, topic: topic.trim(), type, difficulty, lang: docLang, count }
   }
 
   async function onGenerate(event: React.FormEvent) {
@@ -82,6 +74,7 @@ export function Generate() {
       return
     }
     setTopicError(undefined)
+    setFailure(undefined)
     setStatus('generating')
     try {
       const result = await generateAssessment(currentInput())
@@ -89,42 +82,66 @@ export function Generate() {
       setStatus('ready')
       charge('assessment', 1, `${t(`subject.${subject}`)} · ${grade}`)
       toast(t('generate.saved'))
-    } catch {
+    } catch (error) {
+      // The server's sentence when it has one: it says whether to wait, to
+      // shorten the topic, or that the hour's papers are spent.
+      const described = describeAuthError(error, 'auth.error.unknown')
+      setFailure(
+        error instanceof ApiError && error.detail ? error.detail : t(described.key),
+      )
       setStatus('error')
     }
   }
 
-  async function onRegenerateQuestion(questionId: string, index: number) {
+  async function onRegenerateQuestion(questionId: string) {
     if (!assessment) return
     setBusyQuestion(questionId)
-    const replacement = await regenerateQuestion(currentInput(), index)
-    setAssessment({
-      ...assessment,
-      questions: assessment.questions.map((question) =>
-        question.id === questionId ? { ...replacement, id: question.id } : question,
-      ),
-    })
-    setBusyQuestion(null)
-    toast(t('generate.questionUpdated'))
+    try {
+      // The server returns the whole paper: it is what changed, and taking
+      // its word for the result avoids the two copies drifting.
+      setAssessment(await regenerateQuestion(assessment.id, questionId))
+      toast(t('generate.questionUpdated'))
+    } catch (error) {
+      setFailure(
+        error instanceof ApiError && error.detail
+          ? error.detail
+          : t('auth.error.unknown'),
+      )
+    } finally {
+      setBusyQuestion(null)
+    }
   }
 
-  function saveEdit(questionId: string) {
+  async function saveEdit(questionId: string) {
     if (!assessment) return
-    setAssessment({
-      ...assessment,
-      questions: assessment.questions.map((question) =>
-        question.id === questionId ? { ...question, text: editValue } : question,
-      ),
-    })
+    const edited = assessment.questions.map((question) =>
+      question.id === questionId ? { ...question, text: editValue } : question,
+    )
+    // Shown at once, then written. A reworded question that only lived on
+    // screen would be gone on the next visit, which is worse than slow.
+    setAssessment({ ...assessment, questions: edited })
     setEditingId(null)
-    toast(t('generate.questionUpdated'))
+    try {
+      setAssessment(await saveQuestions(assessment.id, edited))
+      toast(t('generate.questionUpdated'))
+    } catch {
+      setFailure(t('auth.error.unknown'))
+    }
   }
 
-  async function onExport(format: 'pdf' | 'docx') {
-    setExporting(format)
-    await exportDocument(format)
-    setExporting(null)
-    toast(t('generate.exported', { format: format.toUpperCase() }))
+  /**
+   * Printing, which is also how a teacher gets a PDF.
+   *
+   * The paper is already laid out on screen, and every browser's print dialog
+   * offers "save as PDF" - so this needs no server and works today. A real
+   * .docx does need one (the exporter, which already carries python-pptx for
+   * the teacher deck) and is not built yet, so that button says so rather
+   * than pretending.
+   */
+  function onPrint() {
+    setTab('document')
+    // The tab switch has to paint before the dialog blocks the page.
+    window.setTimeout(() => window.print(), 0)
   }
 
   const totalMarks =
@@ -247,15 +264,6 @@ export function Generate() {
             >
               {assessment ? t('generate.regenerate') : t('generate.submit')}
             </Button>
-
-            <label className="demo-bar demo-bar--inline">
-              <input
-                type="checkbox"
-                checked={demoFail}
-                onChange={(event) => setDemoFail(event.target.checked)}
-              />
-              {t('generate.demoFail')}
-            </label>
           </form>
         </Card>
 
@@ -268,20 +276,10 @@ export function Generate() {
           <div className="row row-between row-wrap">
             <h2 className="card__title">{t('generate.preview')}</h2>
             <div className="row row--actions">
-              <Button
-                icon="download"
-                disabled={!assessment}
-                loading={exporting === 'pdf'}
-                onClick={() => void onExport('pdf')}
-              >
-                {t('generate.exportPdf')}
+              <Button icon="download" disabled={!assessment} onClick={onPrint}>
+                {t('generate.print')}
               </Button>
-              <Button
-                icon="download"
-                disabled={!assessment}
-                loading={exporting === 'docx'}
-                onClick={() => void onExport('docx')}
-              >
+              <Button icon="download" disabled title={t('generate.docxSoon')}>
                 {t('generate.exportDocx')}
               </Button>
             </div>
@@ -298,12 +296,12 @@ export function Generate() {
           {status === 'error' ? (
             <Alert
               tone="error"
-              title={t('generate.errorTitle')}
+              title={failure ?? t('generate.errorTitle')}
               action={
                 <Button
                   icon="refresh"
                   onClick={() => {
-                    setDemoFail(false)
+                    setFailure(undefined)
                     setStatus('idle')
                   }}
                 >
@@ -442,7 +440,7 @@ export function Generate() {
                               n: index + 1,
                             })}
                             disabled={busyQuestion === question.id}
-                            onClick={() => void onRegenerateQuestion(question.id, index)}
+                            onClick={() => void onRegenerateQuestion(question.id)}
                           />
                         </div>
 
