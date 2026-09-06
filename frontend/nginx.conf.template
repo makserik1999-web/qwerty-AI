@@ -14,7 +14,20 @@ server {
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' ws: wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;
+    # Two allowances beyond 'self', both required by index.html:
+    #
+    # 1. The sha256 is the inline <script> that reads the saved theme and
+    #    stamps it on <html> before the first paint. Without it the page loads
+    #    light and flips to dark once React mounts. It is allowed by hash and
+    #    not by 'unsafe-inline' so that this one known script is permitted and
+    #    no other. Change the script and the hash must change with it -
+    #    tests/backend/test_csp.py recomputes it and prints the new value.
+    #
+    # 2. fonts.googleapis.com serves the stylesheet and fonts.gstatic.com the
+    #    font files. Neither was listed before, so the interface silently fell
+    #    back to system fonts in Docker while looking right under `npm run dev`,
+    #    where no CSP applies.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'sha256-RdeGkrDKu8Nnri4XXBOhJ7BTv6RFM6E1lB5H9a7zLUA='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' ws: wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;
 
     client_max_body_size 4m;
 

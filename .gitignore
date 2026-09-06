@@ -102,3 +102,6 @@ agent/manim-mcp-server/src/media/
 
 # Tool caches
 .ruff_cache/
+
+# Incremental build state written by `tsc -b`.
+*.tsbuildinfo
