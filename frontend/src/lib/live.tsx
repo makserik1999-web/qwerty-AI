@@ -19,6 +19,30 @@ import { useWebSocket } from './useWebSocket'
 
 export type AskStage = 'understand' | 'write' | 'render'
 
+/**
+ * How long to wait for an answer before giving up on hearing about it.
+ *
+ * Generous on purpose: the slowest render measured was 154 seconds, and a
+ * question cut off while it was still being rendered would be the worse
+ * mistake. But not unbounded - a promise that never settles is a spinner that
+ * runs until the tab is closed, which is what a person sees when an answer is
+ * lost somewhere between the agent and this page. That happened, and the
+ * screen said nothing at all for five minutes after the video was ready.
+ *
+ * The render is not cancelled by this. It finishes, it is saved to the chat
+ * and written to the cache - which is why the message says to look in the
+ * history rather than implying the work was thrown away.
+ */
+const ANSWER_DEADLINE_MS = 5 * 60 * 1000
+
+/** Ran out of patience, not out of luck: the answer may still be coming. */
+export class AnswerTimeout extends Error {
+  constructor() {
+    super('answer timed out')
+    this.name = 'AnswerTimeout'
+  }
+}
+
 /** What the agent produced, before the interface makes an Explanation of it. */
 export interface Answer {
   chatId: string
@@ -57,6 +81,7 @@ interface Pending {
   chatId: string | null
   resolve: (answer: Answer) => void
   reject: (error: Error) => void
+  timer: ReturnType<typeof setTimeout>
 }
 
 /** Failed because the server said so, rather than because the wire broke. */
@@ -88,6 +113,7 @@ export function LiveProvider({
   const settle = useCallback((run: (pending: Pending) => void) => {
     const pending = pendingRef.current
     if (!pending) return
+    clearTimeout(pending.timer)
     pendingRef.current = null
     inputRef.current = null
     setStage(null)
@@ -180,14 +206,18 @@ export function LiveProvider({
           return
         }
         const question = input.question.trim()
-        pendingRef.current = { question, chatId: null, resolve, reject }
+        const timer = setTimeout(
+          () => settle((p) => p.reject(new AnswerTimeout())),
+          ANSWER_DEADLINE_MS,
+        )
+        pendingRef.current = { question, chatId: null, resolve, reject, timer }
         inputRef.current = input
         setStage('understand')
         // The title is the question. It is what the history list shows, and
         // the backend truncates it, so nothing here has to.
         sendMessage('create_chat', { title: question })
       }),
-    [sendMessage],
+    [sendMessage, settle],
   )
 
   const value = useMemo<LiveValue>(

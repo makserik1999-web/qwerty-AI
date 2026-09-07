@@ -289,4 +289,4 @@ async def websocket_ui_endpoint(websocket: WebSocket):
     except Exception as e:
         print(f"UI WebSocket error for user {user_id}: {type(e).__name__}: {e}")
     finally:
-        ui_manager.disconnect(user_id)
+        ui_manager.disconnect(user_id, websocket)

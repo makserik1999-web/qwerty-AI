@@ -198,7 +198,12 @@ async def websocket_agent_endpoint(websocket: WebSocket):
     except Exception as e:
         print(f"Agent WebSocket error: {type(e).__name__}: {e}")
     finally:
-        agent_manager.disconnect()
-        await _notify_pending_failures(
-            "AI Agent is not available. Please try again later."
-        )
+        agent_manager.disconnect(websocket)
+        # Only when nothing has taken this connection's place. An agent that
+        # reconnected is an agent that is there, and telling everybody their
+        # request failed because the previous socket finished closing would
+        # be a failure we invented.
+        if agent_manager.agent_connection is None:
+            await _notify_pending_failures(
+                "AI Agent is not available. Please try again later."
+            )

@@ -32,7 +32,21 @@ class UIConnectionManager:
         self.active_connections[user_id] = websocket
         print(f"UI client connected: user_id={user_id}")
 
-    def disconnect(self, user_id: str):
+    def disconnect(self, user_id: str, websocket: Optional[WebSocket] = None):
+        """Forget this socket - but only if it is still the registered one.
+
+        A reconnect closes the old socket and opens a new one, and the old
+        one's cleanup usually runs AFTER the new one has registered. Popping
+        by user id alone therefore deleted the socket that had just taken
+        over: it stayed open, the browser saw no disconnect, and every answer
+        for that person went nowhere, because delivery is a lookup in this
+        map. The symptom was a question that reached the agent, rendered, and
+        never came back - with the interface still showing "connected".
+        """
+        current = self.active_connections.get(user_id)
+        if websocket is not None and current is not websocket:
+            # A newer socket owns this user now. Leave it alone.
+            return
         self.active_connections.pop(user_id, None)
         print(f"UI client disconnected: user_id={user_id}")
 
@@ -160,7 +174,15 @@ class AgentConnectionManager:
         self.agent_connection = websocket
         print("AI Agent connected")
 
-    def disconnect(self):
+    def disconnect(self, websocket: Optional[WebSocket] = None):
+        """Same race as the UI manager, with worse consequences.
+
+        An agent reconnect that cleared the new connection would leave the
+        backend believing no agent is available while one is sitting there -
+        and would fire _notify_pending_failures at everyone waiting.
+        """
+        if websocket is not None and self.agent_connection is not websocket:
+            return
         self.agent_connection = None
         print("AI Agent disconnected")
 

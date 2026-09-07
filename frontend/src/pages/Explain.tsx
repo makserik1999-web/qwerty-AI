@@ -16,7 +16,7 @@ import {
 } from '../components/ui'
 import { explanationFromAnswer, explanationFromChat, listChats, loadChat, toConversation } from '../lib/chats'
 import { useI18n } from '../lib/i18n'
-import { AgentError, useLive, type AskStage } from '../lib/live'
+import { AgentError, AnswerTimeout, useLive, type AskStage } from '../lib/live'
 import { EXAMPLE_QUESTIONS, PRICES } from '../lib/mockData'
 import { useStore } from '../lib/store'
 import type { Conversation, Explanation, Lang, LangChoice } from '../lib/types'
@@ -101,11 +101,20 @@ export function Explain() {
         // next - the agent is down, the quota is spent. A dropped socket
         // produces an internal string ("disconnected") that means nothing to
         // the person reading it.
-        setFailure(error instanceof AgentError ? error.message : null)
+        // The render is not cancelled by a timeout - it finishes and is
+        // saved - so the message points at the history rather than implying
+        // the work was lost.
+        setFailure(
+          error instanceof AnswerTimeout
+            ? t('explain.timedOut')
+            : error instanceof AgentError
+              ? error.message
+              : null,
+        )
         setState('error')
       }
     },
-    [ask, charge, narration, user?.role, voice],
+    [ask, charge, narration, t, user?.role, voice],
   )
 
   function onSubmit(event: React.FormEvent) {
