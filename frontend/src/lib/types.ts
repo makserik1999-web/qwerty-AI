@@ -64,6 +64,8 @@ export interface Explanation {
   matchedQuestion?: string
   /** The chat it was filed under, so the history can open it again. */
   chatId?: string
+  /** The message that carried it. Saving is addressed by this, not by a copy. */
+  messageId?: string
 }
 
 export interface Conversation {

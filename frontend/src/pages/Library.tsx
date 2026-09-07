@@ -4,6 +4,7 @@ import { ScenePreview } from '../components/anim/AnimationPlayer'
 import { SCENE_TITLES } from '../components/anim/scenes'
 import { ExplanationView } from '../components/ExplanationView'
 import {
+  Alert,
   Badge,
   Button,
   Card,
@@ -25,7 +26,7 @@ import { useI18n } from '../lib/i18n'
 import { SUBJECTS } from '../lib/mockData'
 import { useStore } from '../lib/store'
 import type { Explanation, SubjectId } from '../lib/types'
-import { formatDate, sleep } from '../lib/utils'
+import { formatDate } from '../lib/utils'
 
 type SortKey = 'new' | 'old' | 'az'
 type LangFilter = 'all' | 'kk' | 'ru'
@@ -34,10 +35,10 @@ export function Library() {
   const { t, lang } = useI18n()
   const { toast } = useToast()
   const navigate = useNavigate()
-  const { library, removeFromLibrary, renameExplanation, resetLibrary, clearLibrary } =
+  const { library, libraryLoading, removeFromLibrary, renameExplanation, reloadLibrary } =
     useStore()
 
-  const [loading, setLoading] = useState(true)
+  const [failure, setFailure] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [subjects, setSubjects] = useState<SubjectId[]>([])
   const [langFilter, setLangFilter] = useState<LangFilter>('all')
@@ -48,16 +49,11 @@ export function Library() {
   const [renameValue, setRenameValue] = useState('')
   const [deleting, setDeleting] = useState<Explanation | null>(null)
 
-  /* First paint shows the skeleton grid, as a real fetch would. */
+  /* Read on arrival. The skeleton grid covers the request rather than a
+     timer, so it lasts as long as the request does. */
   useEffect(() => {
-    let active = true
-    void sleep(700).then(() => {
-      if (active) setLoading(false)
-    })
-    return () => {
-      active = false
-    }
-  }, [])
+    void reloadLibrary().catch(() => setFailure(t('library.loadFailed')))
+  }, [reloadLibrary, t])
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase()
@@ -102,19 +98,8 @@ export function Library() {
         </Button>
       </header>
 
-      <div className="demo-bar">
-        <Icon name="sliders" size={16} />
-        <span>{t('library.demoHint')}</span>
-        {library.length > 0 ? (
-          <Button size="sm" icon="trash" onClick={clearLibrary}>
-            {t('library.demoClear')}
-          </Button>
-        ) : (
-          <Button size="sm" icon="refresh" onClick={resetLibrary}>
-            {t('library.reload')}
-          </Button>
-        )}
-      </div>
+
+      {failure ? <Alert tone="error">{failure}</Alert> : null}
 
       {/* Filter bar --------------------------------------------------------- */}
       <Card as="section" elevation="flat" className="filters">
@@ -169,10 +154,10 @@ export function Library() {
       </Card>
 
       {/* Grid --------------------------------------------------------------- */}
-      <section aria-busy={loading} aria-live="polite">
+      <section aria-busy={libraryLoading} aria-live="polite">
         <h2 className="visually-hidden">{t('library.title')}</h2>
 
-        {loading ? (
+        {libraryLoading ? (
           <ul className="card-grid">
             {Array.from({ length: 6 }, (_, index) => (
               <li key={index}>
@@ -302,7 +287,11 @@ export function Library() {
               variant="primary"
               disabled={!renameValue.trim()}
               onClick={() => {
-                if (renaming) renameExplanation(renaming.id, renameValue.trim())
+                if (renaming) {
+                  void renameExplanation(renaming.id, renameValue.trim()).catch(() =>
+                    setFailure(t('library.saveFailed')),
+                  )
+                }
                 setRenaming(null)
                 toast(t('library.renamed'))
               }}
@@ -339,7 +328,11 @@ export function Library() {
               variant="danger"
               icon="trash"
               onClick={() => {
-                if (deleting) removeFromLibrary(deleting.id)
+                if (deleting) {
+                  void removeFromLibrary(deleting.id).catch(() =>
+                    setFailure(t('library.saveFailed')),
+                  )
+                }
                 setDeleting(null)
                 toast(t('library.deleted'))
               }}

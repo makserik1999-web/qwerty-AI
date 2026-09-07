@@ -15,7 +15,6 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict
 
-from bson import ObjectId
 from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse, JSONResponse
 
@@ -30,6 +29,7 @@ from app.db import db
 from app.errors import HTTPExceptionJson
 from app.models import ExportRequest
 from app.repositories import exports as jobs
+from app.repositories import messages as messages_repo
 from app.security.cookies import _cookie_token
 from app.security.sessions import _user_from_token
 from app.services.export_naming import content_disposition, download_filename
@@ -63,18 +63,12 @@ async def _owned_message(message_id: str, user_id: str) -> Dict[str, Any]:
 
     Same 404 for "no such message" and "not yours": telling the two apart
     would let someone probe for which message ids exist.
-    """
-    if not ObjectId.is_valid(message_id):
-        raise HTTPExceptionJson(404, "Not found")
-    message = await db.db.messages.find_one({"_id": ObjectId(message_id)})
-    if not message:
-        raise HTTPExceptionJson(404, "Not found")
 
-    chat_id = message.get("chat_id", "")
-    if not ObjectId.is_valid(chat_id):
-        raise HTTPExceptionJson(404, "Not found")
-    chat = await db.db.chats.find_one({"_id": ObjectId(chat_id)})
-    if not chat or str(chat.get("user_id")) != str(user_id):
+    The rule itself lives in the messages repository, so the library's save
+    endpoint enforces the same one rather than a second copy of it.
+    """
+    message = await messages_repo.owned_message(message_id, user_id)
+    if not message:
         raise HTTPExceptionJson(404, "Not found")
     return message
 

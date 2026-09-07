@@ -7,8 +7,9 @@ import {
   useState,
 } from 'react'
 import * as api from './api'
+import * as saved from './saved'
 import type { ApiUser } from './api'
-import { buildLibrary, buildSubmissions, buildTransactions, PRICES } from './mockData'
+import { buildSubmissions, buildTransactions, PRICES } from './mockData'
 import type {
   Conversation,
   Explanation,
@@ -41,6 +42,8 @@ interface AppState {
   /** The theme actually in effect once `system` is resolved. */
   resolvedTheme: 'light' | 'dark'
   library: Explanation[]
+  /** True until the library has been read once, so the grid can show its skeleton. */
+  libraryLoading: boolean
   conversations: Conversation[]
   explanations: Record<string, Explanation>
   balance: number
@@ -67,11 +70,12 @@ interface AppActions {
   /** Flips between light and dark, starting from whatever is on screen now. */
   toggleTheme: () => void
   recordExplanation: (explanation: Explanation) => void
-  saveToLibrary: (explanation: Explanation) => void
-  removeFromLibrary: (id: string) => void
-  renameExplanation: (id: string, question: string) => void
-  resetLibrary: () => void
-  clearLibrary: () => void
+  /* The library is the server's now, so these can fail and say so. */
+  saveToLibrary: (explanation: Explanation) => Promise<void>
+  removeFromLibrary: (id: string) => Promise<void>
+  renameExplanation: (id: string, question: string) => Promise<void>
+  /** Re-read from the server; also the first load. */
+  reloadLibrary: () => Promise<void>
   startConversation: (explanation: Explanation) => void
   setBalanceState: (state: BalanceState) => void
   charge: (action: TransactionAction, quantity: number, detail: string) => void
@@ -150,7 +154,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light',
   )
 
-  const [library, setLibrary] = useState<Explanation[]>(() => buildLibrary())
+  const [library, setLibrary] = useState<Explanation[]>([])
+  const [libraryLoading, setLibraryLoading] = useState(true)
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [explanations, setExplanations] = useState<Record<string, Explanation>>({})
   const [balance, setBalance] = useState(BALANCE_PRESETS.healthy)
@@ -273,15 +278,30 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [],
   )
 
-  const saveToLibrary = useCallback<AppActions['saveToLibrary']>((explanation) => {
-    const saved = { ...explanation, saved: true }
-    setExplanations((prev) => ({ ...prev, [saved.id]: saved }))
+  const reloadLibrary = useCallback(async () => {
+    try {
+      setLibrary(await saved.listSaved())
+    } finally {
+      setLibraryLoading(false)
+    }
+  }, [])
+
+  const saveToLibrary = useCallback<AppActions['saveToLibrary']>(async (explanation) => {
+    if (!explanation.messageId) return
+    const stored = await saved.saveExplanation({
+      messageId: explanation.messageId,
+      question: explanation.question,
+      subject: explanation.subject,
+      lang: explanation.lang,
+    })
+    setExplanations((prev) => ({ ...prev, [stored.id]: stored }))
     setLibrary((prev) =>
-      prev.some((item) => item.id === saved.id) ? prev : [saved, ...prev],
+      prev.some((item) => item.id === stored.id) ? prev : [stored, ...prev],
     )
   }, [])
 
-  const removeFromLibrary = useCallback<AppActions['removeFromLibrary']>((id) => {
+  const removeFromLibrary = useCallback<AppActions['removeFromLibrary']>(async (id) => {
+    await saved.removeSaved(id)
     setLibrary((prev) => prev.filter((item) => item.id !== id))
     setExplanations((prev) =>
       prev[id] ? { ...prev, [id]: { ...prev[id], saved: false } } : prev,
@@ -289,19 +309,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const renameExplanation = useCallback<AppActions['renameExplanation']>(
-    (id, question) => {
-      setLibrary((prev) =>
-        prev.map((item) => (item.id === id ? { ...item, question } : item)),
-      )
+    async (id, question) => {
+      const renamed = await saved.renameSaved(id, question)
+      setLibrary((prev) => prev.map((item) => (item.id === id ? renamed : item)))
       setExplanations((prev) =>
         prev[id] ? { ...prev, [id]: { ...prev[id], question } } : prev,
       )
     },
     [],
   )
-
-  const resetLibrary = useCallback(() => setLibrary(buildLibrary()), [])
-  const clearLibrary = useCallback(() => setLibrary([]), [])
 
   const setBalanceState = useCallback<AppActions['setBalanceState']>((state) => {
     setBalance(BALANCE_PRESETS[state])
@@ -358,6 +374,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       theme,
       resolvedTheme,
       library,
+      libraryLoading,
       conversations,
       explanations,
       balance,
@@ -376,8 +393,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       saveToLibrary,
       removeFromLibrary,
       renameExplanation,
-      resetLibrary,
-      clearLibrary,
+      reloadLibrary,
       startConversation,
       setBalanceState,
       charge,
@@ -392,6 +408,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       theme,
       resolvedTheme,
       library,
+      libraryLoading,
       conversations,
       explanations,
       balance,
@@ -407,8 +424,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       saveToLibrary,
       removeFromLibrary,
       renameExplanation,
-      resetLibrary,
-      clearLibrary,
+      reloadLibrary,
       startConversation,
       setBalanceState,
       charge,

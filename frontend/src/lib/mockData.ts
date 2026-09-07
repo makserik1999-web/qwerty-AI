@@ -1,6 +1,5 @@
 import type {
   ExplanationBlock,
-  Explanation,
   Lang,
   SceneId,
   SubjectId,
@@ -248,64 +247,6 @@ export const EXPLANATION_SEEDS: Record<SceneId, Seed> = {
       },
     ],
   },
-}
-
-let seq = 0
-function makeExplanation(scene: SceneId, days: number, saved = true): Explanation {
-  const seed = EXPLANATION_SEEDS[scene]
-  seq += 1
-  return {
-    id: `exp-${scene}-${seq}`,
-    question: seed.question,
-    subject: seed.subject,
-    lang: seed.lang,
-    createdAt: daysAgo(days),
-    scene: seed.scene,
-    duration: seed.duration,
-    blocks: seed.blocks,
-    status: 'complete',
-    saved,
-  }
-}
-
-/** Extra saved items so the Library grid looks lived-in. */
-const EXTRA: Array<{ scene: SceneId; question: string; days: number; lang?: Lang }> = [
-  {
-    scene: 'newton',
-    question: 'Неге ауыр және жеңіл дене бірдей уақытта құлайды?',
-    days: 6,
-  },
-  { scene: 'quadratic', question: 'Дискриминант нені көрсетеді?', days: 8 },
-  { scene: 'photosynthesis', question: 'Жапырақ неге жасыл түсті?', days: 11 },
-  {
-    scene: 'circleArea',
-    question: 'Как связаны длина окружности и её радиус?',
-    days: 13,
-    lang: 'ru',
-  },
-  { scene: 'reaction', question: 'Тотығу реакциясы деген не?', days: 16 },
-]
-
-export function buildLibrary(): Explanation[] {
-  const base = [
-    makeExplanation('pythagoras', 0),
-    makeExplanation('derivative', 1),
-    makeExplanation('photosynthesis', 2),
-    makeExplanation('newton', 3),
-    makeExplanation('quadratic', 4),
-    makeExplanation('circleArea', 5),
-    makeExplanation('reaction', 7),
-  ]
-  const extra = EXTRA.map((item, index) => {
-    const made = makeExplanation(item.scene, item.days)
-    return {
-      ...made,
-      id: `exp-extra-${index}`,
-      question: item.question,
-      lang: item.lang ?? made.lang,
-    }
-  })
-  return [...base, ...extra]
 }
 
 export const EXAMPLE_QUESTIONS: Record<Lang, string[]> = {

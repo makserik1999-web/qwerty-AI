@@ -135,11 +135,18 @@ export function Explain() {
     inputRef.current?.focus()
   }
 
-  function save() {
+  async function save() {
     if (!current) return
-    saveToLibrary(current)
-    setCurrent({ ...current, saved: true })
-    toast(t('explain.savedToast'))
+    try {
+      // Awaited before the button changes: a Save that says "saved" and then
+      // is not there tomorrow is the bug this whole screen had.
+      await saveToLibrary(current)
+      setCurrent({ ...current, saved: true })
+      toast(t('explain.savedToast'))
+    } catch (error) {
+      setFailure(error instanceof AgentError ? error.message : null)
+      setState('error')
+    }
   }
 
   const defaultLangLabel = explainLang === 'kk' ? t('common.kazakh') : t('common.russian')
@@ -324,7 +331,7 @@ export function Explain() {
                       variant={current.saved ? 'secondary' : 'primary'}
                       icon={current.saved ? 'check' : 'book'}
                       disabled={current.saved}
-                      onClick={save}
+                      onClick={() => void save()}
                     >
                       {current.saved
                         ? t('explain.savedToLibrary')

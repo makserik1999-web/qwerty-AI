@@ -73,3 +73,22 @@ class QuestionsUpdate(BaseModel):
     """The paper as the teacher edited it: reworded, reordered or shortened."""
 
     questions: List[Dict[str, Any]]
+
+
+class SaveRequest(BaseModel):
+    """Save an answer to my library, addressed by the message that carried it.
+
+    `question`, `subject` and `lang` are labels for the card. The body of the
+    explanation is never taken from here - it is read from the message, so a
+    saved answer is a record of what the agent replied rather than of what a
+    browser said it replied.
+    """
+
+    message_id: str
+    question: Optional[str] = None
+    subject: Optional[str] = None
+    lang: Optional[str] = None
+
+
+class RenameRequest(BaseModel):
+    question: str

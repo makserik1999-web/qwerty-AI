@@ -128,6 +128,7 @@ export function explanationFromAnswer(answer: Answer): Explanation {
   return {
     id: answer.chatId || answer.messageId,
     chatId: answer.chatId,
+    messageId: answer.messageId,
     question: answer.question,
     subject: subjectOf(answer.question, answer.subject),
     lang: languageOf(answer.question, answer.content),
@@ -154,6 +155,7 @@ export function explanationFromChat(chat: ChatDetail): Explanation | null {
   return {
     id: chat.id,
     chatId: chat.id,
+    messageId: answer.id,
     question: asked,
     subject: subjectOf(asked),
     lang: languageOf(asked, answer.content),

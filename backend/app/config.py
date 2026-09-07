@@ -83,10 +83,16 @@ USER_ROLE_DEFAULT = "student"
 # Closed sets, because every one of these reaches a prompt. Free text there is
 # somebody else's instructions with extra steps, and the interface only ever
 # offers these values anyway.
-ASSESSMENT_SUBJECTS = ("math", "geometry", "physics", "chemistry", "biology", "informatics")
+# The subjects and content languages the product knows, wherever it labels
+# something. Assessments named them first; the aliases below keep that code
+# reading as it did.
+CONTENT_SUBJECTS = ("math", "geometry", "physics", "chemistry", "biology", "informatics")
+CONTENT_LANGUAGES = ("kk", "ru")
+
+ASSESSMENT_SUBJECTS = CONTENT_SUBJECTS
 ASSESSMENT_TYPES = ("sor", "soch", "quiz")
 ASSESSMENT_DIFFICULTIES = ("easy", "medium", "hard")
-ASSESSMENT_LANGUAGES = ("kk", "ru")
+ASSESSMENT_LANGUAGES = CONTENT_LANGUAGES
 ASSESSMENT_GRADES = tuple(range(5, 12))
 ASSESSMENT_MAX_QUESTIONS = 20
 ASSESSMENT_TOPIC_MAX_LEN = 200

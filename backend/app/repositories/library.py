@@ -9,6 +9,12 @@ Two collections, deliberately separate:
 
 That split is the whole storage policy: counting is cheap, keeping video is
 not, so we count everything and keep only what repeats.
+
+
+NOT a person's library. This is the global answer cache: one row serves
+everyone who asked the same question, and removing one takes an answer
+away from strangers. The Library screen in the interface is
+repositories/saved.py - private rows, one per person, safe to delete.
 """
 
 from datetime import datetime, timedelta, timezone

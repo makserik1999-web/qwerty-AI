@@ -215,6 +215,8 @@ export const kk = {
 
   // Library ------------------------------------------------------------------
   'library.title': 'Кітапхана',
+  'library.loadFailed': 'Кітапхананы жүктеу мүмкін болмады.',
+  'library.saveFailed': 'Өзгерісті сақтау мүмкін болмады.',
   'library.subtitle': 'Сақталған түсіндірмелер.',
   'library.searchPlaceholder': 'Сұрақ бойынша іздеу',
   'library.sort.new': 'Алдымен жаңасы',
@@ -236,9 +238,6 @@ export const kk = {
   'library.renameLabel': 'Жаңа атауы',
   'library.renamed': 'Атауы жаңартылды',
   'library.cardMenu': '{title} — әрекеттер',
-  'library.reload': 'Қайта жүктеу',
-  'library.demoHint': 'Демо: бос күйді көру үшін кітапхананы босатыңыз.',
-  'library.demoClear': 'Кітапхананы босату',
 
   // Generate -----------------------------------------------------------------
   'generate.title': 'Бағалау жұмысын құрастыру',
@@ -615,6 +614,8 @@ export const ru: Record<StringKey, string> = {
     'В системе включено уменьшение движения. Анимация не запускается автоматически.',
 
   'library.title': 'Библиотека',
+  'library.loadFailed': 'Не удалось загрузить библиотеку.',
+  'library.saveFailed': 'Не удалось сохранить изменение.',
   'library.subtitle': 'Сохранённые объяснения.',
   'library.searchPlaceholder': 'Поиск по вопросу',
   'library.sort.new': 'Сначала новые',
@@ -635,9 +636,6 @@ export const ru: Record<StringKey, string> = {
   'library.renameLabel': 'Новое название',
   'library.renamed': 'Название обновлено',
   'library.cardMenu': '{title} — действия',
-  'library.reload': 'Загрузить заново',
-  'library.demoHint': 'Демо: очистите библиотеку, чтобы увидеть пустое состояние.',
-  'library.demoClear': 'Очистить библиотеку',
 
   'generate.title': 'Генерация работы',
   'generate.subtitle': 'СОР, СОЧ или короткий тест.',
@@ -1007,6 +1005,8 @@ export const en: Record<StringKey, string> = {
     'Reduced motion is on in your system, so the animation does not play automatically.',
 
   'library.title': 'Library',
+  'library.loadFailed': 'The library could not be loaded.',
+  'library.saveFailed': 'The change could not be saved.',
   'library.subtitle': 'Saved explanations.',
   'library.searchPlaceholder': 'Search by question',
   'library.sort.new': 'Newest first',
@@ -1028,9 +1028,6 @@ export const en: Record<StringKey, string> = {
   'library.renameLabel': 'New title',
   'library.renamed': 'Title updated',
   'library.cardMenu': '{title} — actions',
-  'library.reload': 'Reload',
-  'library.demoHint': 'Demo: empty the library to see the empty state.',
-  'library.demoClear': 'Empty the library',
 
   'generate.title': 'Generate an assessment',
   'generate.subtitle': 'СОР, СОЖ or a short quiz.',
