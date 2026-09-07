@@ -18,6 +18,7 @@ import {
   Textarea,
   useToast,
 } from '../components/ui'
+import { MarkdownMessage } from '../components/MarkdownMessage'
 import { ApiError } from '../lib/api'
 import {
   generateAssessment,
@@ -474,7 +475,14 @@ export function Generate() {
                             </div>
                           </div>
                         ) : (
-                          <p>{question.text}</p>
+                          /* The model writes formulas in LaTeX, so they are
+                             typeset rather than printed. Without this a
+                             question reads "$y = rac{2x - 5}{x + 3}$" -
+                             the dollars and braces on the page, which is not
+                             something a student can be handed. Editing still
+                             shows the source, because that is what a teacher
+                             has to change to fix a formula. */
+                          <MarkdownMessage content={question.text} />
                         )}
                       </li>
                     ))}

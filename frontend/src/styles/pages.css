@@ -1121,3 +1121,12 @@ tr.is-selected {
     break-inside: avoid;
   }
 }
+
+/* A question is one paragraph of prose with formulas in it, not an article:
+   the markdown block's own outer spacing would double the list's gap. */
+.document__question .markdown-body > *:first-child {
+  margin-top: 0;
+}
+.document__question .markdown-body > *:last-child {
+  margin-bottom: 0;
+}
