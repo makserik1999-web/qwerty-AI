@@ -54,6 +54,11 @@ services:
       - GENERATION_MAX_PER_DAY=${GENERATION_MAX_PER_DAY:-50}
       - GENERATION_QUEUE_MAX=${GENERATION_QUEUE_MAX:-20}
       - SIGNUP_MAX_PER_HOUR=${SIGNUP_MAX_PER_HOUR:-100}
+      # Usernames allowed to read cache statistics - which are other people's
+      # questions, so this is a deliberate grant and empty by default. It was
+      # read from the environment but never forwarded here, so the allowlist
+      # could not be filled at all.
+      - ADMIN_USERS=${ADMIN_USERS:-}
       - EXPORT_TTL_HOURS=${EXPORT_TTL_HOURS:-24}
     depends_on:
       mongo:
