@@ -420,3 +420,62 @@ class TestSpeechThatCannotBeRead:
         monkeypatch.setattr(nodes, "_llm_chat", explode)
 
         assert await nodes._ensure_spoken_lines_are_literal(script) == script
+
+
+class TestEffortProfiles:
+    """What each level buys, and the one thing it must never change.
+
+    The visible part is the manim render profile: 480p15, 720p30, 1080p60 -
+    frames as well as pixels, so at "low" the animation runs at fifteen frames
+    a second. Measured on one 37-second scene, rendering alone: 11.4 seconds
+    at the low profile against 68.8 at the high one.
+    """
+
+    def test_every_level_has_a_profile(self):
+        """A name the interface offers with nothing behind it does nothing."""
+        from anyq.config import EFFORT_LEVELS, EFFORT_PROFILES
+
+        assert set(EFFORT_LEVELS) == set(EFFORT_PROFILES)
+
+    def test_the_profiles_are_real_manim_qualities(self):
+        """Anything else makes the MCP server raise on every render."""
+        from anyq.config import EFFORT_PROFILES
+
+        for level, profile in EFFORT_PROFILES.items():
+            assert profile["quality"] in ("l", "m", "h"), level
+
+    def test_quality_and_patience_both_rise(self):
+        from anyq.config import EFFORT_PROFILES
+
+        order = ["low", "medium", "high"]
+        qualities = [EFFORT_PROFILES[k]["quality"] for k in order]
+        repairs = [EFFORT_PROFILES[k]["repair_attempts"] for k in order]
+
+        assert qualities == ["l", "m", "h"]
+        assert repairs == sorted(repairs)
+
+    def test_the_default_is_not_the_lowest(self):
+        """480p15 was manim's own default, never a decision.
+
+        It is below what this product is for - a teacher putting the video on
+        a projector - so the default moving up is the point of this change,
+        not a side effect of it.
+        """
+        from anyq.config import EFFORT_DEFAULT, EFFORT_PROFILES
+
+        assert EFFORT_PROFILES[EFFORT_DEFAULT]["quality"] != "l"
+
+    def test_reasoning_effort_is_not_part_of_the_bundle(self):
+        """The measured trap, held shut.
+
+        More deliberation makes the Manim script WORSE: 2 renders out of 4 at
+        the provider default against 4 of 4 at "low", because the extra
+        thinking invents API that is not in the prompt. If a future edit wires
+        reasoning effort into these profiles, the top setting starts breaking
+        renders - and it would look like an improvement in review.
+        """
+        from anyq.config import EFFORT_PROFILES
+
+        for level, profile in EFFORT_PROFILES.items():
+            assert "reasoning" not in profile, level
+            assert "effort" not in profile, level

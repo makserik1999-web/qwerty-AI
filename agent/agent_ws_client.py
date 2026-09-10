@@ -153,6 +153,8 @@ async def process_request(payload: Dict[str, Any]) -> Dict[str, Any]:
         # graph falls back to VIDEO_LENGTH_DEFAULT.
         if payload.get("video_length"):
             initial["video_length"] = str(payload["video_length"])
+        if payload.get("effort"):
+            initial["effort"] = str(payload["effort"])
 
         if image_data:
             if isinstance(image_data, list):

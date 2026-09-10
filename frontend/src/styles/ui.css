@@ -932,6 +932,11 @@
   cursor: not-allowed;
 }
 
+/* The effort picker reuses these .length classes on purpose: it sits in the
+   same row, has the same shape, and decides the same kind of thing - what
+   gets made rather than how the app behaves. Two visual languages for
+   neighbouring controls would read as two kinds of setting. */
+
 /* Video length. Deliberately the same shapes and tokens as .narration above:
    the two controls sit side by side, decide the same kind of thing - what
    gets made, rather than how the app behaves - and a second visual language

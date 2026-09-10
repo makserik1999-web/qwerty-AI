@@ -126,6 +126,16 @@ VIDEO_LENGTH_DEFAULT = (os.getenv("VIDEO_LENGTH_DEFAULT", "medium") or "").strip
 if VIDEO_LENGTH_DEFAULT not in VIDEO_LENGTHS:
     VIDEO_LENGTH_DEFAULT = "medium"
 
+# ============== Effort ==============
+# How much is spent making the video. The agent owns what each level means -
+# a manim quality profile and a repair budget; the backend validates the name
+# and puts it in the cache key, because a stored 480p answer is the wrong
+# answer to somebody who asked for 1080p. Keep this list in step with
+# agent/anyq/config.py.
+EFFORT_LEVELS = ("low", "medium", "high")
+EFFORT_DEFAULT = (os.getenv("EFFORT_DEFAULT", "medium") or "").strip().lower()
+if EFFORT_DEFAULT not in EFFORT_LEVELS:
+    EFFORT_DEFAULT = "medium"
 
 
 # ============== Answer cache ==============

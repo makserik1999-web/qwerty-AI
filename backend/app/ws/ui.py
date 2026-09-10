@@ -10,6 +10,8 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from app.config import (
     CACHE_ENABLED,
     COOKIE_NAME,
+    EFFORT_DEFAULT,
+    EFFORT_LEVELS,
     NARRATION_DEFAULT,
     NARRATION_VOICE_DEFAULT,
     NARRATION_VOICES,
@@ -129,7 +131,12 @@ async def _handle_ui_frame(websocket: WebSocket, user_id: str, data: dict) -> No
         video_length = str(payload.get("video_length") or "").strip().lower()
         if video_length not in VIDEO_LENGTHS:
             video_length = VIDEO_LENGTH_DEFAULT
-        variant = cache_service.render_variant(narration, voice, video_length)
+        # How much to spend making it. In the cache key because it decides
+        # the resolution and frame rate of the video that comes back.
+        effort = str(payload.get("effort") or "").strip().lower()
+        if effort not in EFFORT_LEVELS:
+            effort = EFFORT_DEFAULT
+        variant = cache_service.render_variant(narration, voice, video_length, effort)
 
         cached = None
         if CACHE_ENABLED and not payload.get("force_regenerate"):
@@ -228,6 +235,7 @@ async def _handle_ui_frame(websocket: WebSocket, user_id: str, data: dict) -> No
                 narration=narration,
                 narration_voice=voice,
                 video_length=video_length,
+                effort=effort,
             )
         except Exception as e:
             agent_manager.pending_requests.pop(request_id, None)

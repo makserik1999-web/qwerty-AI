@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ExplanationView } from '../components/ExplanationView'
 import { NarrationToggle, type NarrationVoice } from '../components/NarrationToggle'
+import { EffortPicker } from '../components/EffortPicker'
 import { VideoLengthPicker } from '../components/VideoLengthPicker'
 import {
   Alert,
@@ -22,6 +23,7 @@ import {
   AnswerTimeout,
   useLive,
   type AskStage,
+  type Effort,
   type VideoLength,
 } from '../lib/live'
 import { EXAMPLE_QUESTIONS, PRICES } from '../lib/mockData'
@@ -53,6 +55,9 @@ export function Explain() {
   // whatever the model happened to write - measured between 60 and 96
   // seconds for the same kind of question - and nobody chose it.
   const [videoLength, setVideoLength] = useState<VideoLength>('medium')
+  // Medium, which is 720p30. The old default was manim's own 480p15 -
+  // never chosen by anyone, and visibly choppy on a classroom projector.
+  const [effort, setEffort] = useState<Effort>('medium')
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
   const steps: ProgressStep[] = STAGE_ORDER.map((key) => ({
@@ -89,6 +94,7 @@ export function Explain() {
           narration,
           narrationVoice: voice,
           videoLength,
+          effort,
         })
         const explanation = explanationFromAnswer(answer)
         setCurrent(explanation)
@@ -126,7 +132,7 @@ export function Explain() {
         setState('error')
       }
     },
-    [ask, charge, narration, t, user?.role, voice, videoLength],
+    [ask, charge, effort, narration, t, user?.role, voice, videoLength],
   )
 
   function onSubmit(event: React.FormEvent) {
@@ -275,6 +281,11 @@ export function Explain() {
                   <VideoLengthPicker
                     value={videoLength}
                     onChange={setVideoLength}
+                    disabled={busy}
+                  />
+                  <EffortPicker
+                    value={effort}
+                    onChange={setEffort}
                     disabled={busy}
                   />
                 </div>

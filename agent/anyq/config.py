@@ -188,6 +188,48 @@ VIDEO_LENGTH_DEFAULT = (os.getenv("VIDEO_LENGTH_DEFAULT", "medium") or "").strip
 if VIDEO_LENGTH_DEFAULT not in VIDEO_LENGTHS:
     VIDEO_LENGTH_DEFAULT = "medium"
 
+# ============== Effort ==============
+# How much is spent making the video, as one word covering several settings.
+#
+# It is a bundle rather than a single knob because "effort" is not
+# one-dimensional here, and because the one knob people reach for first -
+# more deliberation from the model - is measurably WRONG on the part that
+# matters: at default reasoning effort the Manim script rendered 2 times out
+# of 4, at "low" it rendered 4 of 4, because extra deliberation is spent
+# inventing API that is not in the prompt. So the script node stays on "low"
+# at every level. A control that breaks rendering at its top setting would be
+# selling a downgrade.
+#
+# What actually differs is what a person can see and what they wait for.
+# Measured on one 37-second scene, rendering only:
+#     480p15   11.4 s   0.34 MB
+#     1080p60  68.8 s   1.28 MB     - six times the wait
+# 720p30 sits between at roughly twice the low profile.
+#
+# NOT included, deliberately: a self-review pass over the explanation, and
+# raising the reasoning effort of the EDUCATOR node (which, unlike the script
+# node, has no API to hallucinate and might well benefit). Both are plausible
+# and neither is measured, and shipping an unmeasured lever inside a control
+# people pay attention to is how a slider ends up selling nothing.
+EFFORT_LEVELS = ("low", "medium", "high")
+
+# manim's -q flag: l=480p15, m=720p30, h=1080p60. Note this is frames as well
+# as pixels - at "l" the animation runs at 15 fps, which on a projector in a
+# classroom is visibly choppy, and that was the default until now.
+EFFORT_PROFILES = {
+    "low": {"quality": "l", "repair_attempts": 1},
+    "medium": {"quality": "m", "repair_attempts": 2},
+    "high": {"quality": "h", "repair_attempts": 3},
+}
+
+# Medium. 480p15 was never a deliberate choice - it is manim's own default and
+# nothing ever passed anything else - and it is below what this product is
+# for: a teacher putting the video on a projector. The upgrade costs about ten
+# to twenty-five seconds per request.
+EFFORT_DEFAULT = (os.getenv("EFFORT_DEFAULT", "medium") or "").strip().lower()
+if EFFORT_DEFAULT not in EFFORT_LEVELS:
+    EFFORT_DEFAULT = "medium"
+
 # ============== Fonts ==============
 MANIM_TEXT_FONT = os.getenv("MANIM_TEXT_FONT", "").strip()
 

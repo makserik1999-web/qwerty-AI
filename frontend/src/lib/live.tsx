@@ -33,7 +33,26 @@ export type AskStage = 'understand' | 'write' | 'render'
  * and written to the cache - which is why the message says to look in the
  * history rather than implying the work was thrown away.
  */
-const ANSWER_DEADLINE_MS = 5 * 60 * 1000
+const ANSWER_DEADLINE_MS: Record<Effort, number> = {
+  low: 5 * 60 * 1000,
+  medium: 5 * 60 * 1000,
+  high: 10 * 60 * 1000,
+}
+
+/**
+ * Why "high" gets twice as long.
+ *
+ * Five minutes was set when everything rendered at 480p15. At 1080p60 the
+ * same animation takes about six times as long to render - measured, 11.4
+ * seconds against 68.8 on one 37-second scene - and "high" also allows three
+ * repair attempts, each of which renders again. A long video that needed two
+ * repairs would pass five minutes while working perfectly.
+ *
+ * The deadline exists to stop a spinner over a LOST answer, not over a slow
+ * one. Timing out a render that is still going produces exactly the wrong
+ * message: it tells somebody their answer went missing while it is being
+ * made.
+ */
 
 /** Ran out of patience, not out of luck: the answer may still be coming. */
 export class AnswerTimeout extends Error {
@@ -65,11 +84,15 @@ export interface Answer {
  *  see VideoLengthPicker. */
 export type VideoLength = 'short' | 'medium' | 'long'
 
+/** How much is spent making the video. Picture quality is the visible part. */
+export type Effort = 'low' | 'medium' | 'high'
+
 export interface AskInput {
   question: string
   narration: boolean
   narrationVoice: string
   videoLength: VideoLength
+  effort: Effort
 }
 
 interface LiveValue {
@@ -143,6 +166,7 @@ export function LiveProvider({
           narration: input?.narration ?? true,
           narration_voice: input?.narrationVoice ?? 'aigul',
           video_length: input?.videoLength ?? 'medium',
+          effort: input?.effort ?? 'medium',
         })
         return
       }
@@ -214,7 +238,7 @@ export function LiveProvider({
         const question = input.question.trim()
         const timer = setTimeout(
           () => settle((p) => p.reject(new AnswerTimeout())),
-          ANSWER_DEADLINE_MS,
+          ANSWER_DEADLINE_MS[input.effort] ?? ANSWER_DEADLINE_MS.medium,
         )
         pendingRef.current = { question, chatId: null, resolve, reject, timer }
         inputRef.current = input

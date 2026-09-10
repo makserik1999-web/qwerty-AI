@@ -68,7 +68,8 @@ def cacheable_request(prompt: str, screenshots: List[Any]) -> Tuple[bool, str]:
     return True, "ok"
 
 
-def render_variant(narration: bool, voice: str, length: str = "") -> str:
+def render_variant(narration: bool, voice: str, length: str = "",
+                   effort: str = "") -> str:
     """What the request chose about the video, as a cache-key fragment.
 
     Two people asking the same question get the same answer only if they asked
@@ -85,12 +86,21 @@ def render_variant(narration: bool, voice: str, length: str = "") -> str:
     ends up in a hash and free text there means unlimited keys for one
     question.
 
-    An empty `length` reproduces the pre-length fragment exactly, so a caller
-    that does not care about length still reaches entries stored before this
-    existed.
+    Effort is the third, and the most visible of them: it decides whether the
+    video is rendered at 480p15 or 1080p60. Handing somebody who asked for the
+    latter a stored copy of the former would be the choice quietly not
+    happening, which is the failure this whole fragment exists to prevent.
+
+    An empty value for either reproduces the fragment as it was before that
+    setting existed, so a caller that does not care still reaches entries
+    stored earlier.
     """
     key = f"voice={voice}" if narration else "silent"
-    return f"{key},len={length}" if length else key
+    if length:
+        key = f"{key},len={length}"
+    if effort:
+        key = f"{key},eff={effort}"
+    return key
 
 
 def key_for(prompt: str, variant: str = "") -> Tuple[str, str]:

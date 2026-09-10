@@ -22,6 +22,9 @@ from spoon_ai.tools.mcp_tool import MCPTool
 from anyq import narration
 from anyq.config import (  # noqa: F401 - _RENDER_REPAIR_ATTEMPTS re-exported
     _RENDER_REPAIR_ATTEMPTS,
+    EFFORT_DEFAULT,
+    EFFORT_LEVELS,
+    EFFORT_PROFILES,
     MANIM_EXECUTABLE,
     MANIM_MCP_PYTHON,
     MANIM_MCP_SERVER_SCRIPT,
@@ -81,11 +84,24 @@ async def render_video(state: ScienceVideoState) -> Dict[str, Any]:
     want_narration = bool(state.get("narration", True))
     language = str(state.get("output_language") or "")
     voice_choice = str(state.get("narration_voice") or "")
+
+    # What the asker chose to spend. Validated here as well as at the backend
+    # because it selects a render profile and a retry budget, and an unknown
+    # word must not silently mean "whatever manim defaults to" - which is how
+    # every video came out at 480p15 until now.
+    effort = str(state.get("effort") or "").strip().lower()
+    if effort not in EFFORT_LEVELS:
+        effort = EFFORT_DEFAULT
+    profile = EFFORT_PROFILES[effort]
+    quality = profile["quality"]
+    repair_attempts = profile["repair_attempts"]
+    print(f"[render] effort={effort} quality={quality} "
+          f"repairs={repair_attempts}", flush=True)
     manifests: list = []
 
     last_error = ""
     try:
-        for attempt in range(_RENDER_REPAIR_ATTEMPTS + 1):
+        for attempt in range(repair_attempts + 1):
             ok, reason = validate_manim_script(script)
             if not ok:
                 # NEVER render a script that fails validation - not even for repair.
@@ -99,7 +115,8 @@ async def render_video(state: ScienceVideoState) -> Dict[str, Any]:
                     manifests.append(manifest)
 
             raw = await tool.call_mcp_tool(
-                "execute_manim_code", manim_code=script, narration_manifest=manifest
+                "execute_manim_code", manim_code=script,
+                narration_manifest=manifest, quality=quality,
             )
             payload = _safe_json_loads(raw)
 
@@ -113,11 +130,11 @@ async def render_video(state: ScienceVideoState) -> Dict[str, Any]:
                 }
 
             last_error = str(payload.get("stderr") or payload.get("error") or raw)
-            if attempt >= _RENDER_REPAIR_ATTEMPTS:
+            if attempt >= repair_attempts:
                 break
 
             print(
-                f"[render] failed (attempt {attempt + 1}/{_RENDER_REPAIR_ATTEMPTS + 1}), "
+                f"[render] failed (attempt {attempt + 1}/{repair_attempts + 1}), "
                 f"asking model to repair: {_error_tail(last_error)}",
                 flush=True,
             )

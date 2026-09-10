@@ -200,9 +200,15 @@ class _FakeTool:
     def __init__(self, *a, **k):
         pass
 
-    async def call_mcp_tool(self, name, manim_code=None, narration_manifest=""):
+    async def call_mcp_tool(self, name, manim_code=None, narration_manifest="",
+                            quality="l"):
         # narration_manifest is accepted and ignored: these checks cover the
         # repair loop, and synthesising speech would need a live Azure key.
+        # quality likewise - it selects a manim render profile, and nothing
+        # here renders. It is in the signature because render_video now passes
+        # it, and a stub that did not accept it would fail every check with a
+        # TypeError rather than telling anyone what changed.
+        _FakeTool.last_quality = quality
         return _FakeTool._replies.pop(0)
 
 

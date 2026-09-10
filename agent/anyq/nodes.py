@@ -91,6 +91,10 @@ class ScienceVideoState(TypedDict, total=False):
     # it is part of the request rather than a setting of the process.
     video_length: str
 
+    # How much to spend making it, as one of EFFORT_LEVELS. Read in render.py,
+    # where it selects a manim quality profile and a repair budget.
+    effort: str
+
     # manim
     manim_script: str
     video_path: str

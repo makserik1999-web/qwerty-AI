@@ -189,7 +189,7 @@ class AgentConnectionManager:
     async def send_to_agent(self, request_id: str, user_id: str, chat_id: str,
                             text: Optional[str], screenshots: List[Dict[str, Any]],
                             narration: bool = True, narration_voice: str = "aigul",
-                            video_length: str = ""):
+                            video_length: str = "", effort: str = ""):
         if not self.agent_connection:
             raise RuntimeError("AI Agent not connected")
 
@@ -206,6 +206,7 @@ class AgentConnectionManager:
             "narration": narration,
             "narration_voice": narration_voice,
             "video_length": video_length,
+            "effort": effort,
         })
 
     def get_request_info(self, request_id: str, pop: bool = True) -> Optional[dict]:
