@@ -114,6 +114,8 @@ if NARRATION_VOICE_DEFAULT not in NARRATION_VOICES:
     NARRATION_VOICE_DEFAULT = "aigul"
 
 
+
+
 # ============== Answer cache ==============
 # Bump PIPELINE_VERSION whenever the prompts, the model or the renderer change:
 # it is part of every cache key, so raising it retires every stored answer at
@@ -121,6 +123,9 @@ if NARRATION_VOICE_DEFAULT not in NARRATION_VOICES:
 # v2: narration. Every stored answer before this was rendered silent, and
 # the pipeline now speaks by default, so serving them would hand people a
 # mute video for a question they asked with the voice on.
+# v3: the model default moved from gemini-3.7-flash to gemini-3.8-flash. A
+# cached answer is a recording of what one model wrote; keeping it would mean
+# the switch quietly did not apply to exactly the questions asked most often.
 PIPELINE_VERSION = os.getenv("PIPELINE_VERSION", "v2")
 
 # Questions longer than this are somebody's specific problem, not a topic that

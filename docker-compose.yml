@@ -59,6 +59,12 @@ services:
       # read from the environment but never forwarded here, so the allowlist
       # could not be filled at all.
       - ADMIN_USERS=${ADMIN_USERS:-}
+      # Part of every cache key, so raising it retires stored answers the
+      # current pipeline would no longer produce. config.py says to bump it
+      # when the prompts, the model or the renderer change - and it was read
+      # from the environment but never forwarded here, so the one setting that
+      # exists to be changed on a model switch could not be changed at all.
+      - PIPELINE_VERSION=${PIPELINE_VERSION:-v3}
       - EXPORT_TTL_HOURS=${EXPORT_TTL_HOURS:-24}
     depends_on:
       mongo:
@@ -137,16 +143,16 @@ services:
       - AGENT_SECRET=${AGENT_SECRET:-}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - DEFAULT_LLM_PROVIDER=${DEFAULT_LLM_PROVIDER:-openrouter}
-      - DEFAULT_MODEL=${DEFAULT_MODEL:-google/gemini-3.7-flash}
+      - DEFAULT_MODEL=${DEFAULT_MODEL:-google/gemini-3.8-flash}
       - GEMINI_MAX_TOKENS=${GEMINI_MAX_TOKENS:-20000}
       # spoon_ai reads the model from {PROVIDER}_MODEL (GEMINI_MODEL), not
       # DEFAULT_MODEL; keep both in sync.
-      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.7-flash}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.8-flash}
       # OpenRouter is the live chat path: one key reaches every model, so
       # switching model is an env change rather than a code change. Vision
       # still calls the Google API directly and needs GEMINI_API_KEY.
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
-      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-google/gemini-3.7-flash}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-google/gemini-3.8-flash}
       - OPENROUTER_MAX_TOKENS=${OPENROUTER_MAX_TOKENS:-20000}
       - LLM_REASONING_EFFORT=${LLM_REASONING_EFFORT:-low}
       # Narration. The key lives in the agent only; the render subprocess

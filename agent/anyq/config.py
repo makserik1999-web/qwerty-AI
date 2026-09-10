@@ -81,6 +81,10 @@ _LLM_RETRY_BASE_DELAY = _get_float("GEMINI_RETRY_BASE_DELAY", 2.0)
 # extra deliberation mostly invents API that is not in it (the two failures
 # were `ease_out_quad` and `AQUA`, neither of which exists).
 #
+# That specificity cuts both ways: the numbers are for 3.7-flash and were NOT
+# re-measured when the default moved to 3.8-flash. "low" stays because it is
+# the only measurement there is, not because it is known to still win.
+#
 # Empty disables the field. That is also what any provider other than
 # OpenRouter needs: extra_body is an OpenAI-wire concept, and the native
 # Gemini provider would reject it - so the gate below keeps

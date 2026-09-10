@@ -79,14 +79,15 @@ docker compose up --build -d
 |-----------------------|----------|----------------|--------------------------------|
 | GEMINI_API_KEY        | No*      | -              | Google Gemini API key          |
 | AGENT_SECRET          | Yes      | -              | Shared secret for the agent channel (must match backend & agent) |
-| DEFAULT_LLM_PROVIDER  | No       | gemini         | LLM provider to use            |
-| DEFAULT_MODEL         | No       | gemini-3-flash-preview | Default model (spoon_ai reads the model from `GEMINI_MODEL`) |
+| DEFAULT_LLM_PROVIDER  | No       | openrouter     | LLM provider to use            |
+| DEFAULT_MODEL         | No       | google/gemini-3.8-flash | Default model (spoon_ai reads the model from `{PROVIDER}_MODEL`, so keep `OPENROUTER_MODEL` in sync) |
 | GEMINI_MODEL          | No       | = DEFAULT_MODEL | Gemini model actually used by the LLM client |
 | DATABASE_NAME         | No       | anyq_db        | MongoDB database name          |
 | FRONTEND_PORT         | No       | 3000           | Port to expose frontend        |
 | MANIM_ALLOW_LATEX     | No       | 1              | Enable LaTeX in Manim          |
 | CORS_ORIGINS          | No       | localhost:3000 | Comma-separated allowed origins (credentials are enabled, so no "*") |
 | COOKIE_SECURE         | No       | 0              | Set to 1 when serving over HTTPS |
+| PIPELINE_VERSION      | No       | v2             | Part of every cache key. Bump it when the prompts, the model or the renderer change, so stored answers the current pipeline would not produce stop being served |
 
 \* Without `GEMINI_API_KEY` the app runs but AI features are unavailable
 (polite message instead of an LLM response, no crashes).
