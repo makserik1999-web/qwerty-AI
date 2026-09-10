@@ -68,18 +68,29 @@ def cacheable_request(prompt: str, screenshots: List[Any]) -> Tuple[bool, str]:
     return True, "ok"
 
 
-def render_variant(narration: bool, voice: str) -> str:
+def render_variant(narration: bool, voice: str, length: str = "") -> str:
     """What the request chose about the video, as a cache-key fragment.
 
     Two people asking the same question get the same answer only if they asked
     for the same thing to be made. Narration is the first setting where that
     stops being automatic: the words are identical, the video is not.
 
-    The voice is not interpolated blindly - callers pass a value already
-    checked against NARRATION_VOICES, because this string ends up in a hash
-    and free text there means unlimited keys for one question.
+    Length is the second, and it matters even with the voice off: somebody who
+    asked for a thirty-second explanation must not be handed a stored
+    ninety-second one just because the question matched. That is the whole
+    point of choosing.
+
+    Neither value is interpolated blindly - callers pass values already
+    checked against NARRATION_VOICES and VIDEO_LENGTHS, because this string
+    ends up in a hash and free text there means unlimited keys for one
+    question.
+
+    An empty `length` reproduces the pre-length fragment exactly, so a caller
+    that does not care about length still reaches entries stored before this
+    existed.
     """
-    return f"voice={voice}" if narration else "silent"
+    key = f"voice={voice}" if narration else "silent"
+    return f"{key},len={length}" if length else key
 
 
 def key_for(prompt: str, variant: str = "") -> Tuple[str, str]:

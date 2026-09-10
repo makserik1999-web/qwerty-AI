@@ -13,6 +13,8 @@ from app.config import (
     NARRATION_DEFAULT,
     NARRATION_VOICE_DEFAULT,
     NARRATION_VOICES,
+    VIDEO_LENGTH_DEFAULT,
+    VIDEO_LENGTHS,
 )
 from app.db import db
 from app.repositories.chats import create_chat, delete_chat_by_id
@@ -117,7 +119,17 @@ async def _handle_ui_frame(websocket: WebSocket, user_id: str, data: dict) -> No
         voice = str(payload.get("narration_voice") or NARRATION_VOICE_DEFAULT)
         if voice not in NARRATION_VOICES:
             voice = NARRATION_VOICE_DEFAULT
-        variant = cache_service.render_variant(narration, voice)
+        # How long a video the asker wants. In the cache key for the same
+        # reason the voice is: a stored ninety-second answer is the wrong
+        # answer to somebody who asked for thirty seconds.
+        # Cased and trimmed before the closed-set check, the way the agent
+        # does it: otherwise "Short" from a client is not a rejected value,
+        # it is a silently substituted one - a control that looks like it
+        # worked and did nothing.
+        video_length = str(payload.get("video_length") or "").strip().lower()
+        if video_length not in VIDEO_LENGTHS:
+            video_length = VIDEO_LENGTH_DEFAULT
+        variant = cache_service.render_variant(narration, voice, video_length)
 
         cached = None
         if CACHE_ENABLED and not payload.get("force_regenerate"):
@@ -215,6 +227,7 @@ async def _handle_ui_frame(websocket: WebSocket, user_id: str, data: dict) -> No
                 screenshots=screenshots,
                 narration=narration,
                 narration_voice=voice,
+                video_length=video_length,
             )
         except Exception as e:
             agent_manager.pending_requests.pop(request_id, None)

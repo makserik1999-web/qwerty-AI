@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ExplanationView } from '../components/ExplanationView'
 import { NarrationToggle, type NarrationVoice } from '../components/NarrationToggle'
+import { VideoLengthPicker } from '../components/VideoLengthPicker'
 import {
   Alert,
   Button,
@@ -16,7 +17,13 @@ import {
 } from '../components/ui'
 import { explanationFromAnswer, explanationFromChat, listChats, loadChat, toConversation } from '../lib/chats'
 import { useI18n } from '../lib/i18n'
-import { AgentError, AnswerTimeout, useLive, type AskStage } from '../lib/live'
+import {
+  AgentError,
+  AnswerTimeout,
+  useLive,
+  type AskStage,
+  type VideoLength,
+} from '../lib/live'
 import { EXAMPLE_QUESTIONS, PRICES } from '../lib/mockData'
 import { useStore } from '../lib/store'
 import type { Conversation, Explanation, Lang, LangChoice } from '../lib/types'
@@ -42,6 +49,10 @@ export function Explain() {
   // changes what the answer is, not how the app behaves.
   const [narration, setNarration] = useState(true)
   const [voice, setVoice] = useState<NarrationVoice>('aigul')
+  // Medium by default. Before this control existed the length was
+  // whatever the model happened to write - measured between 60 and 96
+  // seconds for the same kind of question - and nobody chose it.
+  const [videoLength, setVideoLength] = useState<VideoLength>('medium')
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
   const steps: ProgressStep[] = STAGE_ORDER.map((key) => ({
@@ -77,6 +88,7 @@ export function Explain() {
           question: asked,
           narration,
           narrationVoice: voice,
+          videoLength,
         })
         const explanation = explanationFromAnswer(answer)
         setCurrent(explanation)
@@ -114,7 +126,7 @@ export function Explain() {
         setState('error')
       }
     },
-    [ask, charge, narration, t, user?.role, voice],
+    [ask, charge, narration, t, user?.role, voice, videoLength],
   )
 
   function onSubmit(event: React.FormEvent) {
@@ -258,6 +270,11 @@ export function Explain() {
                     voice={voice}
                     onEnabledChange={setNarration}
                     onVoiceChange={setVoice}
+                    disabled={busy}
+                  />
+                  <VideoLengthPicker
+                    value={videoLength}
+                    onChange={setVideoLength}
                     disabled={busy}
                   />
                 </div>

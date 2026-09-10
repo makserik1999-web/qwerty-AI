@@ -134,6 +134,60 @@ NARRATION_VOICE = (os.getenv("NARRATION_VOICE", "aigul") or "aigul").strip().low
 # A school explanation, not a news read. Azure's SSML rate, relative.
 NARRATION_RATE = (os.getenv("NARRATION_RATE", "-8%") or "-8%").strip()
 
+# ============== Video length ==============
+# How long the video runs, asked for as a bucket rather than in seconds.
+#
+# There is no duration parameter anywhere in Manim or in this pipeline - a
+# video lasts exactly as long as its animations, and with narration on those
+# are pinned to the speech (`run_time=tracker.duration`). So the length is
+# controlled where it is actually decided: by how much the script is told to
+# say. The characters are known BEFORE any rendering starts, which is what
+# makes this checkable rather than a wish addressed to the model.
+#
+# The seconds-per-character rate is measured, not assumed: 11.8-13.8
+# characters per second across fourteen renders on gemini-3.8-flash, mean
+# 12.9, Kazakh and Russian alike. The budgets below are those seconds
+# turned back into characters. The rate is a property of the MODEL's
+# scripting habits as much as of the speech - deepseek measured 10.3-10.7
+# on the same prompt - so it needs re-measuring if the default model
+# changes.
+#
+# Hence buckets, and hence "~30-40 sec" in the interface rather than "35 sec":
+# +-6% is the honest precision, and a slider promising seconds would be
+# promising something this cannot deliver.
+VIDEO_LENGTHS = ("short", "medium", "long")
+
+# (minimum, maximum) narration characters, and the seconds they buy.
+#
+# Each window is CENTRED on its target duration rather than starting at it.
+# The first cut set the floors at the target and every bucket came out at or
+# below its lower second, because the model writes to the floor of whatever
+# range it is given: measured at 329, 589 and 1009 against floors of 380, 635
+# and 1015 - under all three. What it does land near is the middle of the
+# window after a correction (459, 675, 1106 in windows centred on 445, 697 and
+# 1080), so the middle is what has to be right.
+#
+# Rate: 12.9 characters per second, from fourteen measured renders
+# (11.8 to 13.8).
+# Wider than it looks - the +-6% spread is as wide as the ten-second windows
+# themselves, which is why a bucket lands a second or two outside about a
+# third of the time and why the interface says "~30-40 sec". A promise of
+# exact seconds could not be kept by anything downstream of a language model.
+VIDEO_LENGTH_BUDGETS = {
+    "short": (430, 500),     # centre 465 -> ~36 s
+    "medium": (700, 770),    # centre 735 -> ~57 s
+    "long": (1090, 1165),    # centre 1127 -> ~87 s
+}
+
+# Medium, deliberately. Before this existed the prompt asked for "8-15 blocks,
+# under 2000 characters" and produced 60-96 second videos - the length was
+# whatever the model felt like, and nobody chose it. Medium is the shortest
+# bucket that still fits a full explanation; set VIDEO_LENGTH_DEFAULT=long to
+# keep videos closer to what they were.
+VIDEO_LENGTH_DEFAULT = (os.getenv("VIDEO_LENGTH_DEFAULT", "medium") or "").strip().lower()
+if VIDEO_LENGTH_DEFAULT not in VIDEO_LENGTHS:
+    VIDEO_LENGTH_DEFAULT = "medium"
+
 # ============== Fonts ==============
 MANIM_TEXT_FONT = os.getenv("MANIM_TEXT_FONT", "").strip()
 

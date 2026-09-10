@@ -188,7 +188,8 @@ class AgentConnectionManager:
 
     async def send_to_agent(self, request_id: str, user_id: str, chat_id: str,
                             text: Optional[str], screenshots: List[Dict[str, Any]],
-                            narration: bool = True, narration_voice: str = "aigul"):
+                            narration: bool = True, narration_voice: str = "aigul",
+                            video_length: str = ""):
         if not self.agent_connection:
             raise RuntimeError("AI Agent not connected")
 
@@ -204,6 +205,7 @@ class AgentConnectionManager:
             # trusts these because the backend, not the client, chose them.
             "narration": narration,
             "narration_voice": narration_voice,
+            "video_length": video_length,
         })
 
     def get_request_info(self, request_id: str, pop: bool = True) -> Optional[dict]:

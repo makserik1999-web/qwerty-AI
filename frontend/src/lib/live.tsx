@@ -61,10 +61,15 @@ export interface Answer {
   matchedQuestion: string
 }
 
+/** How long the video should run. The seconds are approximate on purpose -
+ *  see VideoLengthPicker. */
+export type VideoLength = 'short' | 'medium' | 'long'
+
 export interface AskInput {
   question: string
   narration: boolean
   narrationVoice: string
+  videoLength: VideoLength
 }
 
 interface LiveValue {
@@ -137,6 +142,7 @@ export function LiveProvider({
           screenshots: [],
           narration: input?.narration ?? true,
           narration_voice: input?.narrationVoice ?? 'aigul',
+          video_length: input?.videoLength ?? 'medium',
         })
         return
       }

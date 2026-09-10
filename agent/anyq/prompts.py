@@ -214,7 +214,34 @@ class NumberLineExample(Scene):
 '''
 
 
-def build_manim_system_prompt(allow_latex: bool, language_name: str) -> str:
+def narration_budget_rule(low: int, high: int) -> str:
+    """Rule 19 for a chosen video length.
+
+    Written as a character budget because that is the thing the pipeline can
+    check before it spends a render, and because the video lasts exactly as
+    long as the speech - there is no duration setting to ask for instead.
+    """
+    return (
+        f"19. LENGTH BUDGET (HARD): the whole narration - every text= across\n"
+        f"    every voiceover block, added up - MUST total between {low} and\n"
+        f"    {high} characters. The video lasts exactly as long as the\n"
+        f"    speech, so this budget IS the length of the video. Prefer fewer,\n"
+        f"    fuller sentences over many short ones; drop the least important\n"
+        f"    step rather than going over."
+    )
+
+
+# What rule 19 said before a length could be chosen, kept as the default so
+# that build_manim_system_prompt(allow_latex, language_name) returns the exact
+# text it always did - scripts/check.sh pins its sha256.
+_DEFAULT_NARRATION_BUDGET = (
+    "19. Aim for 8-15 narration blocks and keep the whole narration under 2000\n"
+    "    characters in total."
+)
+
+
+def build_manim_system_prompt(allow_latex: bool, language_name: str,
+                              narration_budget: str = "") -> str:
     """System prompt of generate_manim_script - the exact text the model sees."""
     return f"""{MANIM_API_REFERENCE}
 
@@ -355,8 +382,7 @@ L8. When the diagram itself changes (new shapes added), fade out or shift the
 18. The narration text MUST be in {language_name}, in complete sentences of
     roughly 8-20 words each. Do not narrate stage directions ("now we see a
     circle"); narrate the physics.
-19. Aim for 8-15 narration blocks and keep the whole narration under 2000
-    characters in total.
+{narration_budget or _DEFAULT_NARRATION_BUDGET}
 20. NEVER call self.set_speech_service(...). The voice is configured by the
     runtime; a script that sets its own will be rejected.
 """
@@ -366,6 +392,42 @@ L8. When the diagram itself changes (new shapes added), fade out or shift the
 REWRITE_FORBIDDEN_HELPERS_SYSTEM_PROMPT = (
     "Rewrite the Manim script without forbidden items.\n"
     "MUST NOT use: Checkmark, Exmark, Cross, wait_for_input, input().\n"
+)
+
+# System prompt of the "spoken lines are not literals" rewrite pass.
+#
+# The manifest of speech is built by reading the script's AST before the
+# render, so a line assembled at runtime - an f-string, a variable, a
+# concatenation - cannot be synthesised. When every line is like that the
+# manifest comes out empty and the video renders silent, which is the one
+# outcome nobody asked for: narration was requested, and the chosen length
+# stops working too, because the length follows the speech.
+REWRITE_VOICEOVER_LITERALS_SYSTEM_PROMPT = (
+    "Rewrite the Manim script so every spoken line is a plain string literal.\n"
+    "Each self.voiceover(...) call MUST pass text= as one ordinary quoted\n"
+    "string - no f-strings, no variables, no concatenation, no .format(), no\n"
+    "joins. Write the finished sentence out in full inside the quotes.\n"
+    "Change NOTHING else: keep every animation, mobject, formula, caption and\n"
+    "run_time=tracker.duration exactly as they are, keep the same number of\n"
+    "voiceover blocks, and keep the narration in the language it is already\n"
+    "in - including the same words, now spelled out literally.\n"
+    "Return ONLY the complete rewritten script.\n"
+)
+
+# System prompt of the "narration is the wrong length" rewrite pass.
+#
+# A rewrite rather than a fresh generation: the animation was already accepted
+# by the guards and the validator, and throwing it away to roll the dice again
+# would risk the parts that are right to fix the one part that is not.
+REWRITE_NARRATION_LENGTH_SYSTEM_PROMPT = (
+    "Rewrite the Manim script so the spoken narration fits a character budget.\n"
+    "Change ONLY the text= strings inside self.voiceover(...) blocks, and the\n"
+    "number of those blocks. Keep every animation, mobject, formula and\n"
+    "caption exactly as it is, keep run_time=tracker.duration, and keep the\n"
+    "narration in the same language it is already in.\n"
+    "To make it shorter: merge or drop whole sentences - do not truncate one.\n"
+    "To make it longer: say more about the physics already on screen.\n"
+    "Return ONLY the complete rewritten script.\n"
 )
 
 # System prompt of the "no LaTeX available" rewrite pass.

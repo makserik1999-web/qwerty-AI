@@ -65,6 +65,11 @@ services:
       # from the environment but never forwarded here, so the one setting that
       # exists to be changed on a model switch could not be changed at all.
       - PIPELINE_VERSION=${PIPELINE_VERSION:-v3}
+      # Which length a request that names none gets. Forwarded to BOTH
+      # services: the backend validates the name and puts it in the cache
+      # key, the agent turns it into a character budget. If only one end
+      # were configured they would disagree about what was stored.
+      - VIDEO_LENGTH_DEFAULT=${VIDEO_LENGTH_DEFAULT:-medium}
       - EXPORT_TTL_HOURS=${EXPORT_TTL_HOURS:-24}
     depends_on:
       mongo:
@@ -161,6 +166,7 @@ services:
       - AZURE_SPEECH_REGION=${AZURE_SPEECH_REGION:-}
       - NARRATION_ENABLED=${NARRATION_ENABLED:-1}
       - NARRATION_VOICE=${NARRATION_VOICE:-aigul}
+      - VIDEO_LENGTH_DEFAULT=${VIDEO_LENGTH_DEFAULT:-medium}
       # Test mode: render a stub Manim video without calling any LLM
       # (used for sandbox/render regression checks; a real LLM key is
       # otherwise required for AI features).

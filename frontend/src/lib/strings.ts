@@ -211,6 +211,13 @@ export const kk = {
   'narration.voice.aigul': 'Айгүл',
   'narration.voice.daulet': 'Дәулет',
   'narration.voiceLabel': 'Дауысты таңдау',
+  'length.label': 'Ұзақтығы',
+  'length.short': 'Қысқа',
+  'length.short.hint': '~30-40 сек',
+  'length.medium': 'Орташа',
+  'length.medium.hint': '~50-60 сек',
+  'length.long': 'Ұзақ',
+  'length.long.hint': '~80-90 сек',
   'player.reducedMotion':
     'Жүйеңізде қозғалысты азайту қосулы. Анимация автоматты ойналмайды.',
 
@@ -612,6 +619,13 @@ export const ru: Record<StringKey, string> = {
   'narration.voice.aigul': 'Айгүл',
   'narration.voice.daulet': 'Дәулет',
   'narration.voiceLabel': 'Выбор голоса',
+  'length.label': 'Длительность',
+  'length.short': 'Короткое',
+  'length.short.hint': '~30-40 сек',
+  'length.medium': 'Среднее',
+  'length.medium.hint': '~50-60 сек',
+  'length.long': 'Длинное',
+  'length.long.hint': '~80-90 сек',
   'player.reducedMotion':
     'В системе включено уменьшение движения. Анимация не запускается автоматически.',
 
@@ -1004,6 +1018,13 @@ export const en: Record<StringKey, string> = {
   'narration.voice.aigul': 'Aigul',
   'narration.voice.daulet': 'Daulet',
   'narration.voiceLabel': 'Choose a voice',
+  'length.label': 'Length',
+  'length.short': 'Short',
+  'length.short.hint': '~30-40 sec',
+  'length.medium': 'Medium',
+  'length.medium.hint': '~50-60 sec',
+  'length.long': 'Long',
+  'length.long.hint': '~80-90 sec',
   'player.reducedMotion':
     'Reduced motion is on in your system, so the animation does not play automatically.',
 

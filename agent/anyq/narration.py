@@ -161,6 +161,10 @@ async def prepare(script: str, language: str, voice_choice: str = "") -> str:
     refused request. The caller does not branch on why.
     """
     if not NARRATION_ENABLED or not AZURE_SPEECH_KEY or not AZURE_SPEECH_REGION:
+        # Said once per request rather than assumed to be obvious: a silent
+        # video is not distinguishable from a spoken one in any log line, and
+        # somebody debugging one has to be told which of these it was.
+        print("[narration] disabled or unconfigured; rendering silent", flush=True)
         return ""
 
     voice = voice_for(language, voice_choice)
@@ -172,6 +176,16 @@ async def prepare(script: str, language: str, voice_choice: str = "") -> str:
 
     lines = extract_lines(script)
     if not lines:
+        # The loudest of the quiet paths, because it is the one that is a
+        # surprise. Narration was asked for and the script says nothing - the
+        # model wrote no voiceover blocks, or wrote them in a form the manifest
+        # cannot read (an f-string or a variable rather than a literal). The
+        # video comes out silent AND its length stops being controllable,
+        # since the length follows the speech. That produced a "medium" video
+        # of 35 seconds with nothing anywhere to explain it.
+        blocks = script.count("self.voiceover")
+        print(f"[narration] nothing to speak ({blocks} voiceover blocks in the "
+              f"script); rendering silent", flush=True)
         return ""
 
     total = sum(len(line) for line in lines)

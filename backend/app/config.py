@@ -113,6 +113,18 @@ NARRATION_VOICE_DEFAULT = os.getenv("NARRATION_VOICE", "aigul")
 if NARRATION_VOICE_DEFAULT not in NARRATION_VOICES:
     NARRATION_VOICE_DEFAULT = "aigul"
 
+# ============== Video length ==============
+# How long the asked-for video runs. A closed set for the same reason the
+# voices are one: it reaches a cache key, and free text there would let one
+# client mint unlimited entries for a single question.
+#
+# The agent owns the character budgets these map to - it is the side that can
+# measure what a script will say. The backend only needs to know which names
+# are real, and to keep this list in step with agent/anyq/config.py.
+VIDEO_LENGTHS = ("short", "medium", "long")
+VIDEO_LENGTH_DEFAULT = (os.getenv("VIDEO_LENGTH_DEFAULT", "medium") or "").strip().lower()
+if VIDEO_LENGTH_DEFAULT not in VIDEO_LENGTHS:
+    VIDEO_LENGTH_DEFAULT = "medium"
 
 
 

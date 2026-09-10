@@ -931,3 +931,65 @@
   color: var(--text-disabled);
   cursor: not-allowed;
 }
+
+/* Video length. Deliberately the same shapes and tokens as .narration above:
+   the two controls sit side by side, decide the same kind of thing - what
+   gets made, rather than how the app behaves - and a second visual language
+   for the neighbour would read as a second kind of setting. */
+.length {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.length__label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  color: var(--text-secondary);
+  font-size: var(--fs-body-sm);
+}
+
+.length__options {
+  display: flex;
+  gap: 2px;
+}
+
+.length__option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: var(--space-xs) var(--space-sm);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--dur-micro) var(--ease), color var(--dur-micro) var(--ease);
+}
+.length__option:hover:not(:disabled) {
+  background: var(--surface);
+}
+.length__option.is-active {
+  background: var(--primary-soft);
+  color: var(--primary-deep);
+}
+.length__option:disabled {
+  color: var(--text-disabled);
+  cursor: not-allowed;
+}
+
+.length__name {
+  font-size: var(--fs-body-sm);
+  line-height: 1.1;
+}
+
+/* The seconds are the point of the control, so they are always visible
+   rather than hidden in a tooltip - but quieter than the name, because the
+   name is what gets clicked. */
+.length__hint {
+  font-size: var(--fs-caption, 11px);
+  line-height: 1.1;
+  opacity: 0.75;
+}

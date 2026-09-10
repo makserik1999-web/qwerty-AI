@@ -149,6 +149,10 @@ async def process_request(payload: Dict[str, Any]) -> Dict[str, Any]:
             initial["narration"] = bool(payload.get("narration"))
         if payload.get("narration_voice"):
             initial["narration_voice"] = str(payload["narration_voice"])
+        # Same shape, same reason: an older backend sends no length and the
+        # graph falls back to VIDEO_LENGTH_DEFAULT.
+        if payload.get("video_length"):
+            initial["video_length"] = str(payload["video_length"])
 
         if image_data:
             if isinstance(image_data, list):
