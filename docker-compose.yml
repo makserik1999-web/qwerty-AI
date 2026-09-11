@@ -180,9 +180,19 @@ services:
       - MANIM_MCP_SERVER_SCRIPT=/app/manim-mcp-server/src/manim_server.py
       # Explicit output dir (the shared media volume is mounted below).
       - MANIM_OUTPUT_DIR=/app/manim-mcp-server/src/media/outputs
-      # Telemetry goes to stdout (docker log rotation bounds it); the file path
-      # is inside the tmpfs so it never touches the read-only rootfs.
-      - ANYQ_TELEMETRY_PATH=/tmp/logs/runs.jsonl
+      # Telemetry: one JSON line per request - which stage ran, whether the
+      # render worked first time, how long it took. No question text, only a
+      # sha256 of it, so the counting works and the reading does not.
+      #
+      # It used to be written into the tmpfs, which kept it off the read-only
+      # rootfs and also erased it on every restart. Stdout is no better here:
+      # docker's log is per-container, so `up --build` starts an empty one.
+      # Both sinks being ephemeral meant the history was gone exactly when it
+      # was wanted - after a day of work the file held two lines, and "how
+      # often does a render succeed first time" had to be answered from
+      # scratch. Its own volume fixes that; /app/logs already exists in the
+      # image owned by appuser, so the volume inherits a writable directory.
+      - ANYQ_TELEMETRY_PATH=${ANYQ_TELEMETRY_PATH:-/app/logs/runs.jsonl}
       # Optional: OpenAI/Anthropic keys if you want to use those providers
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
@@ -195,6 +205,11 @@ services:
       # Persist generated videos. The whole media dir is mounted (manim writes
       # intermediates into media/videos as well as the final outputs/).
       - media_data:/app/manim-mcp-server/src/media
+      # Its own volume rather than a corner of media_data: telemetry is
+      # operational data and media is user content. Clearing out old videos
+      # must not take the record of what happened with it - and media_data is
+      # mounted into the backend, which serves files out of it.
+      - agent_logs:/app/logs
     # Sandbox: non-root user (in image), no capabilities, no new privileges,
     # read-only rootfs (tmpfs for /tmp), hard resource caps. Outbound network
     # is restricted by the AST script validator (import whitelist) at runtime.
@@ -281,3 +296,4 @@ networks:
 volumes:
   mongo_data:
   media_data:
+  agent_logs:

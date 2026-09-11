@@ -115,8 +115,12 @@ def write() -> None:
             os.makedirs(directory, exist_ok=True)
 
         line = json.dumps(entry, ensure_ascii=False)
-        # Stdout is the canonical sink (bounded by docker log rotation); the
-        # file write is best-effort for local development.
+        # Two sinks, and the file is the one that lasts. Stdout is bounded by
+        # docker's log rotation and is per-container, so recreating the
+        # container starts an empty log - which is how a day of runs came to
+        # be unaccounted for. The file lives on its own volume and survives
+        # both. Stdout stays because it is what `docker compose logs` shows
+        # while something is being watched live.
         print(f"TELEMETRY {line}", flush=True)
         with _write_lock, open(path, "a", encoding="utf-8") as f:
             f.write(line + "\n")
