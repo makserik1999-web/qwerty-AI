@@ -81,7 +81,14 @@ sys.path.insert(0, ".")
 # when narration was added - the model now has to write a spoken sentence
 # alongside each on-screen caption, which is a behaviour change and not a
 # refactor. Before 0cf84926... it was the pre-refactor prompt.
-EXPECTED_PROMPT_SHA256 = "740244fe3570b08a76a04ac6ec9d91834d6a543dca7e49e9efe581e72c5faa5c"
+#
+# THIRD value, moved on purpose again: the prompt used to require
+# run_time=tracker.duration on every animation and to swap captions with
+# Transform. Both were wrong on screen - the first stretched every fade across
+# a whole spoken sentence, the second spent that sentence morphing one word's
+# letters into another's. Rules 15, 16, L1, L2 and L8 now say the opposite,
+# which is a behaviour change and not a refactor. Previous: 740244fe3570...
+EXPECTED_PROMPT_SHA256 = "1239fa501d3d3e849f7c6dd942ed9bc24d051bbd41a3620f478f2f78dc0f097c"
 
 failures = []
 

@@ -5,6 +5,53 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### The animations were slow, and things dissolved on top of each other
+
+**Fixed - one rule in the prompt was causing both**
+
+Reported from watching the videos: everything faded in and out too slowly, and
+worse, a new caption appeared while the old one was still leaving, so for the
+length of the transition the frame was an unreadable mixture of the two.
+
+Rule 15 required `run_time=tracker.duration` on every animation, which
+stretched each one across its whole spoken sentence - a five-second sentence
+bought a five-second fade. It was never needed: manim-voiceover's `voiceover`
+block calls `wait_for_voiceover()` when it exits, so the block already lasts
+exactly as long as its audio whatever happened inside it. Rule L1 swapped
+captions with `Transform(caption, Text(...))`, which morphs the letter shapes
+of one string into another's - and spent those five seconds doing it. L2's
+fallback, `self.play(FadeOut(old), FadeIn(new))`, plays both at once.
+
+- Rules 15, 16, L1, L2 and L8 now say the opposite: a departure is its own
+  `self.play` and comes first; `Transform` is for shapes that really do become
+  one another, never for swapping one sentence for another; `run_time` is
+  0.3-1.0s and a longer sentence means a longer still, not a slower animation.
+- **A pacing guard enforces it mechanically**, because the prompt is a request
+  and this is a property. A `self.play` that both removes and adds is split in
+  two, and any `run_time` written as a share of the sentence is capped
+  (`ANIM_RUN_TIME_CAP`, default 1.0s; departures `ANIM_EXIT_RUN_TIME`, 0.35s).
+  It rewrites only the statements it touches, so comments, spacing and the
+  exact bytes of every spoken line survive - the narration manifest is keyed
+  on those, and a changed byte is a silent video.
+- The silent variant now pads each block to the length the sentence would have
+  taken, the way `wait_for_voiceover` does on the narrated path. It never did,
+  which was invisible while every animation filled its block and would have
+  made a narration-off video a third of the length the moment they stopped.
+- `PIPELINE_VERSION` v3 -> v4, so stored answers made by the old pipeline are
+  retired rather than served.
+
+**Verified on real renders, not only in tests**
+
+The same question rendered before and after. The script the model now writes
+has 13 `self.play` calls, none of them mixing a removal with an arrival, none
+with a stretched `run_time`, and no text-into-text Transform - the guard found
+nothing left to do. Contact sheets of both videos, one frame per second: the
+old one has captions visibly smeared over each other at four of the
+transitions, the new one has one clean caption in every frame. Length is
+unchanged (50.9s -> 53.4s), which is correct - the narration sets that, not the
+animations. A silent render of three 60-character sentences came out at exactly
+15.000s against the 2.1s its animations add up to.
+
 ### Deleting a question from the history, and a deploy that reached nobody
 
 **Added**

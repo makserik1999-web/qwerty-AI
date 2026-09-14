@@ -280,37 +280,48 @@ E. Aim for a substantial, detailed animation - typically 8-15 distinct
 
 === LAYOUT AND SCREEN MANAGEMENT (CRITICAL) ===
 Overlapping text is the most common failure. Obey these rules strictly:
-L1. THE SINGLE-CAPTION RULE (MANDATORY - use this pattern).
-    Create the bottom caption ONCE, then keep REUSING that same mobject for
-    every later step by morphing it with Transform. Because only one caption
-    object ever exists, it is structurally impossible for an old caption to be
-    left behind on screen:
+L1. ONE THING AT A TIME (MANDATORY - this is the most important rule here).
+    What is leaving the screen must be COMPLETELY GONE before what replaces it
+    starts to appear. Two separate self.play(...) calls, in this order, always:
 
         caption = Text("First step", font_size=26).to_edge(DOWN, buff=0.5)
-        self.play(FadeIn(caption))
-        self.wait(1)
+        self.play(FadeIn(caption), run_time=0.5)
 
-        # every later step - reuse the SAME object, never create a second one
-        self.play(Transform(caption, Text("Second step", font_size=26).to_edge(DOWN, buff=0.5)))
-        self.wait(1)
+        # every later step: clear the old one FIRST, then show the new one
+        self.play(FadeOut(caption), run_time=0.3)
+        caption = Text("Second step", font_size=26).to_edge(DOWN, buff=0.5)
+        self.play(FadeIn(caption), run_time=0.5)
 
-        self.play(Transform(caption, Text("Third step", font_size=26).to_edge(DOWN, buff=0.5)))
-        self.wait(1)
+        self.play(FadeOut(caption), run_time=0.3)
+        caption = Text("Third step", font_size=26).to_edge(DOWN, buff=0.5)
+        self.play(FadeIn(caption), run_time=0.5)
 
     Rules for this pattern:
-    - Create the caption variable EXACTLY ONCE, before the first step.
-    - For EVERY subsequent step use Transform(caption, Text(...).to_edge(DOWN, buff=0.5)).
-    - NEVER reassign `caption = ...` after it is created.
-    - NEVER call Write()/FadeIn() on a second caption object.
-    - Always give the replacement Text the SAME .to_edge(DOWN, buff=0.5)
-      position and the same font_size, so it stays in the caption zone.
-L2. FALLBACK PATTERN (only if you truly cannot use Transform): if you create a
-    NEW Text per step, then the previous caption MUST be removed BEFORE the new
-    one appears - in the SAME self.play(...) call:
-        self.play(FadeOut(old_caption), FadeIn(new_caption))
-    This applies to EVERY step without exception, including the last step and
-    any branch/skipped step. An old caption must never survive into the next
-    step. Prefer L1 - it is the reliable one.
+    - NEVER put a disappearance and an appearance in the SAME self.play(...).
+      `self.play(FadeOut(old), FadeIn(new))` runs them at the same time, so
+      the old text is still half on screen while the new one is already being
+      drawn over it. The frame becomes two texts on one line.
+    - ALWAYS FadeOut the old caption before assigning the new one, so no
+      caption can be left behind.
+    - Always give the new Text the SAME .to_edge(DOWN, buff=0.5) position and
+      the same font_size, so it stays in the caption zone.
+L2. NEVER Transform() ONE PIECE OF TEXT INTO A DIFFERENT PIECE OF TEXT.
+    Transform morphs the letter shapes of one string into the letter shapes of
+    another, and for the whole animation the words are an unreadable mixture
+    of both:
+
+        # WRONG - produces garbled shapes, not a transition
+        self.play(Transform(caption, Text("Second step")))
+
+        # RIGHT - out, then in (see L1)
+        self.play(FadeOut(caption), run_time=0.3)
+        caption = Text("Second step", font_size=26).to_edge(DOWN, buff=0.5)
+        self.play(FadeIn(caption), run_time=0.5)
+
+    Transform and ReplacementTransform are for SHAPES that really do change
+    into one another - a circle into a square, a triangle that splits - and
+    for a formula changing one step of a derivation into the next, where the
+    symbols genuinely correspond. Never for swapping one sentence for another.
 L3. FIXED ZONES - never put two things in the same place:
     - Title: .to_edge(UP)
     - Explanatory caption: .to_edge(DOWN)
@@ -331,8 +342,11 @@ L7. LONG TEXT MUST FIT. Use font_size=24-30 for captions, font_size=36-48 for
     titles. If a sentence is long, shorten it or split it into two shorter
     captions shown one after another - never let text run off screen or across
     the diagram.
-L8. When the diagram itself changes (new shapes added), fade out or shift the
-    parts that are no longer needed, so the screen never becomes cluttered.
+L8. When the diagram itself changes, the same order applies: first a
+    self.play(FadeOut(...)) of everything that is no longer needed, then a
+    separate self.play(...) that brings in what comes next. Never overlap the
+    two - a shape dissolving underneath a shape being drawn is the single
+    thing that makes these videos look broken.
 8. {"LaTeX is available. Use MathTex/Tex for equations." if allow_latex else "LaTeX NOT available. Use Text() only, not Tex or MathTex."}
 9. NEVER use deprecated methods. Follow the examples exactly.
 
@@ -354,25 +368,33 @@ L8. When the diagram itself changes (new shapes added), fade out or shift the
     configured globally by the runtime.
 
 === NARRATION (CRITICAL - THE VIDEO IS SPOKEN ALOUD) ===
-15. EVERY animated step must sit inside a narration block, and its animations
-    must take exactly as long as the sentence being spoken:
+15. EVERY animated step must sit inside a narration block. The block already
+    lasts exactly as long as its sentence - the runtime holds the last frame
+    until the speech finishes - so the ANIMATION ITSELF MUST BE SHORT AND
+    NORMAL-SPEED:
 
         with self.voiceover(text="Жер барлық денелерді өзіне тартады.") as tracker:
-            self.play(FadeIn(earth), run_time=tracker.duration)
+            self.play(FadeIn(earth), run_time=0.6)
 
-    Use run_time=tracker.duration, or fractions of it that add up to it
-    (tracker.duration * 0.4 then tracker.duration * 0.6) when one sentence
-    covers two animations. Never use a fixed run_time inside a block, and
-    never call self.wait() inside one - the narration sets the pace.
+    Use run_time between 0.3 and 1.0 seconds: about 0.3 for something leaving
+    the screen, 0.5-0.6 for text or a label appearing, up to 1.0 for drawing a
+    whole diagram. NEVER write run_time=tracker.duration - that stretches one
+    fade across the entire sentence and the video crawls. Do not call
+    self.wait() inside a block; the block does the waiting for you.
+
+    A longer sentence does NOT mean a longer animation. It means the thing
+    appears at a natural speed and then stays on screen, still, while the rest
+    of the sentence is spoken - which is exactly how a teacher explains a
+    picture.
 16. WHAT IS SPOKEN AND WHAT IS WRITTEN ARE DIFFERENT TEXT. The caption on
     screen is short, like a slide heading. The narration is a full spoken
     sentence, the way a teacher would say it out loud. Write both:
 
         with self.voiceover(text="Ауырлық күші деп Жердің денелерді өзіне "
                                  "тарту күшін айтамыз.") as tracker:
-            self.play(Transform(caption, Text("Ауырлық күші",
-                      font_size=26).to_edge(DOWN, buff=0.5)),
-                      run_time=tracker.duration)
+            self.play(FadeOut(caption), run_time=0.3)
+            caption = Text("Ауырлық күші", font_size=26).to_edge(DOWN, buff=0.5)
+            self.play(FadeIn(caption), run_time=0.5)
 
 17. FORMULAS MUST BE SPOKEN AS WORDS. A speech engine reads "F = m * g" as
     punctuation or silence. On screen write the formula; in the narration say
@@ -408,7 +430,7 @@ REWRITE_VOICEOVER_LITERALS_SYSTEM_PROMPT = (
     "string - no f-strings, no variables, no concatenation, no .format(), no\n"
     "joins. Write the finished sentence out in full inside the quotes.\n"
     "Change NOTHING else: keep every animation, mobject, formula, caption and\n"
-    "run_time=tracker.duration exactly as they are, keep the same number of\n"
+    "every run_time exactly as it is, keep the same number of\n"
     "voiceover blocks, and keep the narration in the language it is already\n"
     "in - including the same words, now spelled out literally.\n"
     "Return ONLY the complete rewritten script.\n"
@@ -423,7 +445,7 @@ REWRITE_NARRATION_LENGTH_SYSTEM_PROMPT = (
     "Rewrite the Manim script so the spoken narration fits a character budget.\n"
     "Change ONLY the text= strings inside self.voiceover(...) blocks, and the\n"
     "number of those blocks. Keep every animation, mobject, formula and\n"
-    "caption exactly as it is, keep run_time=tracker.duration, and keep the\n"
+    "caption and every run_time exactly as they are, and keep the\n"
     "narration in the same language it is already in.\n"
     "To make it shorter: merge or drop whole sentences - do not truncate one.\n"
     "To make it longer: say more about the physics already on screen.\n"

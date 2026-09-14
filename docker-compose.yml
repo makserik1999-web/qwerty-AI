@@ -69,7 +69,7 @@ services:
       # when the prompts, the model or the renderer change - and it was read
       # from the environment but never forwarded here, so the one setting that
       # exists to be changed on a model switch could not be changed at all.
-      - PIPELINE_VERSION=${PIPELINE_VERSION:-v3}
+      - PIPELINE_VERSION=${PIPELINE_VERSION:-v4}
       # Which length a request that names none gets. Forwarded to BOTH
       # services: the backend validates the name and puts it in the cache
       # key, the agent turns it into a character budget. If only one end
@@ -177,6 +177,11 @@ services:
       - NARRATION_VOICE=${NARRATION_VOICE:-aigul}
       - VIDEO_LENGTH_DEFAULT=${VIDEO_LENGTH_DEFAULT:-medium}
       - EFFORT_DEFAULT=${EFFORT_DEFAULT:-medium}
+      # How fast things happen on screen. The pacing guard caps every
+      # run_time that was written as a fraction of the spoken sentence, so
+      # a fade is a fade rather than five seconds of slow motion.
+      - ANIM_RUN_TIME_CAP=${ANIM_RUN_TIME_CAP:-1.0}
+      - ANIM_EXIT_RUN_TIME=${ANIM_EXIT_RUN_TIME:-0.35}
       # Test mode: render a stub Manim video without calling any LLM
       # (used for sandbox/render regression checks; a real LLM key is
       # otherwise required for AI features).

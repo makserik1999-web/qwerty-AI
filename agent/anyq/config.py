@@ -230,6 +230,27 @@ EFFORT_DEFAULT = (os.getenv("EFFORT_DEFAULT", "medium") or "").strip().lower()
 if EFFORT_DEFAULT not in EFFORT_LEVELS:
     EFFORT_DEFAULT = "medium"
 
+# ============== Animation pacing ==============
+# How long a single on-screen change may take.
+#
+# The prompt used to require run_time=tracker.duration on every animation,
+# which stretched each one across the whole spoken sentence. A five-second
+# sentence bought a five-second fade - and a five-second Transform between two
+# captions, which spends those five seconds morphing the letters of one word
+# into the letters of another and is unreadable for all of them.
+#
+# It was never needed for synchronisation: manim-voiceover's `voiceover` block
+# calls wait_for_voiceover() when it exits, so the block already lasts exactly
+# as long as its audio whatever the animation inside it did. The animation
+# therefore plays at a normal speed and the rest of the sentence is a still
+# frame the viewer reads while the teacher talks - which is what an
+# explanation looks like, rather than everything moving in slow motion.
+ANIM_RUN_TIME_CAP = _get_float("ANIM_RUN_TIME_CAP", 1.0)
+
+# What leaves the screen goes faster than what arrives: a departure is not
+# information, it is the room being cleared for the next thing.
+ANIM_EXIT_RUN_TIME = _get_float("ANIM_EXIT_RUN_TIME", 0.35)
+
 # ============== Fonts ==============
 MANIM_TEXT_FONT = os.getenv("MANIM_TEXT_FONT", "").strip()
 

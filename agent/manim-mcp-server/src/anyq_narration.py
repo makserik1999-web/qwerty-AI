@@ -57,13 +57,27 @@ def narration_key(text: str) -> str:
 
 
 class _SilentTracker:
-    """Stands in for the real tracker so `run_time=tracker.duration` works."""
+    """Stands in for the real tracker so `run_time=tracker.duration` works.
 
-    def __init__(self, duration: float) -> None:
+    `start_t`/`end_t` mirror the real VoiceoverTracker so that remaining time
+    is measured against the scene clock rather than assumed. It used to report
+    the full duration however much of the block had already played, which was
+    harmless only while every animation was stretched to fill the block.
+    """
+
+    def __init__(self, duration: float, scene: Any = None) -> None:
         self.duration = duration
+        self._scene = scene
+        self.start_t = float(getattr(scene.renderer, "time", 0.0) or 0.0) if scene else 0.0
+        self.end_t = self.start_t + duration
         # Real trackers expose these; scripts occasionally read them.
         self.data: Dict[str, Any] = {}
-        self.get_remaining_duration = lambda **_: duration
+
+    def get_remaining_duration(self, buff: float = 0.0) -> float:
+        if self._scene is None:
+            return self.duration
+        now = float(getattr(self._scene.renderer, "time", 0.0) or 0.0)
+        return max(self.end_t - now + buff, 0.0)
 
 
 def _build_narrated_scene() -> type:
@@ -140,16 +154,28 @@ def _build_narrated_scene() -> type:
 
 def _build_silent_scene() -> type:
     """The same script with the sound taken out, paced the same way."""
-    from manim import Scene
+    from manim import Scene, config
 
     class SilentScene(Scene):
         @contextmanager
         def voiceover(self, text: str = "", **kwargs: Any) -> Iterator[_SilentTracker]:
             spoken = normalise_line(text)
             seconds = len(spoken) / _SILENT_CHARS_PER_SEC
-            yield _SilentTracker(
-                min(_SILENT_MAX_SEC, max(_SILENT_MIN_SEC, seconds))
-            )
+            seconds = min(_SILENT_MAX_SEC, max(_SILENT_MIN_SEC, seconds))
+            tracker = _SilentTracker(seconds, self)
+            try:
+                yield tracker
+            finally:
+                # Hold the frame for whatever the sentence had left, the way
+                # manim-voiceover's own wait_for_voiceover does on the narrated
+                # path. Without it a silent render is only as long as its
+                # animations - which was invisible while every animation was
+                # stretched to fill its block, and became the difference
+                # between a 90-second video and a 20-second one the moment
+                # they stopped being.
+                remaining = tracker.get_remaining_duration()
+                if remaining > 1 / config["frame_rate"]:
+                    self.wait(remaining)
 
         def set_speech_service(self, *args: Any, **kwargs: Any) -> None:
             """Accepted and ignored, so one script renders either way."""

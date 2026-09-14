@@ -133,6 +133,163 @@ def _ensure_narration_base(script: str) -> str:
             "from anyq_narration import VoiceoverScene\n\n" + script)
 
 
+# Animations that take something off the screen, and animations that put
+# something on it. Names only - the guard never needs to know what they do,
+# only which direction they go.
+_EXIT_ANIMS = frozenset({
+    "FadeOut", "Unwrite", "Uncreate", "ShrinkToCenter", "RemoveTextLetterByLetter",
+})
+_ENTER_ANIMS = frozenset({
+    "FadeIn", "Write", "Create", "DrawBorderThenFill", "GrowFromCenter",
+    "GrowFromEdge", "GrowFromPoint", "GrowArrow", "SpinInFromNothing",
+    "AddTextLetterByLetter", "ShowIncreasingSubsets",
+})
+
+
+def _anim_kind(node: ast.AST) -> str:
+    """"exit", "enter" or "" for one argument of self.play(...)."""
+    if not isinstance(node, ast.Call):
+        return ""
+    func = node.func
+    name = func.id if isinstance(func, ast.Name) else (
+        func.attr if isinstance(func, ast.Attribute) else ""
+    )
+    if name in _EXIT_ANIMS:
+        return "exit"
+    if name in _ENTER_ANIMS:
+        return "enter"
+    return ""
+
+
+def _mentions_tracker_duration(node: ast.AST) -> bool:
+    return any(
+        isinstance(n, ast.Attribute) and n.attr == "duration"
+        for n in ast.walk(node)
+    )
+
+
+def _play_calls(tree: ast.Module):
+    """Every `self.play(...)` used as a statement, innermost last."""
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Expr) or not isinstance(node.value, ast.Call):
+            continue
+        call = node.value
+        func = call.func
+        if (
+            isinstance(func, ast.Attribute)
+            and func.attr == "play"
+            and isinstance(func.value, ast.Name)
+            and func.value.id == "self"
+        ):
+            yield node, call
+
+
+def _pace_animations(script: str, cap: float, exit_run_time: float) -> Tuple[str, bool]:
+    """Make things happen one at a time, and at a normal speed.
+
+    Two rewrites, both of them the same complaint from watching the videos:
+
+    1. A `self.play(...)` that removes something AND adds something in the
+       same call plays both at once. The old caption is still half on screen
+       while the new one is already half drawn on top of it, and for the
+       length of the animation the frame is two texts occupying one line. Such
+       a call is split in two - what leaves goes first, then what arrives.
+
+    2. `run_time=tracker.duration` stretches one animation across the whole
+       spoken sentence. It is not needed: the voiceover block waits for its
+       own audio when it exits, so the block lasts the right length whatever
+       the animation did. Every such run_time is capped, which leaves the
+       motion at a readable speed and the remainder as a still frame.
+
+    Rewrites the source text of the affected statements only, rather than
+    unparsing the module: the rest of the script - comments, spacing, the
+    exact spelling of every spoken line - is left byte for byte as it was.
+    """
+    if not script.strip():
+        return script, False
+    try:
+        tree = ast.parse(script)
+    except SyntaxError:
+        # Not our problem to report: the validator rejects it a step later
+        # with a message about the actual syntax error.
+        return script, False
+
+    edits = []  # (start_offset, end_offset, replacement)
+    lines = script.splitlines(keepends=True)
+    starts = []
+    running = 0
+    for line in lines:
+        starts.append(running)
+        running += len(line)
+
+    def offset(lineno: int, col: int) -> int:
+        return starts[lineno - 1] + col
+
+    for stmt, call in _play_calls(tree):
+        if stmt.lineno is None or stmt.end_lineno is None:
+            continue
+        indent = " " * stmt.col_offset
+
+        def src(node) -> str:
+            return ast.get_source_segment(script, node) or ""
+
+        kinds = [_anim_kind(a) for a in call.args]
+        exits = [src(a) for a, k in zip(call.args, kinds, strict=True) if k == "exit"]
+        rest = [src(a) for a, k in zip(call.args, kinds, strict=True) if k != "exit"]
+        has_enter = "enter" in kinds
+
+        # Keywords, with tracker-length run_times capped.
+        keywords, capped_any = [], False
+        for kw in call.keywords:
+            value = src(kw.value)
+            if kw.arg == "run_time" and _mentions_tracker_duration(kw.value):
+                value = f"min({cap}, {value})"
+                capped_any = True
+            keywords.append(f"{kw.arg}={value}" if kw.arg else f"**{value}")
+
+        split = bool(exits) and has_enter
+        if not split and not capped_any:
+            continue
+        if any(not s for s in exits + rest):
+            # get_source_segment could not place an argument; leave the
+            # statement alone rather than rewriting it from a guess.
+            continue
+
+        # The replacement starts AT col_offset, so the statement's own
+        # indentation is already in the text before it; only a second line
+        # needs indenting.
+        if split:
+            first = f"self.play({', '.join(exits)}, run_time={exit_run_time})"
+            second = f"{indent}self.play({', '.join(rest + keywords)})"
+            replacement = f"{first}\n{second}"
+        else:
+            replacement = f"self.play({', '.join(rest + keywords)})"
+
+        edits.append((
+            offset(stmt.lineno, stmt.col_offset),
+            offset(stmt.end_lineno, stmt.end_col_offset),
+            replacement,
+        ))
+
+    if not edits:
+        return script, False
+
+    # Last first, so earlier offsets stay valid.
+    out = script
+    for start, end, replacement in sorted(edits, reverse=True):
+        out = out[:start] + replacement + out[end:]
+
+    try:
+        ast.parse(out)
+    except SyntaxError as e:
+        # Never hand on a script this made worse - but never do it quietly
+        # either, or the pacing simply stops happening and nothing says so.
+        print(f"[pacing] rewrite produced invalid syntax, keeping the "
+              f"original: {e}", flush=True)
+        return script, False
+    return out, True
+
+
 def _contains_latex_objects(script: str) -> bool:
     s = script or ""
     return ("Tex(" in s) or ("MathTex(" in s)

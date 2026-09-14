@@ -12,6 +12,8 @@ from spoon_ai.schema import Message
 
 from anyq import narration, telemetry
 from anyq.config import (
+    ANIM_EXIT_RUN_TIME,
+    ANIM_RUN_TIME_CAP,
     DOC_SNIPPET_MODE,
     VIDEO_LENGTH_BUDGETS,
     VIDEO_LENGTH_DEFAULT,
@@ -39,6 +41,7 @@ from anyq.script_guard import (
     _ensure_narration_base,
     _ensure_unicode_font,
     _latex_toolchain_healthy,
+    _pace_animations,
     _safe_json_loads,
     _strip_code_fences,
     _tex_contains_cyrillic,
@@ -584,6 +587,22 @@ class Demo(Scene):
     # an AttributeError on self.voiceover - a repair round trip to add a line
     # we already know. The same script renders silently when narration is off.
     script = _ensure_narration_base(script)
+
+    # One thing at a time, at a readable speed.
+    #
+    # Done mechanically rather than left to the prompt because the prompt is a
+    # request and this is a property: a single self.play() that removes one
+    # caption and draws the next plays both at once, so for the length of the
+    # animation the frame holds two texts on one line. And every animation was
+    # being stretched across its whole spoken sentence, which turned a fade
+    # into five seconds of slow motion and a Transform between two captions
+    # into five seconds of one word's letters melting into another's.
+    #
+    # Placed before the length rewrite so a script that goes back to the model
+    # comes back already paced.
+    script, paced = _pace_animations(script, ANIM_RUN_TIME_CAP, ANIM_EXIT_RUN_TIME)
+    if paced:
+        telemetry.note_guard_rewrite("pacing", True)
 
     # Speech that cannot be read ahead of the render.
     #
