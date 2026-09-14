@@ -202,6 +202,9 @@ export const kk = {
   'explain.askAgain': 'Жаңадан сұрау',
   'explain.offline': 'Сервермен байланыс жоқ. Қайта қосылуда…',
   'explain.timedOut': 'Жауап тым ұзаққа созылды. Ол дайын болса, тарихтан табасыз.',
+  'explain.noAnswerYet':
+    'Бұл сұрақ жауапсыз қалған. Сұрақ қайта терілді — «Қайталау» басыңыз.',
+  'explain.historyUnreadable': 'Бұл жазбаны ашу мүмкін болмады. Қайта көріңіз.',
   'explain.failed': 'Түсіндірме дайындалмады.',
   'narration.label': 'Дауыс',
   'narration.on': 'Дауыспен — шамамен бір минут',
@@ -620,6 +623,9 @@ export const ru: Record<StringKey, string> = {
   'explain.askAgain': 'Спросить заново',
   'explain.offline': 'Нет связи с сервером. Переподключаемся…',
   'explain.timedOut': 'Ответ идёт слишком долго. Если он готов, он появится в истории.',
+  'explain.noAnswerYet':
+    'На этот вопрос ответа так и не пришло. Вопрос подставлен обратно — нажмите «Повторить».',
+  'explain.historyUnreadable': 'Не удалось открыть эту запись. Попробуйте ещё раз.',
   'explain.failed': 'Объяснение не получилось.',
   'narration.label': 'Голос',
   'narration.on': 'С голосом — примерно минута',
@@ -1029,6 +1035,9 @@ export const en: Record<StringKey, string> = {
   'explain.askAgain': 'Ask from scratch',
   'explain.offline': 'No connection to the server. Reconnecting…',
   'explain.timedOut': 'The answer is taking unusually long. If it finished, it is in your history.',
+  'explain.noAnswerYet':
+    'This question never got an answer. It is back in the box - press Retry.',
+  'explain.historyUnreadable': 'That entry could not be opened. Please try again.',
   'explain.failed': 'The explanation could not be produced.',
   'narration.label': 'Voice',
   'narration.on': 'With a voice — about a minute',

@@ -5,6 +5,68 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### Clicking a history entry with no answer did nothing at all
+
+**Fixed**
+
+The entry is real; the answer behind it is not. A chat is created before the
+question is sent, so one that was refused, lost or never finished stays in the
+list with the question as its title and nothing inside it - three such rows were
+left by the dead-socket bug below. `explanationFromChat` returns null for a chat
+with no assistant message, and `openConversation` returned on null without a
+word: no answer, no message, not even a change of selection. It reads as a
+broken interface, when in fact the question is the thing that went missing.
+
+- A question with no answer now goes back into the input box with a line saying
+  so; the error card's Retry - which already exists - asks it again, which is
+  what the click was reaching for.
+- A chat that cannot be read says that instead of swallowing it.
+- The empty rows are left in place. "This question never got an answer" is a
+  truer history than a row that quietly disappears.
+
+### A request written into a dead socket was charged, queued, and lost
+
+**Fixed (live, and it locked a user out for half an hour)**
+
+The agent container restarted; it spent about twenty-five seconds reconnecting
+and a question arrived in that window. The backend still held the old socket -
+nothing had declared it dead, because the websocket ping timeout is ninety
+seconds - and `send_json` on it did not fail. It cannot: a TCP connection whose
+far end has gone still accepts bytes into the kernel buffer and the write
+returns.
+
+So the quota was charged, the request was entered in `pending_requests` as a
+generation in progress, and the person was told to wait. Nothing was working on
+it. `GENERATION_MAX_CONCURRENT=1` then refused every later question with "your
+previous video is still being made" until the half-hour TTL sweep - the only
+thing that ever clears an entry nobody answers. Any drop of the agent
+connection reproduced it.
+
+- **The agent now confirms every generation frame the moment it comes off the
+  wire**, and a send is not finished until that confirmation arrives
+  (`AGENT_ACK_TIMEOUT_SEC`, default 20s). A request that was never confirmed is
+  refunded, cleared, and reported as something to try again - in seconds rather
+  than in thirty minutes.
+- Declared as the `ack` feature at handshake, so a backend talking to an older
+  agent does not wait for a confirmation that is never sent.
+- A drop or a reconnect releases every waiting sender at once. The socket is
+  already known to be dead; making people sit out the timeout to be told so
+  would be the same bug in smaller print.
+
+**Changed - the agent reads and works in separate tasks**
+
+Reading and rendering used to be one loop, so the agent read nothing for the
+ninety seconds a render takes. Everything sent in that window sat unread in the
+socket buffer, which is precisely why it could not answer "have you got it?".
+Frames are now read continuously and generations run from a queue.
+
+Still strictly one generation at a time - the queue is what changed, not the
+pace. The worker outlives any single connection on purpose: a socket that drops
+mid-render must not throw away work that is minutes old, so the answer goes out
+on whichever connection exists when it is finished. Held answers are a list
+rather than the single slot they were, because a second one can now finish
+before the first has been handed over.
+
 ### Phase C1 L2 - the semantic cache layer, and two language bugs
 
 **Fixed (both live, both silent)**

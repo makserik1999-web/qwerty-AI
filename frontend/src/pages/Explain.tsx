@@ -142,15 +142,35 @@ export function Explain() {
 
   async function openConversation(chatId: string) {
     try {
-      const found = explanationFromChat(await loadChat(chatId))
-      if (!found) return
+      const chat = await loadChat(chatId)
+      const found = explanationFromChat(chat)
+      if (!found) {
+        /* A question with no answer. The history lists chats, and a chat is
+           created before the question is sent - so one that was refused, lost
+           or never finished is in the list with the question as its title and
+           nothing behind it.
+
+           This used to return here, which meant clicking the entry did
+           NOTHING: no answer, no message, not even a change of selection. The
+           reader is left to conclude the interface is broken, when in fact
+           their question is the thing that went missing. Put it back in the
+           box and say so - the error card's Retry then asks it again, which
+           is what they wanted from the click. */
+        setCurrent(null)
+        setQuestion(chat.title)
+        setFailure(t('explain.noAnswerYet'))
+        setState('error')
+        return
+      }
       setCurrent(found)
       setQuestion(found.question)
       setState('result')
       setFailure(null)
     } catch {
-      // The entry is in the list but unreadable; leave the screen as it was
-      // rather than clearing what the reader was looking at.
+      // The entry is in the list but unreadable. Say so rather than swallowing
+      // it, or this is the same dead click by a different route.
+      setFailure(t('explain.historyUnreadable'))
+      setState('error')
     }
   }
 
