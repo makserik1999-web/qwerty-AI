@@ -50,6 +50,20 @@ export async function loadChat(chatId: string): Promise<ChatDetail> {
   return get<ChatDetail>(`/chats/${chatId}`)
 }
 
+/** Remove one question from the history, with its messages. */
+export async function deleteChat(chatId: string): Promise<void> {
+  const response = await fetch(`/api/chats/${chatId}`, {
+    method: 'DELETE',
+    credentials: 'include',
+    headers: { Accept: 'application/json' },
+  })
+  // 404 means it is already gone, which is what the caller wanted. Anything
+  // else is a real failure and must not be reported as a deletion.
+  if (!response.ok && response.status !== 404) {
+    throw new Error(`DELETE /chats/${chatId} failed (${response.status})`)
+  }
+}
+
 export function toConversation(chat: ChatSummary): Conversation {
   return {
     id: chat.id,

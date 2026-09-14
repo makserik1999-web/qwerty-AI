@@ -53,6 +53,25 @@ server {
         try_files $uri $uri/ /index.html;
     }
 
+    # index.html must never be cached. It carries the hashed names of the
+    # bundles, so a stale copy pins the browser to the OLD build - the assets
+    # below are immutable for a year precisely because their names change, and
+    # this file is the only thing that says which names to ask for.
+    #
+    # It had no Cache-Control at all, which does not mean "do not cache": with
+    # no directive the browser is free to guess, and it guesses from
+    # Last-Modified. A deploy then does not reach an open tab, and the symptom
+    # is a fix that is live on the server and absent in the browser - which is
+    # exactly what happened after the history fix shipped.
+    # `expires`, NOT `add_header Cache-Control`. An add_header at this level
+    # would replace every inherited one - nginx only inherits them when the
+    # level defines none of its own - and that would strip the CSP, the
+    # frame-ancestors and the nosniff from the one response that is an actual
+    # document. `expires -1` emits no-cache without touching that inheritance.
+    location = /index.html {
+        expires -1;
+    }
+
     # The AI agent channel must NEVER be reachable from outside: the agent
     # connects to the backend directly over the internal docker network.
     location = /ws/agent {

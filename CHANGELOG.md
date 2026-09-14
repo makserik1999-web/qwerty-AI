@@ -5,6 +5,36 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### Deleting a question from the history, and a deploy that reached nobody
+
+**Added**
+
+- `DELETE /api/chats/{chat_id}`, and a delete button on each history row. The
+  operation is not new - the `delete_chat` socket frame has always had it - but
+  the history is read over REST, so the entry a person wants gone is now
+  addressed the same way rather than through a connection that may not be open.
+  Ownership is checked inside the delete: the id is matched together with the
+  user, so somebody else's chat is not found rather than removed.
+- The button is hidden until the row is hovered or something in it has focus. A
+  bin beside every question is a list that looks like it is mostly about
+  deleting. Coarse pointers have no hover, so there it is always shown.
+
+**Fixed - index.html was cached, so deployed fixes did not reach open tabs**
+
+It carried no `Cache-Control` at all, which is not "do not cache": with no
+directive the browser is free to guess, and it guesses from `Last-Modified`.
+index.html holds the hashed names of the bundles - the assets are immutable for
+a year precisely because their names change, and this is the only file that
+says which names to ask for. A stale copy therefore pins the browser to the old
+build, and the symptom is a fix that is live on the server and absent on the
+screen. That is what happened to the history fix below.
+
+Done with `expires -1` rather than `add_header`, and there is a test for that
+specifically: nginx inherits `add_header` from the enclosing level ONLY when the
+level defines none of its own, so an `add_header Cache-Control` here would have
+silently stripped the CSP, the frame-ancestors and the nosniff from the one
+response that is an actual document.
+
 ### Clicking a history entry with no answer did nothing at all
 
 **Fixed**

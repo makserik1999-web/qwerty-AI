@@ -390,11 +390,65 @@
   gap: var(--space-xs);
 }
 
+/* The row holds the entry and its delete button. The delete is hidden until
+   the row is hovered or something in it has focus: a bin next to every
+   question is a list that looks like it is mostly about deleting. Keyboard
+   users never hover, so focus-within is what makes it reachable at all. */
+.history__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  border-radius: var(--radius-sm);
+}
+
+.history__row:hover,
+.history__row:focus-within {
+  background: var(--surface);
+}
+
+/* The open entry tints the whole row, not just the part left of the bin -
+   otherwise the selection stops in the middle of the row. */
+.history__row:has(.is-active) {
+  background: var(--primary-soft);
+}
+
+.history__delete {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin-right: var(--space-xs);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.history__row:hover .history__delete,
+.history__delete:focus-visible {
+  opacity: 1;
+}
+
+.history__delete:hover {
+  color: var(--error);
+}
+
+/* Coarse pointers have no hover at all, so the button would never appear. */
+@media (hover: none) {
+  .history__delete {
+    opacity: 1;
+  }
+}
+
 .history__item {
   display: flex;
   flex-direction: column;
   gap: 2px;
   width: 100%;
+  min-width: 0;
   padding: var(--space-sm);
   border: 0;
   border-radius: var(--radius-sm);

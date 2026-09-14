@@ -16,7 +16,14 @@ import {
   useToast,
   type ProgressStep,
 } from '../components/ui'
-import { explanationFromAnswer, explanationFromChat, listChats, loadChat, toConversation } from '../lib/chats'
+import {
+  deleteChat,
+  explanationFromAnswer,
+  explanationFromChat,
+  listChats,
+  loadChat,
+  toConversation,
+} from '../lib/chats'
 import { useI18n } from '../lib/i18n'
 import {
   AgentError,
@@ -174,6 +181,27 @@ export function Explain() {
     }
   }
 
+  async function removeConversation(chatId: string) {
+    if (!window.confirm(t('explain.deleteConfirm'))) return
+    try {
+      // Awaited before the row goes: a list that drops an entry and then has
+      // it back on the next reload is worse than one that never dropped it.
+      await deleteChat(chatId)
+      setConversations((prev) => prev.filter((c) => c.explanationId !== chatId))
+      // Only if the reader was looking at the thing just deleted. Clearing the
+      // screen for an unrelated row would throw away what they were reading.
+      if (current?.chatId === chatId) {
+        setCurrent(null)
+        setState('idle')
+        setFailure(null)
+      }
+      toast(t('explain.deletedToast'))
+    } catch {
+      setFailure(t('explain.deleteFailed'))
+      setState('error')
+    }
+  }
+
   function newConversation() {
     setCurrent(null)
     setQuestion('')
@@ -231,8 +259,11 @@ export function Explain() {
             <p className="text-sm text-secondary">{t('explain.historyEmpty')}</p>
           ) : (
             <ul className="history__list">
+              {/* Two buttons side by side rather than one inside the other: a
+                  button nested in a button is invalid markup, and the delete
+                  would inherit the open click. */}
               {conversations.map((conversation) => (
-                <li key={conversation.id}>
+                <li key={conversation.id} className="history__row">
                   <button
                     type="button"
                     className={
@@ -249,6 +280,17 @@ export function Explain() {
                     <span className="caption">
                       {formatDateTime(conversation.createdAt, lang)}
                     </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="history__delete"
+                    // The row already reads out the question; without this the
+                    // button is announced as nothing at all.
+                    aria-label={t('explain.deleteEntry', { title: conversation.title })}
+                    title={t('explain.delete')}
+                    onClick={() => void removeConversation(conversation.explanationId)}
+                  >
+                    <Icon name="trash" />
                   </button>
                 </li>
               ))}
