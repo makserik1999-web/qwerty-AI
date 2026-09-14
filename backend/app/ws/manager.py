@@ -11,7 +11,20 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import WebSocket
 
-from app.config import PENDING_REQUESTS_TTL_SEC, PENDING_SWEEP_INTERVAL_SEC
+from app.config import (
+    AGENT_ACK_TIMEOUT_SEC,
+    PENDING_REQUESTS_TTL_SEC,
+    PENDING_SWEEP_INTERVAL_SEC,
+)
+
+
+class AgentDeliveryError(RuntimeError):
+    """The request never reached the agent.
+
+    Distinguished from every other send failure because it is the one the
+    person who asked can act on: nothing was rendered, nothing was charged,
+    and asking again is the right thing to do.
+    """
 
 
 class UIConnectionManager:
@@ -76,6 +89,12 @@ class AgentConnectionManager:
         # and a chat behind them, these are a sub-second internal lookup.
         self.pending_embeddings: Dict[str, asyncio.Future] = {}
         self.pending_assessments: Dict[str, asyncio.Future] = {}
+        # Sends waiting for the agent to say it has the request. Writing to a
+        # socket proves nothing: a TCP connection whose far end has gone still
+        # accepts bytes into the kernel buffer, so send_json succeeds and the
+        # request is never seen by anybody. Only the agent's own reply proves
+        # delivery, and this is where the sender waits for it.
+        self.pending_acks: Dict[str, asyncio.Future] = {}
         # Declared by the agent at handshake. Empty means an older build
         # that only understands generation requests.
         self.agent_features: set = set()
@@ -146,6 +165,26 @@ class AgentConnectionManager:
         future.set_result(payload)
         return True
 
+    def resolve_ack(self, request_id: str) -> bool:
+        """The agent has this request; release whoever sent it."""
+        future = self.pending_acks.pop(request_id, None)
+        if future is None or future.done():
+            return False
+        future.set_result(True)
+        return True
+
+    def _fail_pending_acks(self) -> None:
+        """The socket has gone, so nothing still waiting on it will be acked.
+
+        Without this every sender in flight would sit out the full ack timeout
+        for an answer that cannot come - the connection is already known to be
+        dead, and making people wait to be told so is the bug over again.
+        """
+        for request_id, future in list(self.pending_acks.items()):
+            self.pending_acks.pop(request_id, None)
+            if not future.done():
+                future.set_result(False)
+
     def resolve_embedding(self, request_id: str, payload: Optional[dict]) -> bool:
         """Hand an agent's reply to whoever asked for it."""
         future = self.pending_embeddings.pop(request_id, None)
@@ -171,6 +210,10 @@ class AgentConnectionManager:
                 await old.close(code=1001, reason="replaced by new agent")
             except Exception:
                 pass
+            # Anything waiting for an ack was written to the socket just
+            # closed. A reconnecting agent did not read those frames, so no
+            # ack for them is ever coming.
+            self._fail_pending_acks()
         self.agent_connection = websocket
         print("AI Agent connected")
 
@@ -184,12 +227,27 @@ class AgentConnectionManager:
         if websocket is not None and self.agent_connection is not websocket:
             return
         self.agent_connection = None
+        self._fail_pending_acks()
         print("AI Agent disconnected")
 
     async def send_to_agent(self, request_id: str, user_id: str, chat_id: str,
                             text: Optional[str], screenshots: List[Dict[str, Any]],
                             narration: bool = True, narration_voice: str = "aigul",
                             video_length: str = "", effort: str = ""):
+        """Hand one question to the agent, and wait to be told it arrived.
+
+        The wait is the point. This used to end at send_json, which reports
+        success for a socket whose far end has gone: the kernel takes the
+        bytes and there is nobody to read them. The request was then charged
+        to the user's quota and entered in pending_requests, where it sat as a
+        generation in progress that no machine was working on - blocking every
+        later question under GENERATION_MAX_CONCURRENT until the half-hour TTL
+        sweep, with an indicator spinning the whole time. Any drop of the agent
+        connection reproduced it; one did.
+
+        Only an agent that declares `ack` is waited for, so an older build
+        still works exactly as before rather than failing every request.
+        """
         if not self.agent_connection:
             raise RuntimeError("AI Agent not connected")
 
@@ -197,17 +255,41 @@ class AgentConnectionManager:
         if screenshots:
             image_data = screenshots[0].get("image_base64")
 
-        await self.agent_connection.send_json({
-            "request_id": request_id,
-            "text": text,
-            "image_data": image_data,
-            # Already validated against the closed set in ws/ui.py - the agent
-            # trusts these because the backend, not the client, chose them.
-            "narration": narration,
-            "narration_voice": narration_voice,
-            "video_length": video_length,
-            "effort": effort,
-        })
+        want_ack = "ack" in self.agent_features
+        ack: Optional[asyncio.Future] = None
+        if want_ack:
+            ack = asyncio.get_running_loop().create_future()
+            # Registered BEFORE the send: the agent answers off the wire, and
+            # a reply arriving before this map knew to expect it would be
+            # dropped as unknown and time out a request that had in fact
+            # landed.
+            self.pending_acks[request_id] = ack
+
+        try:
+            await self.agent_connection.send_json({
+                "request_id": request_id,
+                "text": text,
+                "image_data": image_data,
+                # Already validated against the closed set in ws/ui.py - the
+                # agent trusts these because the backend, not the client,
+                # chose them.
+                "narration": narration,
+                "narration_voice": narration_voice,
+                "video_length": video_length,
+                "effort": effort,
+            })
+
+            if ack is not None:
+                try:
+                    delivered = await asyncio.wait_for(ack, AGENT_ACK_TIMEOUT_SEC)
+                except asyncio.TimeoutError:
+                    delivered = False
+                if not delivered:
+                    raise AgentDeliveryError(
+                        "the agent never confirmed it received the request"
+                    )
+        finally:
+            self.pending_acks.pop(request_id, None)
 
     def get_request_info(self, request_id: str, pop: bool = True) -> Optional[dict]:
         if pop:

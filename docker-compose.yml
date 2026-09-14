@@ -38,6 +38,11 @@ services:
       # Agent channel secret - must match AGENT_SECRET on the agent service.
       # Set it in .env. Empty => backend refuses agent connections (fail closed).
       - AGENT_SECRET=${AGENT_SECRET:-}
+      # How long to wait for the agent to confirm it has a request before
+      # declaring the send lost. Forwarded rather than only read, because a
+      # setting that exists to be turned and cannot be reached from .env is a
+      # mistake this compose file has already made twice.
+      - AGENT_ACK_TIMEOUT_SEC=${AGENT_ACK_TIMEOUT_SEC:-20}
       - COOKIE_SECURE=${COOKIE_SECURE:-0}
       # Explicit allowlist; credentials are enabled so "*" is never valid here.
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}

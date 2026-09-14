@@ -31,7 +31,7 @@ import json
 import os
 import re
 import tempfile
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Tuple
 
 from anyq import progress, telemetry
 
@@ -227,15 +227,32 @@ async def process_request(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 _send_lock = asyncio.Lock()
 
-# An answer that was finished but never delivered, waiting for the next
-# connection. At most one: the agent renders one request at a time, so there
-# can never be a second before this one has been dealt with.
-_undelivered: Dict[str, Any] | None = None
+# Answers that were finished but never delivered, waiting for the next
+# connection. A list rather than the single slot this used to be: requests now
+# queue while one is rendering, so a connection that stays down long enough
+# can produce a second finished answer before the first has been handed over,
+# and one slot would have quietly dropped it.
+_undelivered: List[Dict[str, Any]] = []
+_MAX_UNDELIVERED = 8
+
+# The connection the worker and the progress reports write to. Held here, not
+# passed in, because a generation outlives the socket it arrived on: the
+# render goes on through a reconnect and the answer belongs on whichever
+# connection exists when it is ready.
+_current_ws: Any = None
 
 
 async def _send_json(websocket, payload: Dict[str, Any]) -> None:
     async with _send_lock:
         await websocket.send(json.dumps(payload, ensure_ascii=False))
+
+
+async def _report_progress(request_id: str, stage: str) -> None:
+    """Progress sink. Silently does nothing while there is no connection."""
+    ws = _current_ws
+    if ws is None:
+        return
+    await _send_json(ws, {"type": "progress", "request_id": request_id, "stage": stage})
 
 
 async def _handle_assessment(websocket, request_id: str, spec: Dict[str, Any]) -> None:
@@ -292,7 +309,13 @@ async def _authenticate(websocket) -> bool:
             # backend checks this before sending an embed request: an
             # older agent would take the frame for a question and spend
             # ninety seconds rendering a video of it.
-            "features": ["embed", "assessment"],
+            # "ack": this build answers every generation frame the moment it
+            # comes off the wire, so the backend can tell a request that
+            # arrived from one written into a socket whose far end has gone.
+            # A backend talking to an older agent must not wait for a
+            # confirmation that is never sent, which is what declaring it here
+            # is for.
+            "features": ["embed", "assessment", "ack"],
         }))
         raw = await asyncio.wait_for(
             websocket.recv(), timeout=AGENT_HANDSHAKE_TIMEOUT_SEC
@@ -311,8 +334,118 @@ async def _authenticate(websocket) -> bool:
         return False
 
 
+async def _run_one_generation(data: Dict[str, Any]) -> Dict[str, Any]:
+    """One question, start to finish, with its deadline and its failure text."""
+    request_id = data.get("request_id")
+    text = data.get("text") or ""
+    progress.begin(str(request_id or ""))
+    try:
+        return await asyncio.wait_for(
+            process_request(data), timeout=REQUEST_DEADLINE_SEC
+        )
+    except asyncio.TimeoutError:
+        print(
+            f"Request {request_id} timed out after {REQUEST_DEADLINE_SEC:.0f}s",
+            flush=True,
+        )
+        return {
+            "request_id": request_id,
+            "status": "error",
+            "text": _friendly_failure_text(text),
+            "video_path": "",
+            "error": "processing timed out",
+        }
+    except Exception as e:  # pragma: no cover - process_request swallows
+        print(
+            f"Request {request_id} failed: {type(e).__name__}: {str(e)[-200:]}",
+            flush=True,
+        )
+        return {
+            "request_id": request_id,
+            "status": "error",
+            "text": _friendly_failure_text(text),
+            "video_path": "",
+            "error": _safe_error_text(e),
+        }
+    finally:
+        # The answer is the last word on this request; anything reported
+        # after it would arrive behind its own result.
+        progress.done()
+
+
+async def _generation_worker(queue: "asyncio.Queue[Dict[str, Any]]") -> None:
+    """Render questions one at a time, off the receive loop.
+
+    Reading and working used to be the same loop, which meant the agent read
+    nothing for the ninety seconds a render takes. Everything sent in that
+    window sat unread in the socket buffer - so the agent could not answer
+    "have you got it?", and the backend had no way to tell a queued request
+    from one it had written into a socket whose far end was gone. That is the
+    failure this split exists to make visible.
+
+    Still strictly one at a time: the queue is what changes, not the pace.
+    Two generations at once would need twice the memory and race on the
+    module-level current request in `progress`.
+
+    Outlives any single connection on purpose. A socket that drops mid-render
+    must not throw the render away - the work is minutes old, the backend
+    holds the request for half an hour, and the answer goes out on whichever
+    connection exists when it is finished.
+    """
+    while True:
+        data = await queue.get()
+        try:
+            resp = await _run_one_generation(data)
+            request_id = resp.get("request_id")
+            ws = _current_ws
+            try:
+                if ws is None:
+                    raise RuntimeError("no connection")
+                await _send_json(ws, resp)
+            except Exception as send_error:  # noqa: BLE001
+                if len(_undelivered) < _MAX_UNDELIVERED:
+                    _undelivered.append(resp)
+                    held = "holding it for the next connection"
+                else:
+                    held = "dropping it - too many already held"
+                print(
+                    f"Could not deliver {request_id}, {held}: "
+                    f"{type(send_error).__name__}",
+                    flush=True,
+                )
+            else:
+                print(
+                    f"Sent response for {request_id}: {resp.get('status')}",
+                    flush=True,
+                )
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:  # noqa: BLE001 - one bad request must not end the worker
+            print(f"Generation worker error: {type(e).__name__}: {e}", flush=True)
+        finally:
+            queue.task_done()
+
+
+async def _flush_undelivered(websocket) -> None:
+    """Hand over answers that outlived their connection, before reading new work.
+
+    First thing on a new connection: the backend keeps the request for half an
+    hour, and queueing these behind a fresh question would spend another two
+    minutes before they got their turn.
+    """
+    while _undelivered:
+        held = _undelivered[0]
+        try:
+            await _send_json(websocket, held)
+        except Exception as e:  # noqa: BLE001 - keep it for the next try
+            print(f"Held answer still undeliverable: {type(e).__name__}", flush=True)
+            return
+        _undelivered.pop(0)
+        print(f"Delivered held answer for {held.get('request_id')}", flush=True)
+
+
 async def agent_client() -> None:
-    global _undelivered
+    global _current_ws
 
     try:
         import websockets
@@ -325,6 +458,15 @@ async def agent_client() -> None:
     print(f"Agent starting, will connect to: {url}")
 
     secret_warning_printed = False
+
+    queue: "asyncio.Queue[Dict[str, Any]]" = asyncio.Queue()
+    # Kept in a local that outlives every reconnect: a task nobody holds a
+    # reference to can be collected mid-render.
+    worker = asyncio.create_task(_generation_worker(queue))  # noqa: F841
+    # Bound once, not per connection: the sink reads the current socket at
+    # send time, so a reconnect needs no rebinding and a report made while
+    # there is no connection is simply dropped.
+    progress.bind(_report_progress)
 
     while True:
         try:
@@ -345,136 +487,82 @@ async def agent_client() -> None:
                         )
                     raise RuntimeError("agent handshake failed")
 
-                # An answer that outlived its connection goes first, before
-                # reading anything new: the backend keeps the request for half
-                # an hour, and queueing this behind a fresh question would
-                # spend another two minutes before it got its turn.
-                if _undelivered is not None:
-                    held, _undelivered = _undelivered, None
-                    try:
-                        await _send_json(websocket, held)
-                        print(
-                            f"Delivered held answer for {held.get('request_id')}",
-                            flush=True,
-                        )
-                    except Exception as e:  # noqa: BLE001 - keep it for the next try
-                        _undelivered = held
-                        print(f"Held answer still undeliverable: {type(e).__name__}",
-                              flush=True)
+                _current_ws = websocket
+                try:
+                    await _flush_undelivered(websocket)
 
-                while True:
-                    try:
-                        message = await asyncio.wait_for(
-                            websocket.recv(), timeout=WS_RECV_TIMEOUT_SEC
-                        )
-                    except asyncio.TimeoutError:
-                        print(
-                            "Idle receive timeout - reconnecting to stay fresh.",
-                            flush=True,
-                        )
-                        break
-
-                    try:
-                        data = json.loads(message)
-                    except Exception:
-                        print("Received non-JSON message; ignoring", flush=True)
-                        continue
-
-                    request_id = data.get("request_id")
-                    text = data.get("text") or ""
-
-                    # An embedding request must not queue behind a render.
-                    # The loop below handles one generation at a time and each
-                    # takes about ninety seconds; a cache lookup waiting that
-                    # long would defeat the point of having a cache.
-                    if data.get("type") == "embed":
-                        asyncio.create_task(_handle_embed(websocket, request_id, text))
-                        continue
-
-                    # An assessment is text, not a video: it does not go
-                    # through the graph and must not queue behind a render.
-                    if data.get("type") == "assessment":
-                        spec = data.get("spec")
-                        asyncio.create_task(
-                            _handle_assessment(
-                                websocket, request_id, spec if isinstance(spec, dict) else {}
+                    while True:
+                        try:
+                            message = await asyncio.wait_for(
+                                websocket.recv(), timeout=WS_RECV_TIMEOUT_SEC
                             )
-                        )
-                        continue
+                        except asyncio.TimeoutError:
+                            if not queue.empty() or progress.current():
+                                # Work in flight. Dropping the connection now
+                                # would send its progress reports nowhere and
+                                # push a finished answer onto the held list
+                                # for no reason at all.
+                                continue
+                            print(
+                                "Idle receive timeout - reconnecting to stay fresh.",
+                                flush=True,
+                            )
+                            break
 
-                    has_image = bool(data.get("image_data"))
-                    # Redacted preview: never print user content.
-                    print(
-                        f"Received request {request_id}: "
-                        f"{len(text)} chars, image={'yes' if has_image else 'no'}",
-                        flush=True,
-                    )
+                        try:
+                            data = json.loads(message)
+                        except Exception:
+                            print("Received non-JSON message; ignoring", flush=True)
+                            continue
 
-                    # Stage reports go back on this socket while the graph
-                    # runs. Bound per connection so a reconnect cannot leave
-                    # reports pointing at a socket that has gone.
-                    progress.bind(
-                        lambda rid, stage: _send_json(
-                            websocket,
-                            {"type": "progress", "request_id": rid, "stage": stage},
-                        )
-                    )
-                    progress.begin(str(request_id or ""))
-                    try:
-                        resp = await asyncio.wait_for(
-                            process_request(data), timeout=REQUEST_DEADLINE_SEC
-                        )
-                    except asyncio.TimeoutError:
+                        request_id = data.get("request_id")
+                        text = data.get("text") or ""
+
+                        # An embedding request must not queue behind a render.
+                        # The worker handles one generation at a time and each
+                        # takes about ninety seconds; a cache lookup waiting
+                        # that long would defeat the point of having a cache.
+                        if data.get("type") == "embed":
+                            asyncio.create_task(_handle_embed(websocket, request_id, text))
+                            continue
+
+                        # An assessment is text, not a video: it does not go
+                        # through the graph and must not queue behind a render.
+                        if data.get("type") == "assessment":
+                            spec = data.get("spec")
+                            asyncio.create_task(
+                                _handle_assessment(
+                                    websocket, request_id, spec if isinstance(spec, dict) else {}
+                                )
+                            )
+                            continue
+
+                        has_image = bool(data.get("image_data"))
+                        # Redacted preview: never print user content.
                         print(
-                            f"Request {request_id} timed out after "
-                            f"{REQUEST_DEADLINE_SEC:.0f}s",
+                            f"Received request {request_id}: "
+                            f"{len(text)} chars, image={'yes' if has_image else 'no'}",
                             flush=True,
                         )
-                        resp = {
-                            "request_id": request_id,
-                            "status": "error",
-                            "text": _friendly_failure_text(text or ""),
-                            "video_path": "",
-                            "error": "processing timed out",
-                        }
-                    except Exception as e:  # pragma: no cover - process_request swallows
-                        print(
-                            f"Request {request_id} failed: {type(e).__name__}: {str(e)[-200:]}",
-                            flush=True,
-                        )
-                        resp = {
-                            "request_id": request_id,
-                            "status": "error",
-                            "text": _friendly_failure_text(text or ""),
-                            "video_path": "",
-                            "error": _safe_error_text(e),
-                        }
 
-                    # The answer is the last word on this request; anything
-                    # reported after it would arrive behind its own result.
-                    progress.done()
-                    try:
-                        await _send_json(websocket, resp)
-                    except Exception as send_error:
-                        # Keep it for the next connection. The backend holds
-                        # the request for half an hour after the drop, so a
-                        # reconnect within that window still lands it.
-                        _undelivered = resp
-                        print(
-                            f"Could not deliver {request_id}, holding it for "
-                            f"the next connection: {type(send_error).__name__}",
-                            flush=True,
-                        )
-                        raise
-                    print(
-                        f"Sent response for {request_id}: {resp.get('status')}",
-                        flush=True,
-                    )
+                        # Say so before anything else. This is the only proof
+                        # the backend can get that the request reached a
+                        # process rather than a socket buffer, and it is worth
+                        # nothing if it waits for the render: sent here, it
+                        # costs microseconds and answers the one question the
+                        # backend cannot answer for itself.
+                        if request_id:
+                            await _send_json(
+                                websocket, {"type": "ack", "request_id": request_id}
+                            )
+
+                        queue.put_nowait(data)
+                finally:
+                    _current_ws = None
 
         except Exception as e:
             print(f"Connection error: {type(e).__name__}: {str(e)[-200:]}")
             print(f"Reconnecting in {RECONNECT_DELAY_SEC:.0f} seconds...")
-            progress.bind(None)
             await asyncio.sleep(RECONNECT_DELAY_SEC)
 
 

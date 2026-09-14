@@ -11,10 +11,11 @@ rather than guessed from a timer on the client. A timer would be wrong exactly
 when it matters - a repair attempt, a slow model, a queue - and would keep
 claiming progress after everything had stopped.
 
-One request at a time. `agent_ws_client` awaits `process_request` before
-reading the next frame, so the graph never runs twice concurrently and a
-module-level current request is not a race. Embedding requests do run
-alongside, but they do not touch the graph and never call in here.
+One request at a time. `agent_ws_client` reads frames and runs generations in
+separate tasks now, but the generation worker still takes them from its queue
+one at a time, so the graph never runs twice concurrently and a module-level
+current request is not a race. Embedding requests do run alongside, but they
+do not touch the graph and never call in here.
 """
 
 from typing import Awaitable, Callable, Optional
@@ -42,6 +43,16 @@ def begin(request_id: str) -> None:
 def done() -> None:
     global _request_id
     _request_id = ""
+
+
+def current() -> str:
+    """Which request is being worked on, "" if none.
+
+    The receive loop asks before it drops an idle connection: a reconnect
+    while a render is running would send that render's progress reports
+    nowhere and hold up its answer for no reason.
+    """
+    return _request_id
 
 
 async def report(stage: str) -> None:

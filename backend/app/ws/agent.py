@@ -74,6 +74,14 @@ async def websocket_agent_endpoint(websocket: WebSocket):
 
             request_id = data.get("request_id")
 
+            # "I have it." Not an answer and not progress - the proof that the
+            # frame reached a process rather than a socket buffer, which is
+            # the only thing a successful send does not tell us.
+            if data.get("type") == "ack":
+                if request_id:
+                    agent_manager.resolve_ack(request_id)
+                continue
+
             # Embedding replies are internal lookups, not answers to a user:
             # they have no chat, no message and no quota behind them.
             if data.get("type") == "embed_result":

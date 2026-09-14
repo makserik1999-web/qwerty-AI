@@ -50,6 +50,12 @@ LOGIN_WINDOW_SEC = int(os.getenv("LOGIN_WINDOW_SEC", "900"))  # 15 min
 
 # Agent channel
 AGENT_HANDSHAKE_TIMEOUT_SEC = float(os.getenv("AGENT_HANDSHAKE_TIMEOUT_SEC", "10"))
+# How long to wait for the agent to confirm it has a request before declaring
+# the send lost. The agent replies the moment the frame comes off the wire and
+# queues the work separately, so this measures the socket, not the render -
+# seconds of margin, not minutes. Too short and a busy event loop looks like a
+# dead socket; too long and the person watches an indicator for nothing.
+AGENT_ACK_TIMEOUT_SEC = float(os.getenv("AGENT_ACK_TIMEOUT_SEC", "20"))
 PENDING_REQUESTS_TTL_SEC = int(os.getenv("PENDING_REQUESTS_TTL_SEC", "1800"))
 PENDING_SWEEP_INTERVAL_SEC = int(os.getenv("PENDING_SWEEP_INTERVAL_SEC", "60"))
 

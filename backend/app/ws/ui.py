@@ -30,7 +30,7 @@ from app.validators import (
     _validate_screenshots,
     _validate_title,
 )
-from app.ws.manager import agent_manager, ui_manager
+from app.ws.manager import AgentDeliveryError, agent_manager, ui_manager
 
 router = APIRouter()
 
@@ -241,10 +241,19 @@ async def _handle_ui_frame(websocket: WebSocket, user_id: str, data: dict) -> No
             agent_manager.pending_requests.pop(request_id, None)
             # Nothing was rendered, so nothing is owed.
             await quota.refund(request_id)
+            # A request the agent never confirmed is not a failure the person
+            # has to understand - it is one they can simply retry, and saying
+            # so beats handing them the mechanism. Every other send failure
+            # keeps its detail, which is what makes it worth distinguishing.
+            if isinstance(e, AgentDeliveryError):
+                message = ("The request did not reach the AI Agent. "
+                           "Please try again.")
+            else:
+                message = f"Failed to send to agent: {e}"
             await websocket.send_json({
                 "type": "error",
                 "data": {
-                    "message": f"Failed to send to agent: {e}",
+                    "message": message,
                     "chat_id": chat_id,
                 },
             })
