@@ -298,7 +298,8 @@ try:
     _expected_keys = {
         "run_id", "timestamp", "request_id", "user_message_sha256",
         "user_message_len", "language", "is_science", "subject",
-        "video_needed", "educator_text_len", "script_len", "guard_rewrites",
+        "video_needed", "video_length", "narration_chars",
+        "educator_text_len", "script_len", "guard_rewrites",
         "render_attempt", "render_ok", "render_error_tail", "duration_ms",
         "status", "error_type",
     }

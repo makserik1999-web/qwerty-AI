@@ -100,6 +100,10 @@ agent/manim-mcp-server/src/media/
 # Throwaway run artefacts (telemetry dumps, screenshots, smoke output)
 .artifacts/
 
+# The run log. It lives on its own docker volume; a copy in the working tree
+# is something that was pulled out of the container to be read, not source.
+runs.jsonl
+
 # Tool caches
 .ruff_cache/
 

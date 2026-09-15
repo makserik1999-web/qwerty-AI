@@ -5,6 +5,45 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### Housekeeping: three silent bugs, and the disk leak behind every render
+
+**Fixed**
+
+- **Telemetry recorded two fields and then threw them away.** `record()` writes
+  `video_length` and `narration_chars`; `write()` builds its line from a fixed
+  list of keys, and neither was on it. So the one question the length control
+  exists to answer - did the video come out the length that was asked for -
+  could not be answered from the run log at all.
+- **Every JS and CSS response lost `X-Content-Type-Options`.** The same nginx
+  inheritance trap as `index.html`: `add_header Cache-Control` in the static
+  asset block replaced every inherited header, and nosniff is the one that
+  matters for a script. Measured on the running stack - assets came back with
+  none. It is repeated in that block now, with a test to keep it repeated.
+  The block also set `expires` *and* `add_header Cache-Control`, so every asset
+  carried two different Cache-Control headers; now one.
+- **`scripts/run_check.sh` called a script that does not exist** (`agent/check.sh`
+  moved to `scripts/check.sh`) and pointed `PYTHONPATH` at a stub directory that
+  was deleted. `scripts/check.sh` builds its own stub, so the wrapper did
+  nothing but fail. Removed, along with `dbg.sh`/`dbg2.sh`/`dbg3.sh` - dead
+  debugging leftovers carrying a hardcoded personal absolute path.
+
+**Fixed - the render left its working tree behind, every time**
+
+`media/videos/<script>/` holds the partial movie files and `Demo.wav`, the
+uncompressed narration, about 10 MB per video. Nothing ever removed it:
+**66 MB from eight renders**, growing about 8 MB with every question anybody
+asks. `retention.py` governs `outputs/`; this directory was governed by nothing.
+
+It is named after the temporary script, so it belongs to one render and nothing
+else can reference it, and the finished mp4 has already been moved to
+`outputs/` by then - so it goes in the same `finally` that removes the script.
+A cleanup failure is logged and never propagates: a disk that fills up slowly
+beats a video lost to tidying.
+
+Verified live: the directory exists during a render and is gone after it, with
+the video in `outputs/` and no `.wav` left. The media volume went 189 MB -> 124 MB
+including a one-off sweep of what had already piled up.
+
 ### The animations were slow, and things dissolved on top of each other
 
 **Fixed - one rule in the prompt was causing both**

@@ -131,9 +131,35 @@ class TestIndexHtmlIsNotCached:
             "add_header here replaces every inherited security header; use expires"
         )
 
-    def test_the_hashed_assets_are_still_immutable(self):
+    @pytest.fixture(scope="class")
+    def assets_block(self) -> str:
+        conf = TEMPLATE.read_text(encoding="utf-8")
+        found = re.search(
+            r"location\s*~\*\s*\\\.\(js\|css[^{]*\{(.*?)\}", conf, re.DOTALL
+        )
+        assert found, "the hashed-asset location is gone"
+        return found.group(1)
+
+    def test_the_hashed_assets_are_still_immutable(self, assets_block):
         """The other half of the pair. Caching them for a year is correct
         BECAUSE index.html is not cached; break that and this becomes the bug."""
-        assert 'Cache-Control "public, immutable"' in TEMPLATE.read_text(
-            encoding="utf-8"
+        assert "immutable" in assets_block
+        assert "max-age=31536000" in assets_block
+
+    def test_the_assets_did_not_lose_their_nosniff(self, assets_block):
+        """The same inheritance trap, on the other side of it.
+
+        This block DOES set add_header - it has to, for `immutable` - and that
+        dropped every server header from these responses. Measured on the
+        running stack: scripts came back with no X-Content-Type-Options at all,
+        which is the one header that stops a browser MIME-sniffing a script.
+        So it is repeated here, and this test is why it stays repeated.
+        """
+        assert "X-Content-Type-Options" in assets_block, (
+            "add_header in this block drops the inherited nosniff; repeat it here"
         )
+
+    def test_the_assets_set_cache_control_once(self, assets_block):
+        """`expires` and `add_header Cache-Control` together put two of them on
+        one response. They did, until this."""
+        assert "expires" not in assets_block, assets_block

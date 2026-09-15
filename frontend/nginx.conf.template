@@ -117,9 +117,24 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # Cache static assets
+    # Cache static assets. Safe to keep for a year because vite puts a content
+    # hash in every filename - a changed file is a changed name, and index.html
+    # above is not cached, so the new names are always found.
+    #
+    # The nosniff is repeated here on purpose, and it is not redundant. nginx
+    # inherits add_header from the enclosing level ONLY when the level defines
+    # none of its own, so the Cache-Control below silently dropped every server
+    # header from these responses - and X-Content-Type-Options is the one that
+    # matters for a script or a stylesheet, because it is what stops a browser
+    # from MIME-sniffing one. Measured on the running stack: scripts came back
+    # with no nosniff at all. The rest of the server headers are document- or
+    # connection-level and do nothing on a subresource, so they are not copied
+    # here where they would only rot out of step.
+    #
+    # `expires 1y` is gone with it: it set a second, separate Cache-Control on
+    # the same response, so every asset carried two of them.
     location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2)$ {
-        expires 1y;
-        add_header Cache-Control "public, immutable";
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        add_header X-Content-Type-Options "nosniff" always;
     }
 }

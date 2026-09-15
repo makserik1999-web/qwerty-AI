@@ -19,6 +19,7 @@ import os
 import re
 import signal
 import subprocess
+import sys
 import tempfile
 import uuid
 from pathlib import Path
@@ -375,6 +376,34 @@ def run_manim_script(code: str, quality: str = "l",
                 script_path.unlink()
             except Exception:
                 pass
+
+        # And manim's working tree for this run, which nothing was removing.
+        #
+        # The directory is named after the temporary script, so it belongs to
+        # this render alone and nothing else can reference it. It holds the
+        # partial movie files and - much larger - Demo.wav, the uncompressed
+        # narration, about 10 MB per video. The finished mp4 has already been
+        # moved out to OUTPUT_DIR by the time this runs.
+        #
+        # Measured before the fix: 66 MB left behind by eight renders, on a
+        # volume that is never swept, growing about 8 MB every time anybody
+        # asks a question. Removed here rather than by a periodic job because
+        # here is where it is certain the run is over and the output is safe.
+        # OUTPUT_DIR.parent, not media_dir: media_dir is assigned inside the
+        # try above, so an exception raised before that line would make this
+        # a NameError - raised from a finally, which would replace the error
+        # dict the except block just built with an unhandled crash.
+        leftovers = OUTPUT_DIR.parent / "videos" / script_path.stem
+        if leftovers.is_dir():
+            try:
+                import shutil as _shutil
+
+                _shutil.rmtree(leftovers, ignore_errors=True)
+            except Exception as e:
+                # Disk that fills up slowly is better than a video lost to a
+                # cleanup error, so this never propagates.
+                print(f"[cleanup] could not remove {leftovers}: "
+                      f"{type(e).__name__}: {e}", file=sys.stderr, flush=True)
 
 
 @server.list_tools()

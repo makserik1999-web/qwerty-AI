@@ -49,6 +49,14 @@ def new_run(request_id: Any, user_message: str) -> None:
         "is_science": False,
         "subject": "",
         "video_needed": False,
+        # The chosen length and what the narration actually came to. Both are
+        # recorded by _fit_narration_budget; both used to be dropped on the
+        # way out, because write() copies a fixed list of keys and these two
+        # were not on it. So the one question the length control exists to
+        # answer - did the video come out the length that was asked for -
+        # could not be answered from the log at all.
+        "video_length": "",
+        "narration_chars": 0,
         "educator_text_len": 0,
         "script_len": 0,
         "guard_rewrites": [],
@@ -98,6 +106,8 @@ def write() -> None:
             "is_science": run["is_science"],
             "subject": run["subject"],
             "video_needed": run["video_needed"],
+            "video_length": run["video_length"],
+            "narration_chars": run["narration_chars"],
             "educator_text_len": run["educator_text_len"],
             "script_len": run["script_len"],
             "guard_rewrites": run["guard_rewrites"],
