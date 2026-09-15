@@ -265,7 +265,18 @@ async def _handle_assessment(websocket, request_id: str, spec: Dict[str, Any]) -
     """
     from anyq.assessments import generate_assessment
 
-    result = await generate_assessment(spec)
+    # A written paper is a request like any other, and until now it left no
+    # trace: it returned 201 and nothing was recorded, so how long a СОР takes,
+    # how often the model returns fewer questions than were asked for, and how
+    # often it fails at all could only be answered by measuring again from
+    # scratch. The record is per-task, so this cannot disturb a video being
+    # rendered alongside it.
+    telemetry.new_run(request_id, str(spec.get("topic") or ""), kind="assessment")
+    try:
+        result = await generate_assessment(spec)
+    finally:
+        telemetry.write()
+
     payload: Dict[str, Any] = {"type": "assessment_result", "request_id": request_id}
     payload.update(result)
     try:

@@ -5,20 +5,28 @@ a request comes in and write() once, in its own finally, to flush the line
 and clear the slot. `anyq.nodes.generate_manim_script` calls record() and
 note_guard_rewrite() along the way to add the fields it alone can see.
 
-The record is a plain module-level dict, not part of ScienceVideoState - its
-fields must never become part of the graph's state schema. agent_ws_client
-processes one websocket message at a time (each loop iteration awaits
-process_request fully before receiving the next), so a single module-level
-slot is enough - there is no cross-request concurrency to guard against here.
-Within one request, generate_manim_script and educator_answer do run
-concurrently (the educate_and_script parallel group), but both only ever
-touch their own keys of the same dict and never await between reading and
-writing them, so plain dict mutation is safe.
+The record is a dict held in a ContextVar, not part of ScienceVideoState -
+its fields must never become part of the graph's state schema.
+
+It used to be a plain module-level slot, on the reasoning that agent_ws_client
+processes one websocket message at a time. That stopped being true when the
+agent was split into a reader and a worker: an assessment or an embedding now
+runs as its own task alongside a generation, so a second new_run() would have
+overwritten the video's record, every record() from the graph would have
+landed on the wrong one, and write() would have flushed a mixture. A ContextVar
+gives each task its own binding, which is exactly the shape of the problem.
+
+Within one request, generate_manim_script and educator_answer still run
+concurrently (the educate_and_script parallel group). That is safe and stays
+safe: a task inherits the BINDING, so both see the same dict, and both only
+ever touch their own keys of it and never await between reading and writing
+them.
 
 Any failure while writing the log must never break the pipeline: every
 exception is caught and only printed as a warning.
 """
 
+import contextvars
 import hashlib
 import json
 import os
@@ -32,17 +40,29 @@ from anyq.config import ANYQ_TELEMETRY_PATH
 
 _write_lock = threading.Lock()
 
-_current: Optional[dict] = None
+# Per-task, so an assessment written while a video renders cannot overwrite
+# the video's record. `Optional[dict]` as before; only where it lives changed.
+_current: contextvars.ContextVar[Optional[dict]] = contextvars.ContextVar(
+    "anyq_telemetry_current", default=None
+)
 
 
-def new_run(request_id: Any, user_message: str) -> None:
-    """Start a new run record. Called once, at the top of process_request."""
-    global _current
+def new_run(request_id: Any, user_message: str, kind: str = "video") -> None:
+    """Start a new run record. Called once, at the top of a request.
+
+    `kind` says which kind of request this line is about. It defaults to
+    "video" so every existing caller and every existing reader of the log
+    keeps meaning what it did; "assessment" is the other one, and its line
+    leaves the video-shaped fields at their defaults rather than inventing
+    values for them.
+    """
     # Privacy: never store raw user content - only a sha256 and the length.
+    # For an assessment that content is the topic.
     user_text = user_message or ""
-    _current = {
+    _current.set({
         "run_id": str(uuid.uuid4()),
         "request_id": request_id,
+        "kind": kind,
         "user_message_sha256": hashlib.sha256(user_text.encode("utf-8")).hexdigest(),
         "user_message_len": len(user_text),
         "language": "",
@@ -65,14 +85,21 @@ def new_run(request_id: Any, user_message: str) -> None:
         "render_error_tail": "",
         "status": "error",
         "error_type": "",
+        # Assessments only: how many questions were asked for and how many
+        # came back usable. _validate reports a short paper rather than
+        # padding it, which is the right behaviour and was until now
+        # invisible - nobody could count how often it happened.
+        "items_requested": 0,
+        "items_produced": 0,
         "_started": time.monotonic(),
-    }
+    })
 
 
 def record(**fields: Any) -> None:
     """Add/overwrite fields on the current run. No-op if there is no run."""
-    if _current is not None:
-        _current.update(fields)
+    run = _current.get()
+    if run is not None:
+        run.update(fields)
 
 
 def note_guard_rewrite(name: str, fixed: bool) -> None:
@@ -81,8 +108,9 @@ def note_guard_rewrite(name: str, fixed: bool) -> None:
     `fixed` is True only when the rewritten script passed the guard's own
     re-check and replaced the script generate_manim_script goes on to use.
     """
-    if _current is not None:
-        _current["guard_rewrites"].append({"guard": name, "fired": True, "fixed": fixed})
+    run = _current.get()
+    if run is not None:
+        run["guard_rewrites"].append({"guard": name, "fired": True, "fixed": fixed})
 
 
 def write() -> None:
@@ -90,9 +118,8 @@ def write() -> None:
 
     Never raises - a telemetry failure must not take the pipeline down with it.
     """
-    global _current
-    run = _current
-    _current = None
+    run = _current.get()
+    _current.set(None)
     if run is None:
         return
     try:
@@ -100,6 +127,7 @@ def write() -> None:
             "run_id": run["run_id"],
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "request_id": run["request_id"],
+            "kind": run["kind"],
             "user_message_sha256": run["user_message_sha256"],
             "user_message_len": run["user_message_len"],
             "language": run["language"],
@@ -115,6 +143,8 @@ def write() -> None:
             "render_ok": run["render_ok"],
             "render_error_tail": run["render_error_tail"],
             "duration_ms": int((time.monotonic() - run["_started"]) * 1000),
+            "items_requested": run["items_requested"],
+            "items_produced": run["items_produced"],
             "status": run["status"],
             "error_type": run["error_type"],
         }

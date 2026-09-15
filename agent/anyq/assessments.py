@@ -21,6 +21,7 @@ from typing import Any, Dict, List
 
 from spoon_ai.schema import Message
 
+from anyq import telemetry
 from anyq.language import _language_name
 from anyq.llm_client import _llm_chat
 from anyq.nodes import USER_CONTENT_NOTICE, _wrap
@@ -149,9 +150,18 @@ async def generate_assessment(spec: Dict[str, Any]) -> Dict[str, Any]:
     """
     topic = str(spec.get("topic") or "").strip()[:MAX_TOPIC_CHARS]
     if not topic:
+        telemetry.record(error_type="no_topic")
         return {"error": "topic is required"}
 
     count = _clamp_count(spec.get("count"))
+    # What was asked for, before anything can go wrong with it. `subject` and
+    # `language` are the same two fields a video line carries, so one filter
+    # over the log answers the same question for both kinds of request.
+    telemetry.record(
+        subject=str(spec.get("subject") or ""),
+        language=str(spec.get("language") or ""),
+        items_requested=count,
+    )
 
     try:
         response = await _llm_chat(
@@ -168,6 +178,18 @@ async def generate_assessment(spec: Dict[str, Any]) -> Dict[str, Any]:
             ]
         )
     except Exception as exc:  # noqa: BLE001 - reported, never raised at a socket
+        telemetry.record(error_type=type(exc).__name__)
         return {"error": f"{type(exc).__name__}"}
 
-    return _validate(_safe_json_loads(response.content), count)
+    result = _validate(_safe_json_loads(response.content), count)
+    # A short paper is a complete request that produced fewer questions than
+    # were asked for - not an error, and countable now that both numbers are
+    # on the line. An "error" here is the model returning nothing usable.
+    if result.get("error"):
+        telemetry.record(error_type=str(result["error"])[:60])
+    else:
+        telemetry.record(
+            items_produced=len(result.get("questions") or []),
+            status="complete",
+        )
+    return result

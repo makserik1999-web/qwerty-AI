@@ -296,12 +296,12 @@ try:
         _line = f.readline()
     _entry = _json.loads(_line)
     _expected_keys = {
-        "run_id", "timestamp", "request_id", "user_message_sha256",
+        "run_id", "timestamp", "request_id", "kind", "user_message_sha256",
         "user_message_len", "language", "is_science", "subject",
         "video_needed", "video_length", "narration_chars",
         "educator_text_len", "script_len", "guard_rewrites",
         "render_attempt", "render_ok", "render_error_tail", "duration_ms",
-        "status", "error_type",
+        "items_requested", "items_produced", "status", "error_type",
     }
     check_true("telemetry line has the full documented key set",
                set(_entry.keys()) == _expected_keys, repr(sorted(_entry.keys())))
