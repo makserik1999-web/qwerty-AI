@@ -4,12 +4,33 @@ services:
     image: mongo:7
     container_name: anyq-mongo
     restart: unless-stopped
+    # Authentication, which this database ran without. It is on the internal
+    # docker network rather than the internet, but that network holds four
+    # other containers and one of them - the agent - executes code a language
+    # model wrote. "Not reachable from outside" was the only thing standing
+    # between that code and every chat, session and account in here.
+    command: ["mongod", "--auth"]
+    environment:
+      # Only used when the data directory is EMPTY - a fresh install. The
+      # official entrypoint creates this user and then hands over to the
+      # command above. An existing volume is never re-initialised, which is
+      # why scripts/mongo_enable_auth.sh exists: it creates the same two users
+      # in place, before --auth starts being enforced.
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USER:-}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD:-}
+      - MONGO_INITDB_DATABASE=${DATABASE_NAME:-anyq_db}
     volumes:
       - mongo_data:/data/db
     networks:
       - anyq-network
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      # Authenticated, because under --auth an anonymous ping is refused - so
+      # an unauthenticated healthcheck would report this container unhealthy
+      # forever and nothing that depends on it would ever start.
+      test: ["CMD", "mongosh", "--quiet",
+             "-u", "${MONGO_ROOT_USER:-}", "-p", "${MONGO_ROOT_PASSWORD:-}",
+             "--authenticationDatabase", "admin",
+             "--eval", "db.adminCommand('ping')"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -33,7 +54,10 @@ services:
     container_name: anyq-backend
     restart: unless-stopped
     environment:
-      - MONGO_URL=mongodb://mongo:27017
+      # Least privilege: this user has readWrite on one database and nothing
+      # else - no other database, no administration. authSource names where
+      # the user was created, which is that same database, not admin.
+      - MONGO_URL=mongodb://${MONGO_APP_USER:-}:${MONGO_APP_PASSWORD:-}@mongo:27017/${DATABASE_NAME:-anyq_db}?authSource=${DATABASE_NAME:-anyq_db}
       - DATABASE_NAME=${DATABASE_NAME:-anyq_db}
       # Agent channel secret - must match AGENT_SECRET on the agent service.
       # Set it in .env. Empty => backend refuses agent connections (fail closed).
@@ -43,7 +67,13 @@ services:
       # setting that exists to be turned and cannot be reached from .env is a
       # mistake this compose file has already made twice.
       - AGENT_ACK_TIMEOUT_SEC=${AGENT_ACK_TIMEOUT_SEC:-20}
-      - COOKIE_SECURE=${COOKIE_SECURE:-0}
+      # The session cookie gets its Secure flag from the same switch that turns
+      # TLS on, so HTTPS cannot be enabled while the cookie still travels in
+      # clear text on any plain-HTTP request. COOKIE_SECURE overrides it for a
+      # deployment where TLS is terminated further out, by something this
+      # stack knows nothing about.
+      - HTTPS_TERMINATED=${HTTPS_TERMINATED:-0}
+      - COOKIE_SECURE=${COOKIE_SECURE:-}
       # Explicit allowlist; credentials are enabled so "*" is never valid here.
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
       # Media volume root as seen by the backend (the agent's outputs subdir).
@@ -118,16 +148,43 @@ services:
     restart: unless-stopped
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
+      - "${HTTPS_PORT:-3443}:3443"
     environment:
       - BACKEND_URL=http://backend:8000
       - DNS_RESOLVER=${DNS_RESOLVER:-127.0.0.11}
+      # TLS. Off by default - on localhost there is no certificate to serve.
+      # With it on, 3443 serves HTTPS and 3000 answers with a 301 to it, so
+      # nothing is ever served in clear text. The entrypoint REFUSES TO START
+      # if the certificate is missing rather than falling back to HTTP, which
+      # is the failure nobody would notice.
+      - HTTPS_TERMINATED=${HTTPS_TERMINATED:-0}
+      - TLS_SERVER_NAME=${TLS_SERVER_NAME:-localhost}
+      # Only needed when the public HTTPS port is not 443: $host carries no
+      # port, so the redirect would otherwise point at nothing.
+      - TLS_PUBLIC_PORT_SUFFIX=${TLS_PUBLIC_PORT_SUFFIX:-}
+    volumes:
+      # The certificate, read-only. certbot writes fullchain.pem and
+      # privkey.pem under /etc/letsencrypt/live/<domain>/ with exactly these
+      # names, so a real certificate is a change of source path and nothing
+      # else. scripts/make_dev_cert.sh puts a self-signed pair here for
+      # testing that the path works at all.
+      - ${TLS_CERT_SOURCE:-./frontend/certs}:/etc/nginx/certs:ro
     depends_on:
       backend:
         condition: service_healthy
     networks:
       - anyq-network
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/"]
+      # Whichever port this container is actually serving on. With TLS on, 3000
+      # answers a 301 and nothing else, so an HTTP probe there fails and the
+      # container reports unhealthy forever - which stops anything with a
+      # `depends_on: service_healthy` on it from ever starting. Following the
+      # redirect instead would be worse: it points at the PUBLIC https port,
+      # which in production is 443 and is not what this container listens on.
+      # --no-check-certificate because a self-signed certificate is a valid
+      # local setup and this probe is not the thing that vouches for it.
+      test: ["CMD-SHELL",
+             "wget -q -O /dev/null --no-check-certificate https://127.0.0.1:3443/ || wget -q -O /dev/null http://127.0.0.1:3000/"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -256,7 +313,8 @@ services:
     container_name: anyq-exporter
     restart: unless-stopped
     environment:
-      - MONGO_URL=mongodb://mongo:27017
+      # The same least-privilege user as the backend.
+      - MONGO_URL=mongodb://${MONGO_APP_USER:-}:${MONGO_APP_PASSWORD:-}@mongo:27017/${DATABASE_NAME:-anyq_db}?authSource=${DATABASE_NAME:-anyq_db}
       - DATABASE_NAME=${DATABASE_NAME:-anyq_db}
       # Reads the rendered videos, writes results beside them. Same volume as
       # the backend, which is what serves the finished file.

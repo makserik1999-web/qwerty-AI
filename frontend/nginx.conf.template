@@ -1,6 +1,18 @@
 server {
-    listen 3000;
-    server_name localhost;
+    # Which sockets this site answers on, written by the entrypoint
+    # (docker-entrypoint.d/15-anyq-tls.sh) from HTTPS_TERMINATED:
+    #
+    #   off - `listen 3000;`
+    #   on  - `listen 3443 ssl;` plus the certificate, and a second server
+    #         block in redirect.conf that answers 3000 with a 301 to https.
+    #
+    # An include rather than two whole templates: everything below - the
+    # headers, the proxying, the caching rules - has to be identical on both,
+    # and two copies of it would drift. nginx cannot start with an
+    # `ssl_certificate` pointing at a file that is not there, which is why
+    # this cannot simply be a line that is always present.
+    include /etc/nginx/conf.d/listen.inc;
+    server_name ${TLS_SERVER_NAME};
     root /usr/share/nginx/html;
     index index.html;
 

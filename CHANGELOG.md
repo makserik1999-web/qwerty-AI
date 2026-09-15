@@ -5,6 +5,72 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### The database had no password, and the site could not serve HTTPS
+
+Both were on the audit's "required before a public launch" line.
+
+**MongoDB now requires authentication**
+
+It ran with none. Being on the internal docker network rather than the
+internet is what made that feel safe - but that network holds four other
+containers, and one of them is the agent, which executes code a language model
+wrote. "Not reachable from outside" was the only thing between that code and
+every chat, session and account.
+
+- `mongod --auth`, and two users: a root for administration that no service
+  ever logs in as, and an app user with `readWrite` on one database and
+  nothing else. Verified from inside: that user reads its own database, is
+  refused on `admin`, cannot create users, cannot write to another database,
+  and `listDatabases` returns only the one it can see.
+- The healthcheck authenticates, because under `--auth` an anonymous ping is
+  refused - and an unhealthy mongo stops everything with a
+  `depends_on: service_healthy` on it from ever starting.
+- **`scripts/mongo_enable_auth.sh`** because compose alone cannot do this. The
+  mongo image creates `MONGO_INITDB_ROOT_USERNAME` only when the data
+  directory is EMPTY, so a deployment with data in it would restart into
+  `mongod --auth` with no users and lock itself out. The script creates both
+  users in place, while auth is still off, and fills in whatever is missing
+  from `.env`.
+
+**TLS, off by default and verified on**
+
+`HTTPS_TERMINATED=1` serves HTTPS on 3443 and answers plain HTTP with a 301,
+so nothing is served in clear text. The certificate is a bind mount of
+`fullchain.pem` and `privkey.pem` - the names certbot already writes - so a
+real certificate is a change of path and no configuration.
+
+- One server block with its listeners in an include, rather than two copies of
+  the whole site config that would drift apart. nginx cannot start with an
+  `ssl_certificate` pointing at a file that is not there, which is why this
+  cannot simply be a line that is always present.
+- **It refuses to start without a certificate** instead of falling back to
+  HTTP, which is the failure nobody would notice: the site would come up, work,
+  and be unencrypted.
+- `scripts/make_dev_cert.sh` writes a self-signed pair so the path can be
+  exercised on a machine with no domain.
+- The session cookie's `Secure` flag comes from the same switch, so HTTPS
+  cannot be turned on while the cookie still travels in clear text.
+
+**Found by testing it rather than by reading it**
+
+Three bugs in the above, all caught on the running stack:
+
+- The cookie came back **without `Secure`** with HTTPS on. `COOKIE_SECURE` was
+  written as an override in either direction, and every `.env` in existence
+  already carries `COOKIE_SECURE=0` from before - so the single switch was
+  defeated by a stale line. Either may now switch it on and neither may switch
+  it off.
+- The frontend went **unhealthy** under TLS: the healthcheck probed port 3000,
+  which now answers a 301. It probes 3443 first and falls back, so it works in
+  both modes without following a redirect that points at the public port.
+- `make_dev_cert.sh` wrote half a certificate in silence: Git Bash rewrote
+  `-subj /CN=localhost` into a Windows path, and the script was discarding
+  openssl's stderr.
+
+Verified end to end over TLS: TLSv1.3, signup with a `Secure` cookie, `wss://`
+ping and chat creation, every security header intact, `/ws/agent` still 403,
+and a missing certificate refusing to start.
+
 ### Housekeeping: three silent bugs, and the disk leak behind every render
 
 **Fixed**

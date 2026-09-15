@@ -16,9 +16,32 @@ DATABASE_NAME = os.getenv("DATABASE_NAME", "anyq_db")
 # the backend refuses every agent connection (fail closed).
 AGENT_SECRET = os.getenv("AGENT_SECRET", "")
 
-# Cookie: HttpOnly + SameSite=Lax; Secure is enabled when the deployment sets
-# COOKIE_SECURE=1 (behind TLS). Compose sets it for you when HTTPS_TERMINATED=1.
-COOKIE_SECURE = os.getenv("COOKIE_SECURE", "0") == "1"
+# Cookie: HttpOnly + SameSite=Lax; Secure is added behind TLS.
+#
+# HTTPS_TERMINATED is the same switch the frontend uses to decide whether to
+# serve TLS at all, so turning HTTPS on cannot leave the cookie without its
+# Secure flag - which is the failure that would be invisible, because
+# everything keeps working and the cookie is simply sent in clear text on any
+# plain-HTTP request. COOKIE_SECURE still overrides it explicitly, for a
+# deployment where TLS is terminated further out by something this stack
+# knows nothing about.
+#
+# The comment here used to claim compose already did this. It did not: nothing
+# anywhere set HTTPS_TERMINATED, and COOKIE_SECURE had to be remembered
+# separately.
+#
+# EITHER may switch it on and NEITHER may switch it off. Written first as
+# "COOKIE_SECURE if set, else HTTPS_TERMINATED", which read sensibly and was
+# wrong: every .env in existence already carries COOKIE_SECURE=0 from before
+# this, so turning HTTPS on left the cookie travelling in clear text - the
+# exact failure the single switch was meant to remove. Caught on the running
+# stack, by looking at the Set-Cookie header rather than at this line.
+#
+# There is no deployment that wants TLS and an insecure cookie, so refusing to
+# be talked down costs nothing.
+COOKIE_SECURE = (
+    os.getenv("COOKIE_SECURE") == "1" or os.getenv("HTTPS_TERMINATED") == "1"
+)
 SESSION_TTL_HOURS = int(os.getenv("SESSION_TTL_HOURS", "720"))
 SESSION_TTL = timedelta(hours=SESSION_TTL_HOURS)
 COOKIE_NAME = "anyq_session"

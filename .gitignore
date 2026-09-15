@@ -84,6 +84,10 @@ backend/*.pyc
 *.key
 *.crt
 secrets/
+# Belt and braces over *.pem above: this is where the TLS key is expected to
+# be, and a private key reaching the repository is not a mistake that can be
+# taken back.
+frontend/certs/
 
 # Local development
 .local/
