@@ -187,6 +187,20 @@ async def generate_assessment(spec: Dict[str, Any]) -> Dict[str, Any]:
     # on the line. An "error" here is the model returning nothing usable.
     if result.get("error"):
         telemetry.record(error_type=str(result["error"])[:60])
+        # What actually came back, when what came back was unusable. The error
+        # string alone ("model returned no questions") says the paper is empty
+        # and nothing about why - and the why lives on the response object:
+        # a refusal, a truncation and an upstream provider error all arrive
+        # here looking identical from the outside.
+        content = response.content or ""
+        print(
+            f"[assessment] unusable reply: {result['error']} | "
+            f"finish_reason={getattr(response, 'finish_reason', None)!r} "
+            f"native={getattr(response, 'native_finish_reason', None)!r} "
+            f"provider={getattr(response, 'provider', None)!r} "
+            f"content={len(content)} chars {content[:200]!r}",
+            flush=True,
+        )
     else:
         telemetry.record(
             items_produced=len(result.get("questions") or []),

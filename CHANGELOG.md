@@ -5,6 +5,42 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### A 200 that says the model never ran was being taken for an answer
+
+**Fixed - and it was not an assessment bug, it was every LLM call**
+
+Found by the run log the commit below added. Three assessments in a row came
+back empty, which read like the feature being broken. It was not: over 23
+papers through the full stack, three failed and all three were inside one
+eleven-minute window, with zero failures in the thirty calls after it.
+
+What that window exposed is the real defect. OpenRouter returns a perfectly
+ordinary 200 with `finish_reason: "error"` when the provider behind the model
+fails mid-generation: the content is empty and **nothing raises**. The retry
+wrapper in `_llm_chat` only ever saw exceptions, so it never saw this, and a
+momentary upstream failure became a hard failure of the request - while the
+product already had the machinery to back off and ask again.
+
+Every caller reads an empty reply as something the model meant:
+
+| caller | what the empty reply became |
+|---|---|
+| `classify_intent` | no JSON -> `is_science: False` -> a physics question answered "this is not a science question" |
+| `educator_answer` | an empty explanation, carried into the video |
+| `generate_manim_script` | `RuntimeError`, and the whole request fails |
+| `generate_assessment` | "model returned no questions", a 502 to the teacher |
+
+`finish_reason: "error"` now raises `UpstreamLLMError`, which the existing
+transient path retries. Deliberately only `error`: not `length`, where the
+model ran and asking again would truncate again at the same place for the same
+money, and not an empty reply that finished with `stop`, where the model ran
+and chose to say nothing.
+
+An unusable assessment reply also now logs what actually came back - the
+finish reason, the provider, the length. "model returned no questions" says
+the paper is empty and nothing about why, and a refusal, a truncation and an
+upstream error all arrive looking identical from the outside.
+
 ### The database had no password, and the site could not serve HTTPS
 
 Both were on the audit's "required before a public launch" line.

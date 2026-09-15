@@ -84,6 +84,40 @@ async def _chat_off_the_main_loop(messages, **kwargs):
     return await asyncio.wrap_future(future)
 
 
+class UpstreamLLMError(RuntimeError):
+    """The provider answered, and the answer says the model never ran.
+
+    OpenRouter returns a perfectly ordinary 200 with `finish_reason: "error"`
+    when the provider behind the model fails mid-generation: the content is
+    empty and NOTHING RAISES. So the retry below never saw it, and a momentary
+    upstream failure became a hard failure of the request.
+
+    It is not a small thing to swallow. Measured over 23 assessments through
+    the full stack, three came back this way, all inside one eleven-minute
+    window - and every caller in this agent treats an empty reply as if the
+    model had meant it:
+
+      classify_intent        no JSON -> is_science False -> a physics question
+                             is answered "this is not a science question"
+      educator_answer        an empty explanation, carried into the video
+      generate_manim_script  RuntimeError, and the whole request fails
+      generate_assessment    "model returned no questions", a 502 to the teacher
+
+    Raising here puts it back on the path the product already has for exactly
+    this kind of failure: back off and ask again.
+    """
+
+
+def _is_upstream_error(response: Any) -> bool:
+    """A reply that reports its own failure rather than carrying an answer.
+
+    Only `error` - deliberately not `length`, where the model did run and
+    asking again would truncate again, and not an empty reply that finished
+    with `stop`, where the model ran and chose to say nothing.
+    """
+    return str(getattr(response, "finish_reason", "") or "").lower() == "error"
+
+
 _TRANSIENT_LLM_MARKERS = (
     "503",
     "unavailable",
@@ -101,6 +135,9 @@ _TRANSIENT_LLM_MARKERS = (
 
 
 def _is_transient_llm_error(exc: BaseException) -> bool:
+    if isinstance(exc, UpstreamLLMError):
+        # Said so in as many words; no need to read its message for clues.
+        return True
     # Match against the tail of the message only - the actual API error reason
     # lives at the end; short arbitrary substrings like "500" or "timeout"
     # inside user-echoed text caused false retries.
@@ -116,7 +153,13 @@ async def _llm_chat(messages, **kwargs):
     last_exc: Optional[BaseException] = None
     for attempt in range(_LLM_RETRIES + 1):
         try:
-            return await _chat_off_the_main_loop(messages, **kwargs)
+            response = await _chat_off_the_main_loop(messages, **kwargs)
+            if _is_upstream_error(response):
+                raise UpstreamLLMError(
+                    "the provider reported finish_reason=error and returned "
+                    "no content"
+                )
+            return response
         except Exception as exc:  # noqa: BLE001 - re-raised below
             last_exc = exc
             if attempt >= _LLM_RETRIES or not _is_transient_llm_error(exc):
