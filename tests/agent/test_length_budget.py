@@ -32,6 +32,13 @@ from anyq.config import (  # noqa: E402
     VIDEO_LENGTH_DEFAULT,
     VIDEO_LENGTHS,
 )
+
+# The steps used to live in one module and now live in a package. A test that
+# replaces a dependency has to replace it in the module that LOOKS IT UP, and
+# these steps look up _llm_chat in anyq.nodes.script - patching the package
+# namespace would leave the real one in place and every call would try to
+# reach a model. Nothing else about these tests changed with the split.
+from anyq.nodes import script as nodes_script  # noqa: E402
 from anyq.prompts import (  # noqa: E402
     build_manim_system_prompt,
     narration_budget_rule,
@@ -144,7 +151,7 @@ class TestItNeverFailsTheRequest:
         async def explode(*args, **kwargs):
             raise AssertionError("no rewrite should have been requested")
 
-        monkeypatch.setattr(nodes, "_llm_chat", explode)
+        monkeypatch.setattr(nodes_script, "_llm_chat", explode)
 
         out = await nodes._fit_narration_budget(
             script, {"video_length": "medium"}, "Russian", True
@@ -158,7 +165,7 @@ class TestItNeverFailsTheRequest:
         async def explode(*args, **kwargs):
             raise RuntimeError("upstream is down")
 
-        monkeypatch.setattr(nodes, "_llm_chat", explode)
+        monkeypatch.setattr(nodes_script, "_llm_chat", explode)
 
         out = await nodes._fit_narration_budget(
             script, {"video_length": "long"}, "Russian", True
@@ -176,7 +183,7 @@ class TestItNeverFailsTheRequest:
         async def rewrite(*args, **kwargs):
             return _Resp()
 
-        monkeypatch.setattr(nodes, "_llm_chat", rewrite)
+        monkeypatch.setattr(nodes_script, "_llm_chat", rewrite)
 
         out = await nodes._fit_narration_budget(
             script, {"video_length": "long"}, "Russian", True
@@ -199,7 +206,7 @@ class TestItNeverFailsTheRequest:
         async def rewrite(*args, **kwargs):
             return _Resp()
 
-        monkeypatch.setattr(nodes, "_llm_chat", rewrite)
+        monkeypatch.setattr(nodes_script, "_llm_chat", rewrite)
 
         out = await nodes._fit_narration_budget(
             script, {"video_length": "short"}, "Russian", True
@@ -218,7 +225,7 @@ class TestItNeverFailsTheRequest:
         async def rewrite(*args, **kwargs):
             return _Resp()
 
-        monkeypatch.setattr(nodes, "_llm_chat", rewrite)
+        monkeypatch.setattr(nodes_script, "_llm_chat", rewrite)
 
         out = await nodes._fit_narration_budget(
             script, {"video_length": "short"}, "Russian", True
@@ -233,7 +240,7 @@ class TestItNeverFailsTheRequest:
         async def explode(*args, **kwargs):
             raise AssertionError("no rewrite should have been requested")
 
-        monkeypatch.setattr(nodes, "_llm_chat", explode)
+        monkeypatch.setattr(nodes_script, "_llm_chat", explode)
 
         assert await nodes._fit_narration_budget(
             script, {"video_length": "short"}, "Russian", True
@@ -263,7 +270,7 @@ class TestItTriesTwiceAndStops:
             calls.append(1)
             return _Resp(steps[len(calls) - 1])
 
-        monkeypatch.setattr(nodes, "_llm_chat", rewrite)
+        monkeypatch.setattr(nodes_script, "_llm_chat", rewrite)
 
         out = await nodes._fit_narration_budget(
             _script("a" * 300), {"video_length": "long"}, "Russian", True
@@ -284,7 +291,7 @@ class TestItTriesTwiceAndStops:
             calls.append(1)
             return _Resp()
 
-        monkeypatch.setattr(nodes, "_llm_chat", rewrite)
+        monkeypatch.setattr(nodes_script, "_llm_chat", rewrite)
 
         await nodes._fit_narration_budget(
             _script("a" * 200), {"video_length": "medium"}, "Russian", True
@@ -303,7 +310,7 @@ class TestItTriesTwiceAndStops:
             calls.append(1)
             return _Resp()
 
-        monkeypatch.setattr(nodes, "_llm_chat", rewrite)
+        monkeypatch.setattr(nodes_script, "_llm_chat", rewrite)
 
         out = await nodes._fit_narration_budget(
             _script("a" * 100), {"video_length": "long"}, "Russian", True
@@ -353,7 +360,7 @@ class TestSpeechThatCannotBeRead:
         async def explode(*args, **kwargs):
             raise AssertionError("a working script was sent for rewriting")
 
-        monkeypatch.setattr(nodes, "_llm_chat", explode)
+        monkeypatch.setattr(nodes_script, "_llm_chat", explode)
 
         assert await nodes._ensure_spoken_lines_are_literal(script) == script
 
@@ -363,7 +370,7 @@ class TestSpeechThatCannotBeRead:
         async def explode(*args, **kwargs):
             raise AssertionError("a silent script was sent for rewriting")
 
-        monkeypatch.setattr(nodes, "_llm_chat", explode)
+        monkeypatch.setattr(nodes_script, "_llm_chat", explode)
 
         script = "from manim import *\n\nclass Demo(Scene):\n    pass\n"
         assert await nodes._ensure_spoken_lines_are_literal(script) == script
@@ -375,7 +382,7 @@ class TestSpeechThatCannotBeRead:
         async def rewrite(*args, **kwargs):
             return _Resp()
 
-        monkeypatch.setattr(nodes, "_llm_chat", rewrite)
+        monkeypatch.setattr(nodes_script, "_llm_chat", rewrite)
 
         out = await nodes._ensure_spoken_lines_are_literal(
             _computed_script("Небо голубое.", "Свет рассеивается.")
@@ -393,7 +400,7 @@ class TestSpeechThatCannotBeRead:
         async def rewrite(*args, **kwargs):
             return _Resp()
 
-        monkeypatch.setattr(nodes, "_llm_chat", rewrite)
+        monkeypatch.setattr(nodes_script, "_llm_chat", rewrite)
 
         assert await nodes._ensure_spoken_lines_are_literal(script) == script
 
@@ -406,7 +413,7 @@ class TestSpeechThatCannotBeRead:
         async def rewrite(*args, **kwargs):
             return _Resp()
 
-        monkeypatch.setattr(nodes, "_llm_chat", rewrite)
+        monkeypatch.setattr(nodes_script, "_llm_chat", rewrite)
 
         assert await nodes._ensure_spoken_lines_are_literal(script) == script
 
@@ -417,7 +424,7 @@ class TestSpeechThatCannotBeRead:
         async def explode(*args, **kwargs):
             raise RuntimeError("upstream is down")
 
-        monkeypatch.setattr(nodes, "_llm_chat", explode)
+        monkeypatch.setattr(nodes_script, "_llm_chat", explode)
 
         assert await nodes._ensure_spoken_lines_are_literal(script) == script
 
