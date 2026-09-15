@@ -23,6 +23,7 @@ const STUDENT_TABS: TabDef[] = [
 const TEACHER_TABS: TabDef[] = [
   { to: '/app/explain', labelKey: 'nav.explain', icon: 'sparkle' },
   { to: '/app/generate', labelKey: 'nav.generate', icon: 'file' },
+  { to: '/app/plan', labelKey: 'nav.plan', icon: 'clipboard' },
   { to: '/app/check', labelKey: 'nav.check', icon: 'clipboard' },
   { to: '/app/library', labelKey: 'nav.library', icon: 'book' },
   { to: '/app/billing', labelKey: 'nav.billing', icon: 'wallet' },

@@ -8,6 +8,7 @@ import { Billing } from './pages/Billing'
 import { Check } from './pages/Check'
 import { Explain } from './pages/Explain'
 import { Generate } from './pages/Generate'
+import { LessonPlan } from './pages/LessonPlan'
 import { Landing } from './pages/Landing'
 import { Library } from './pages/Library'
 import { Settings } from './pages/Settings'
@@ -88,6 +89,14 @@ export function App() {
             element={
               <RequireTeacher>
                 <Generate />
+              </RequireTeacher>
+            }
+          />
+          <Route
+            path="plan"
+            element={
+              <RequireTeacher>
+                <LessonPlan />
               </RequireTeacher>
             }
           />

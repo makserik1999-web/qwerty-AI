@@ -97,6 +97,62 @@ export interface Assessment {
   createdAt: string
 }
 
+/* Қысқа мерзімді жоспар ------------------------------------------------- */
+
+/** Which part of the lesson a stage belongs to. The form has these three and
+ *  in this order; the table is read top to bottom as the lesson runs. */
+export type LessonPhase = 'start' | 'middle' | 'end'
+
+export interface LessonStage {
+  id: string
+  phase: LessonPhase
+  title: string
+  minutes: number
+  /** Both columns, always. A stage where the students only listen is the one
+   *  thing this document exists to prevent, so neither side is optional. */
+  teacher: string
+  student: string
+  assessment: string
+  resources: string
+}
+
+export interface LessonObjective {
+  /** grade.section.subsection.item, e.g. 8.2.1.4 - empty when the model was
+   *  not sure enough to claim one. A teacher can look a code up; they cannot
+   *  take back a submitted document that carried an invented one. */
+  code: string
+  text: string
+}
+
+/** The document itself, as it is submitted. */
+export interface LessonPlanDocument {
+  section: string
+  objectives: LessonObjective[]
+  lesson_goal: string
+  success_criteria: string[]
+  values: string
+  cross_curricular: string
+  prior_knowledge: string
+  stages: LessonStage[]
+  differentiation: string
+  assessment_plan: string
+  health_safety: string
+}
+
+export interface LessonPlan {
+  id: string
+  subject: SubjectId
+  grade: number
+  topic: string
+  lang: Lang
+  duration: number
+  plan: LessonPlanDocument
+  /** What the stages added up to when it was generated. */
+  minutesPlanned: number
+  createdAt: string
+  updatedAt: string
+}
+
 export type UploadStatus = 'queued' | 'uploading' | 'processing' | 'done' | 'failed'
 
 export interface UploadFile {

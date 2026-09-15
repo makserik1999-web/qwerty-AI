@@ -286,6 +286,30 @@ async def _handle_assessment(websocket, request_id: str, spec: Dict[str, Any]) -
               flush=True)
 
 
+async def _handle_lesson_plan(websocket, request_id: str, spec: Dict[str, Any]) -> None:
+    """Write one Қысқа мерзімді жоспар, off the main receive loop.
+
+    Same reason as an assessment: a lesson plan is one text call taking
+    seconds, and a teacher waiting on one should not be queued behind
+    somebody else's ninety-second animation.
+    """
+    from anyq.lesson_plans import generate_lesson_plan
+
+    telemetry.new_run(request_id, str(spec.get("topic") or ""), kind="lesson_plan")
+    try:
+        result = await generate_lesson_plan(spec)
+    finally:
+        telemetry.write()
+
+    payload: Dict[str, Any] = {"type": "lesson_plan_result", "request_id": request_id}
+    payload.update(result)
+    try:
+        await _send_json(websocket, payload)
+    except Exception as e:  # noqa: BLE001 - the socket may have gone
+        print(f"Failed to send lesson plan for {request_id}: {type(e).__name__}: {e}",
+              flush=True)
+
+
 async def _handle_embed(websocket, request_id: str, text: str) -> None:
     """Answer one embedding request, off the main receive loop."""
     from anyq.embeddings import embed_question
@@ -326,7 +350,7 @@ async def _authenticate(websocket) -> bool:
             # A backend talking to an older agent must not wait for a
             # confirmation that is never sent, which is what declaring it here
             # is for.
-            "features": ["embed", "assessment", "ack"],
+            "features": ["embed", "assessment", "lesson_plan", "ack"],
         }))
         raw = await asyncio.wait_for(
             websocket.recv(), timeout=AGENT_HANDSHAKE_TIMEOUT_SEC
@@ -543,6 +567,16 @@ async def agent_client() -> None:
                             spec = data.get("spec")
                             asyncio.create_task(
                                 _handle_assessment(
+                                    websocket, request_id, spec if isinstance(spec, dict) else {}
+                                )
+                            )
+                            continue
+
+                        # A lesson plan, for the same reason.
+                        if data.get("type") == "lesson_plan":
+                            spec = data.get("spec")
+                            asyncio.create_task(
+                                _handle_lesson_plan(
                                     websocket, request_id, spec if isinstance(spec, dict) else {}
                                 )
                             )

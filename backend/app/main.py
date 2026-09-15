@@ -13,6 +13,7 @@ from app.api import (
     chats,
     exports,
     health,
+    lesson_plans,
     library,
     media,
     quota,
@@ -44,6 +45,7 @@ app.include_router(library.router)
 app.include_router(exports.router)
 app.include_router(quota.router)
 app.include_router(assessments.router)
+app.include_router(lesson_plans.router)
 app.include_router(saved.router)
 
 # /ws/agent and /ws are exact paths (no path params)

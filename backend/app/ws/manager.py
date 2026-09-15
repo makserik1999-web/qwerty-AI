@@ -88,7 +88,10 @@ class AgentConnectionManager:
         # pending_requests: those are user-visible generations with a quota
         # and a chat behind them, these are a sub-second internal lookup.
         self.pending_embeddings: Dict[str, asyncio.Future] = {}
-        self.pending_assessments: Dict[str, asyncio.Future] = {}
+        # Documents a teacher asked for - assessment papers and lesson plans.
+        # One map: the request id says which kind it was, and a second map
+        # would only be a second place for a reply to miss its future.
+        self.pending_documents: Dict[str, asyncio.Future] = {}
         # Sends waiting for the agent to say it has the request. Writing to a
         # socket proves nothing: a TCP connection whose far end has gone still
         # accepts bytes into the kernel buffer, so send_json succeeds and the
@@ -125,41 +128,60 @@ class AgentConnectionManager:
         finally:
             self.pending_embeddings.pop(request_id, None)
 
-    async def request_assessment(self, spec: dict, timeout: float) -> dict:
-        """Ask the agent to write one assessment paper.
+    async def _request_document(self, kind: str, prefix: str, spec: dict,
+                                timeout: float) -> dict:
+        """Ask the agent to write one document, and wait for it.
 
         Kept separate from request_embedding, which swallows every failure and
         returns None: an embedding is an optimisation and its absence costs a
         cache miss, while this is the teacher's actual request. They have to be
         told the difference between "the agent is down" and "come back in a
         minute", so the reasons are distinguished and returned.
+
+        Shared by the two kinds of document a teacher asks for rather than
+        written twice. The feature name gates it for the same reason it always
+        has: an agent that does not list this kind would read the frame as
+        something else, and an older build predates both.
         """
         if not self.agent_connection:
             return {"error": "agent_unavailable"}
-        if "assessment" not in self.agent_features:
-            # An older agent that only knows how to render videos.
+        if kind not in self.agent_features:
+            # An older agent that does not know this kind of request.
             return {"error": "agent_unavailable"}
 
-        request_id = f"assess-{uuid.uuid4().hex[:16]}"
+        request_id = f"{prefix}-{uuid.uuid4().hex[:16]}"
         loop = asyncio.get_running_loop()
         future: asyncio.Future = loop.create_future()
-        self.pending_assessments[request_id] = future
+        self.pending_documents[request_id] = future
         try:
             await self.agent_connection.send_json(
-                {"type": "assessment", "request_id": request_id, "spec": spec}
+                {"type": kind, "request_id": request_id, "spec": spec}
             )
             return await asyncio.wait_for(future, timeout=timeout)
         except asyncio.TimeoutError:
             return {"error": "timeout"}
         except Exception as e:  # noqa: BLE001
-            print(f"assessment request failed: {type(e).__name__}: {e}")
+            print(f"{kind} request failed: {type(e).__name__}: {e}")
             return {"error": "agent_unavailable"}
         finally:
-            self.pending_assessments.pop(request_id, None)
+            self.pending_documents.pop(request_id, None)
+
+    async def request_assessment(self, spec: dict, timeout: float) -> dict:
+        """Ask the agent to write one assessment paper."""
+        return await self._request_document("assessment", "assess", spec, timeout)
+
+    async def request_lesson_plan(self, spec: dict, timeout: float) -> dict:
+        """Ask the agent to write one Қысқа мерзімді жоспар."""
+        return await self._request_document("lesson_plan", "plan", spec, timeout)
 
     def resolve_assessment(self, request_id: str, payload: dict) -> bool:
-        """Hand an agent's paper to whoever asked for it."""
-        future = self.pending_assessments.pop(request_id, None)
+        """Hand an agent's document to whoever asked for it.
+
+        One map for both kinds: the request id is already unique and already
+        carries which kind it was, so a second map would only be a second
+        place for a reply to fail to find its future.
+        """
+        future = self.pending_documents.pop(request_id, None)
         if future is None or future.done():
             return False
         future.set_result(payload)

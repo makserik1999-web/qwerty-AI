@@ -69,6 +69,28 @@ class AssessmentRequest(BaseModel):
     count: int = 5
 
 
+class LessonPlanRequest(BaseModel):
+    """Which lesson to plan. Checked against closed sets in the endpoint the
+    same way an assessment request is - the topic and the section are the only
+    free text, and both are wrapped as untrusted data in the agent."""
+
+    subject: str
+    grade: int
+    topic: str
+    lang: str
+    duration: int = 40
+    # Бөлім. Optional: left empty, the model names the section itself, which
+    # is usually right and always editable.
+    section: str = ""
+
+
+class PlanUpdate(BaseModel):
+    """The plan as the teacher edited it - rewritten stages, fixed minutes,
+    the objective code they looked up."""
+
+    plan: Dict[str, Any]
+
+
 class QuestionsUpdate(BaseModel):
     """The paper as the teacher edited it: reworded, reordered or shortened."""
 

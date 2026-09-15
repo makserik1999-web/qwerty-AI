@@ -132,6 +132,30 @@ ASSESSMENT_MAX_PER_HOUR = int(os.getenv("ASSESSMENT_MAX_PER_HOUR", "40"))
 ASSESSMENT_TIMEOUT_SEC = float(os.getenv("ASSESSMENT_TIMEOUT_SEC", "90"))
 
 
+# ============== Lesson plans (Қысқа мерзімді жоспар) ==============
+# The short-term plan a teacher submits for every lesson. The subjects,
+# languages and grades are the assessment ones - same curriculum, same
+# closed-set reasoning: every one of these reaches a prompt.
+#
+# The agent owns the document's structure and the checks on it - the minutes
+# adding up, an objective code belonging to the grade it claims. The backend
+# validates the REQUEST and keeps the result; it does not re-judge the plan.
+LESSON_PLAN_SUBJECTS = CONTENT_SUBJECTS
+LESSON_PLAN_LANGUAGES = CONTENT_LANGUAGES
+LESSON_PLAN_GRADES = ASSESSMENT_GRADES
+# What a school timetable actually uses. Keep in step with agent/anyq/
+# lesson_plans.py, which turns these into the per-phase minute shares.
+LESSON_PLAN_DURATIONS = (40, 45)
+LESSON_PLAN_TOPIC_MAX_LEN = 200
+LESSON_PLAN_SECTION_MAX_LEN = 200
+# Writing a plan is one text call, like a paper, so the ceiling is the same
+# kind of comfort limit rather than the thing that bounds cost.
+LESSON_PLAN_MAX_PER_HOUR = int(os.getenv("LESSON_PLAN_MAX_PER_HOUR", "40"))
+# Longer than an assessment's: a plan is a much bigger document, and the
+# measured calls run two to three times the length of a paper.
+LESSON_PLAN_TIMEOUT_SEC = float(os.getenv("LESSON_PLAN_TIMEOUT_SEC", "150"))
+
+
 # ============== Narration ==============
 # The speech itself is synthesised in the agent, which holds the Azure key;
 # the backend only records what was asked for, so it can key the cache on

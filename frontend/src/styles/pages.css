@@ -1184,3 +1184,125 @@ tr.is-selected {
 .document__question .markdown-body > *:last-child {
   margin-bottom: 0;
 }
+
+/* Қысқа мерзімді жоспар ------------------------------------------------- */
+
+.plan__controls {
+  display: grid;
+  gap: var(--space-md);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 768px) {
+  .plan__controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.plan__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.plan__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.plan__label {
+  font-size: var(--fs-body-sm);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+.plan__phase {
+  font-size: var(--fs-body);
+  font-weight: var(--fw-semibold);
+  color: var(--primary-deep);
+}
+
+.plan__objectives,
+.plan__criteria {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plan__criteria {
+  padding-left: var(--space-md);
+  list-style: disc;
+}
+
+.plan__objective {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  font-size: var(--fs-body-sm);
+}
+
+.plan__pair {
+  display: grid;
+  gap: var(--space-md);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 900px) {
+  .plan__pair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* One stage of the lesson. A card rather than a table row: the four columns
+   of the official form are four paragraphs of prose, and a table cell that
+   has to hold a paragraph is a table that has to be scrolled sideways. The
+   document prints from the same fields either way. */
+.plan__stage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+.plan__stage-head {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-sm);
+}
+
+.plan__stage-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: var(--fw-semibold);
+}
+
+.plan__minutes {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  flex: 0 0 auto;
+  width: 7rem;
+}
+
+.plan__stage-grid {
+  display: grid;
+  gap: var(--space-md);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 900px) {
+  .plan__stage-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

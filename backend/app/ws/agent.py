@@ -111,12 +111,19 @@ async def websocket_agent_endpoint(websocket: WebSocket):
                         })
                 continue
 
-            # A written paper, not an answer to a chat message: no chat, no
+            # A written document, not an answer to a chat message: no chat, no
             # saved message, no quota of its own.
-            if data.get("type") == "assessment_result":
+            #
+            # The allowed keys are listed rather than the frame passed through
+            # whole: this is the one place a reply from the agent turns into a
+            # value the API returns, and a field nobody asked for should not
+            # make that trip just because the agent sent it.
+            if data.get("type") in ("assessment_result", "lesson_plan_result"):
                 agent_manager.resolve_assessment(request_id, {
                     k: v for k, v in data.items()
-                    if k in ("questions", "total_marks", "requested", "error")
+                    if k in ("questions", "total_marks", "requested",
+                             "plan", "minutes_planned", "dropped_codes",
+                             "error")
                 })
                 continue
 

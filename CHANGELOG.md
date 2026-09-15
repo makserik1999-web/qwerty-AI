@@ -5,6 +5,55 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### Қысқа мерзімді жоспар: the lesson plan a teacher has to submit
+
+**Added**
+
+Not a summary of a lesson - the document with the fixed shape schools in
+Kazakhstan require for every lesson taught. Teachers only, like assessments.
+
+A teacher gives the topic, subject, grade, language and lesson length; the plan
+comes back with every section of the form - бөлім, оқу мақсаттары with their
+codes, сабақ мақсаты, бағалау критерийлері, құндылықтар, пәнаралық байланыс,
+алдыңғы білім, the `Сабақтың барысы` table split into басы / ортасы / соңы with
+what the teacher does, what the students do, how it is assessed and on what
+resources, then саралау, бағалау and денсаулық және қауіпсіздік. Every field is
+editable and saved, because it is submitted under the teacher's name.
+
+**What the model is not allowed to write.** The teacher's name, the date, who
+was present, and the reflection written after the lesson. A model cannot know
+them, and a document arriving with them filled in invites somebody to submit a
+plausible-looking lie about their own classroom. The page says so once, near
+the top, rather than leaving it to be noticed.
+
+**Three checks, because a plan is judged on its shape before anyone reads it**
+
+- **Objective codes.** The curriculum writes them `grade.section.subsection.item`,
+  so 8.2.1.4 is a grade-8 objective and a code whose first number is not the
+  grade is one the model invented. The objective's TEXT is kept and the bad code
+  dropped: a teacher can look a code up, and cannot un-submit a document that
+  carried a made-up one. Seen working live - a plan came back with the code left
+  empty and the objective intact, which is the model declining rather than
+  guessing.
+- **Time.** The stages have to add up to the lesson, within ten per cent. A plan
+  refused rather than rescaled: stretching somebody's stages to fit makes a
+  different lesson than the one written, and they would have no way to know.
+- **Both columns.** A stage with an empty `Оқушының әрекеті` is dropped. That
+  column left blank is the most common way one of these documents is useless -
+  it becomes a lecture plan with a column for decoration.
+
+**Fixed on the way - nginx cut the request off at sixty seconds**
+
+`location /api` had no `proxy_read_timeout`, so it took nginx's default of 60s.
+An assessment takes two to seven seconds and never came near it; a plan is a
+much bigger document and measures around forty, with the backend allowing 150.
+The teacher got an nginx 504 page while the backend was still working and about
+to answer. Now 180s, above the slowest endpoint behind it.
+
+The three request/reply mechanisms over the agent socket became two: assessments
+and plans share one, since a third near-copy is where duplication starts costing
+something. `request_assessment` keeps its contract exactly.
+
 ### A 200 that says the model never ran was being taken for an answer
 
 **Fixed - and it was not an assessment bug, it was every LLM call**
