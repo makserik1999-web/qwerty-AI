@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "refactor/**", "chore/**", "feat/**", "fix/**"]
+  pull_request:
+
+jobs:
+  python:
+    name: Lint and test (python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install -U pip
+          pip install -r backend/requirements.txt -r requirements-dev.txt
+
+      - name: Lint
+        run: ruff check backend agent exporter scripts tests
+
+      - name: Test (no docker needed)
+        run: pytest tests/backend tests/agent tests/curated
+
+  frontend:
+    name: Lint and build (frontend)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  images:
+    name: Build docker images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build every service
+        # AGENT_SECRET is only needed at runtime; a dummy keeps compose happy.
+        run: AGENT_SECRET=ci-build-only docker compose build

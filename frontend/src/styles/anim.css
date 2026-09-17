@@ -1,0 +1,519 @@
+/* Animation scenes and the player around them. */
+
+.scene {
+  --scene-ink: var(--text-primary);
+  --scene-muted: var(--text-secondary);
+  --scene-line: var(--border);
+  --scene-accent: var(--primary);
+  --scene-accent-2: var(--accent);
+  --scene-good: var(--success);
+  --scene-warn: var(--warning);
+
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 10;
+  /* Keeps a wide player from turning into a very tall box on large screens;
+     the scene letterboxes rather than stretching. */
+  max-height: 460px;
+  display: block;
+  font-family: var(--font-sans);
+}
+
+.scene__bg {
+  fill: var(--surface);
+}
+
+.scene__grid line {
+  stroke: var(--scene-line);
+  stroke-width: 1;
+  opacity: 0.5;
+}
+
+.scene__axis,
+.scene__axis line {
+  stroke: var(--scene-muted);
+  stroke-width: 1.5;
+}
+
+.scene__shape {
+  fill: none;
+  stroke: var(--scene-ink);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+}
+
+.scene__hint {
+  fill: none;
+  stroke: var(--scene-muted);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+}
+
+.scene__curve {
+  fill: none;
+  stroke: var(--scene-accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.scene__secant {
+  stroke: var(--scene-muted);
+  stroke-width: 2;
+  stroke-dasharray: 6 5;
+}
+
+.scene__tangent {
+  stroke: var(--scene-accent-2);
+  stroke-width: 2.5;
+}
+
+.scene__point {
+  fill: var(--scene-accent);
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+
+.scene__point--alt {
+  fill: var(--scene-accent-2);
+}
+
+.scene__fill-a {
+  fill: var(--scene-accent);
+  opacity: 0.18;
+  stroke: var(--scene-accent);
+  stroke-width: 2;
+}
+
+.scene__fill-b {
+  fill: var(--scene-accent-2);
+  opacity: 0.18;
+  stroke: var(--scene-accent-2);
+  stroke-width: 2;
+}
+
+.scene__fill-c {
+  fill: var(--scene-good);
+  opacity: 0.18;
+  stroke: var(--scene-good);
+  stroke-width: 2;
+}
+
+.scene__sector {
+  fill: var(--scene-accent);
+  fill-opacity: 0.22;
+  stroke: var(--scene-accent);
+  stroke-width: 1.5;
+}
+
+.scene__sector--alt {
+  fill: var(--scene-accent-2);
+  fill-opacity: 0.22;
+  stroke: var(--scene-accent-2);
+}
+
+.scene__leaf {
+  fill: var(--scene-good);
+  fill-opacity: 0.2;
+  stroke: var(--scene-good);
+  stroke-width: 2.5;
+}
+
+.scene__leaf-vein {
+  fill: none;
+  stroke: var(--scene-good);
+  stroke-width: 2;
+  opacity: 0.7;
+}
+
+.scene__sun {
+  fill: var(--scene-warn);
+  fill-opacity: 0.3;
+  stroke: var(--scene-warn);
+  stroke-width: 2;
+}
+
+.scene__ray {
+  stroke: var(--scene-warn);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.scene__molecule {
+  fill: var(--surface-raised);
+  stroke-width: 2;
+}
+
+.scene__molecule--in {
+  stroke: var(--scene-accent);
+}
+
+.scene__molecule--out {
+  stroke: var(--scene-good);
+}
+
+.scene__molecule-text,
+.scene__atom-text {
+  fill: var(--scene-ink);
+  font-size: 15px;
+  font-weight: var(--fw-semibold);
+}
+
+.scene__atom {
+  fill: var(--surface-raised);
+  stroke-width: 2;
+}
+
+.scene__atom--in {
+  stroke: var(--scene-accent);
+}
+
+.scene__atom--out {
+  stroke: var(--scene-good);
+}
+
+.scene__box {
+  fill: var(--scene-accent);
+  fill-opacity: 0.2;
+  stroke: var(--scene-accent);
+  stroke-width: 2.5;
+}
+
+.scene__box--b {
+  fill: var(--scene-accent-2);
+  fill-opacity: 0.2;
+  stroke: var(--scene-accent-2);
+}
+
+.scene__arrow {
+  stroke: var(--scene-ink);
+  stroke-width: 2.5;
+  color: var(--scene-ink);
+}
+
+.scene__label {
+  fill: var(--scene-muted);
+  font-size: 17px;
+  font-weight: var(--fw-medium);
+}
+
+.scene__value {
+  fill: var(--scene-ink);
+  font-size: 18px;
+  font-weight: var(--fw-semibold);
+}
+
+.scene__coeff {
+  fill: var(--scene-accent);
+  font-size: 26px;
+  font-weight: var(--fw-bold);
+}
+
+.scene__formula {
+  fill: var(--scene-ink);
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: var(--fw-semibold);
+}
+
+.scene__tally text {
+  fill: var(--scene-muted);
+  font-family: var(--font-mono);
+  font-size: 16px;
+}
+
+.scene__tally .scene__tally--bad {
+  fill: var(--text-error);
+}
+
+.scene__caption {
+  fill: var(--scene-muted);
+  font-size: 13px;
+}
+
+/* Player -------------------------------------------------------------------- */
+
+.player {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  /* The animation is sized to sit comfortably beside the reading column rather
+     than stretching across a wide screen. */
+  max-width: 720px;
+}
+
+.player__stage {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.player__badge {
+  position: absolute;
+  top: var(--space-sm);
+  right: var(--space-sm);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-full);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
+}
+
+.player__controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.player__time {
+  font-size: var(--fs-caption);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.player__seek {
+  flex: 1;
+  display: flex;
+}
+
+.player__seek input[type='range'] {
+  width: 100%;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+.player__note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--fs-caption);
+  color: var(--text-secondary);
+}
+
+.scene-preview {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--surface);
+}
+
+/* Compare slider ------------------------------------------------------------ */
+
+.compare {
+  position: relative;
+  max-width: 940px;
+  margin-inline: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-md);
+  touch-action: pan-y;
+}
+
+.compare__layer {
+  display: grid;
+  /* Matches the scene's own ratio so the animation fills the frame exactly and
+     both halves of the wipe line up. */
+  aspect-ratio: 16 / 10;
+}
+
+/* Inside the comparison the frame sets the size, not the scene. */
+.compare .scene {
+  height: 100%;
+  max-height: none;
+  aspect-ratio: auto;
+}
+
+.compare__pane {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+
+.compare__text {
+  padding: var(--space-3xl) var(--space-xl) var(--space-xl);
+  background: var(--surface-raised);
+  height: 100%;
+  overflow: hidden;
+}
+
+.compare__text-title {
+  margin-bottom: var(--space-md);
+}
+
+.compare__text-body {
+  color: var(--text-secondary);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  hyphens: auto;
+}
+
+.compare__handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 44px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.compare__handle::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--primary);
+}
+
+.compare__grip {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  background: var(--surface-raised);
+  border: 1px solid var(--primary);
+  color: var(--primary);
+  box-shadow: var(--shadow-md);
+  transition: transform var(--dur-micro) var(--ease);
+}
+
+.compare__handle:hover .compare__grip {
+  transform: scale(1.06);
+}
+
+.compare__handle:focus-visible {
+  outline: none;
+}
+
+.compare__handle:focus-visible .compare__grip {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+.compare__hint {
+  position: absolute;
+  left: 50%;
+  bottom: var(--space-md);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-md);
+  border-radius: var(--radius-full);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  color: var(--text-secondary);
+  font-size: var(--fs-caption);
+  white-space: nowrap;
+}
+
+.compare__tag {
+  position: absolute;
+  top: var(--space-md);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-full);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  font-size: var(--fs-caption);
+  color: var(--text-secondary);
+}
+
+.compare__tag--left {
+  left: var(--space-md);
+}
+
+.compare__tag--right {
+  right: var(--space-md);
+}
+
+/* ---------------------------------------------------------------------------
+   The rendered answer.
+
+   Shares .player with the built-in scenes above, so both read as one control.
+   Only the stage differs: a file instead of an SVG recomputed each frame.
+   --------------------------------------------------------------------------- */
+
+.player__video {
+  display: block;
+  width: 100%;
+  /* Manim renders 16:9; reserving the box stops the page jumping when the
+     metadata arrives. */
+  aspect-ratio: 16 / 9;
+  background: #000;
+  cursor: pointer;
+}
+
+/* Covers the stage while the file is still arriving. Deliberately a dimmed
+   overlay rather than a spinner over black: the first frame is usually
+   decoded well before the video is playable, and hiding it would make a
+   loading video look like a broken one. */
+.player__waiting {
+  position: absolute;
+  inset: 0;
+  background: var(--overlay);
+  pointer-events: none;
+}
+
+.player__seek {
+  position: relative;
+}
+
+/* How much of the file has arrived, painted behind the track. */
+.player__buffered {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  height: 3px;
+  transform: translateY(-50%);
+  background: var(--border);
+  border-radius: var(--radius-full);
+  pointer-events: none;
+}
+
+.player__seek input[type='range'] {
+  position: relative;
+}
+
+.player__download {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  flex: none;
+}
+.player__download:hover {
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.player--failed {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-lg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--error-soft);
+  color: var(--text-error);
+}

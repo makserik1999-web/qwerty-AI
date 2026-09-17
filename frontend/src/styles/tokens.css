@@ -1,0 +1,175 @@
+/* ---------------------------------------------------------------------------
+   Anyq design tokens — the single source of truth.
+   Components never hard-code a colour, size, radius, shadow or duration.
+   --------------------------------------------------------------------------- */
+
+:root {
+  /* Brand ------------------------------------------------------------------ */
+  --primary: #1f6fe5;
+  --primary-hover: #1a5fc8;
+  --primary-deep: #1b4ba8;
+  --accent: #4b3fd4;
+
+  /* Surfaces (light) ------------------------------------------------------- */
+  --bg: #ffffff;
+  --surface: #f7f9fc;
+  --surface-raised: #ffffff;
+  --border: #e3e8f0;
+
+  /* Text (light) ----------------------------------------------------------- */
+  --text-primary: #14203a;
+  --text-secondary: #5a6880;
+  --text-disabled: #9aa5b8;
+  --text-on-primary: #ffffff;
+
+  /* Status ----------------------------------------------------------------- */
+  --success: #1e9e62;
+  --error: #d93a3a;
+  --warning: #d98a0b;
+  --info: #1f6fe5;
+
+  /* Status colours darkened for use as text. The raw hues above stay for
+     borders, icons on solid fills and chart marks; these pass AA against
+     --bg, --surface and their matching soft backgrounds. */
+  --text-success: #12683f;
+  --text-error: #a82323;
+  --text-warning: #8a5a05;
+
+  /* Link text. On dark surfaces the mid-blue drops below AA, so the dark theme
+     swaps in the lighter brand blue. */
+  --link: #1f6fe5;
+
+  /* Placeholder text is informative, so it meets AA rather than using the
+     disabled tone, which is reserved for genuinely inert controls. */
+  --text-placeholder: #5a6880;
+
+  /* Derived tints — built from the brand/status hues, kept as tokens so that
+     components still reference a name rather than a literal. */
+  --primary-soft: #eaf2fe;
+  /* Text sitting on a soft tint uses --primary-deep / --accent, both AA there. */
+  --primary-soft-strong: #d5e5fd;
+  --accent-soft: #eeecfb;
+  --success-soft: #e6f5ee;
+  --error-soft: #fbeaea;
+  --warning-soft: #fcf3e2;
+  --overlay: rgba(20, 32, 58, 0.48);
+  --focus-ring: #1f6fe5;
+  --skeleton-base: #eef1f6;
+  --skeleton-sheen: #f8fafd;
+
+  /* Typography ------------------------------------------------------------- */
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --fs-h1: 48px;
+  --fs-h2: 32px;
+  --fs-h3: 24px;
+  --fs-h4: 20px;
+  --fs-body-lg: 18px;
+  --fs-body: 16px;
+  --fs-body-sm: 14px;
+  --fs-caption: 13px;
+
+  --lh-h1: 1.15;
+  --lh-h2: 1.25;
+  --lh-h3: 1.3;
+  --lh-h4: 1.4;
+  --lh-body: 1.6;
+  --lh-body-sm: 1.5;
+  --lh-caption: 1.4;
+
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+
+  /* Spacing — 4px base ----------------------------------------------------- */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+  --space-3xl: 64px;
+  --space-4xl: 96px;
+
+  --section-y: var(--space-4xl);
+  --card-padding: var(--space-lg);
+  --field-gap: var(--space-md);
+  --grid-gutter: var(--space-lg);
+  --content-max: 1200px;
+  /* Width of a signed-in page column; both are centred in the content area. */
+  --page-max: 1440px;
+  --page-max-narrow: 720px;
+
+  /* Radius ----------------------------------------------------------------- */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-full: 999px;
+
+  /* Elevation -------------------------------------------------------------- */
+  --shadow-sm: 0 1px 2px rgba(20, 32, 58, 0.06);
+  --shadow-md: 0 4px 12px rgba(20, 32, 58, 0.08);
+  --shadow-lg: 0 12px 32px rgba(20, 32, 58, 0.12);
+
+  /* Motion ----------------------------------------------------------------- */
+  --dur-micro: 150ms;
+  --dur-standard: 250ms;
+  --dur-large: 400ms;
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Layout ----------------------------------------------------------------- */
+  --sidebar-w: 240px;
+  --history-w: 280px;
+  --form-col-w: 400px;
+  --tabbar-h: 64px;
+
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  /* The brand tints flip to their light counterparts so headings, the wordmark
+     and accented text stay legible on dark surfaces. */
+  --primary-deep: #7fb2ff;
+  --accent: #a9a2f5;
+  --link: #7fb2ff;
+  --text-placeholder: #8b97ad;
+
+  --text-success: #4ecb92;
+  --text-error: #ff8b8b;
+  --text-warning: #f0b44e;
+
+  --bg: #0e1420;
+  --surface: #161e2e;
+  --surface-raised: #1e2839;
+  --border: #2a3547;
+
+  --text-primary: #f2f5fa;
+  --text-secondary: #a3aec2;
+  --text-disabled: #65718a;
+  --text-on-primary: #ffffff;
+
+  --primary-soft: #17243c;
+  --primary-soft-strong: #1c3054;
+  --accent-soft: #211f3f;
+  --success-soft: #12291f;
+  --error-soft: #2e1a1c;
+  --warning-soft: #2c2314;
+  --overlay: rgba(4, 8, 15, 0.66);
+  --skeleton-base: #1e2839;
+  --skeleton-sheen: #26324a;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5);
+
+  color-scheme: dark;
+}
+
+@media (max-width: 767px) {
+  :root {
+    --fs-h1: 36px;
+    --section-y: var(--space-2xl);
+  }
+}

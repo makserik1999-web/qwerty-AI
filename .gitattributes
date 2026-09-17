@@ -1,0 +1,8 @@
+# frontend/index.html carries an inline <script> that must run before the first
+# paint, and nginx allows it by sha256 hash rather than by 'unsafe-inline'
+# (see frontend/nginx.conf.template). The browser hashes the exact bytes it
+# receives, newlines included - so if this file were checked out CRLF on
+# Windows and LF on Linux, the same commit would produce two different hashes
+# and the theme script would be silently blocked on one of them. Pinning the
+# file to LF makes the hash a property of the commit instead of the machine.
+frontend/index.html text eol=lf

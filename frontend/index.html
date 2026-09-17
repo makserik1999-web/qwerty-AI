@@ -1,17 +1,45 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="kk">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Anyq - Interactive Learning Platform</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <title>Anyq — сұрағыңды анимацияға айналдыр</title>
+    <meta
+      name="description"
+      content="Anyq кез келген жаратылыстану немесе математика сұрағын қысқа анимациялық түсіндірмеге айналдырады. Қазақ тілінде."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      /* Applies the stored theme and language before first paint, so the page
+         never flashes the light palette on its way to the dark one.
+
+         Editing this script changes its sha256, and the Content-Security-Policy
+         in nginx.conf.template allows it by that hash - so a change here has to
+         be copied there or the script is blocked in production and the flash
+         comes back. tests/backend/test_csp.py fails with the new value to paste. */
+      ;(function () {
+        try {
+          var saved = JSON.parse(localStorage.getItem('anyq.session.v1') || '{}')
+          var pref = saved.theme || 'system'
+          var dark =
+            pref === 'dark' ||
+            (pref === 'system' &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches)
+          document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+          document.documentElement.lang = saved.uiLang || 'kk'
+        } catch (error) {
+          document.documentElement.dataset.theme = 'light'
+        }
+      })()
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

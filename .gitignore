@@ -38,7 +38,6 @@ build/
 
 # Logs
 *.log
-logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -85,15 +84,32 @@ backend/*.pyc
 *.key
 *.crt
 secrets/
+# Belt and braces over *.pem above: this is where the TLS key is expected to
+# be, and a private key reaching the repository is not a mistake that can be
+# taken back.
+frontend/certs/
 
 # Local development
 .local/
 local_settings.py
 
 
-# Local Python virtualenvs (recreate with: python3.12 -m venv .venv)
+# Local Python virtualenvs (recreate with: make venv)
 .venv/
 venv/
 
 # Manim render output + intermediates (generated at runtime)
 agent/manim-mcp-server/src/media/
+
+# Throwaway run artefacts (telemetry dumps, screenshots, smoke output)
+.artifacts/
+
+# The run log. It lives on its own docker volume; a copy in the working tree
+# is something that was pulled out of the container to be read, not source.
+runs.jsonl
+
+# Tool caches
+.ruff_cache/
+
+# Incremental build state written by `tsc -b`.
+*.tsbuildinfo

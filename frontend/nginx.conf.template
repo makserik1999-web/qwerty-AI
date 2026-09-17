@@ -1,6 +1,18 @@
 server {
-    listen 3000;
-    server_name localhost;
+    # Which sockets this site answers on, written by the entrypoint
+    # (docker-entrypoint.d/15-anyq-tls.sh) from HTTPS_TERMINATED:
+    #
+    #   off - `listen 3000;`
+    #   on  - `listen 3443 ssl;` plus the certificate, and a second server
+    #         block in redirect.conf that answers 3000 with a 301 to https.
+    #
+    # An include rather than two whole templates: everything below - the
+    # headers, the proxying, the caching rules - has to be identical on both,
+    # and two copies of it would drift. nginx cannot start with an
+    # `ssl_certificate` pointing at a file that is not there, which is why
+    # this cannot simply be a line that is always present.
+    include /etc/nginx/conf.d/listen.inc;
+    server_name ${TLS_SERVER_NAME};
     root /usr/share/nginx/html;
     index index.html;
 
@@ -8,24 +20,100 @@ server {
     gzip on;
     gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
 
+    # Security headers
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    # Two allowances beyond 'self', both required by index.html:
+    #
+    # 1. The sha256 is the inline <script> that reads the saved theme and
+    #    stamps it on <html> before the first paint. Without it the page loads
+    #    light and flips to dark once React mounts. It is allowed by hash and
+    #    not by 'unsafe-inline' so that this one known script is permitted and
+    #    no other. Change the script and the hash must change with it -
+    #    tests/backend/test_csp.py recomputes it and prints the new value.
+    #
+    # 2. fonts.googleapis.com serves the stylesheet and fonts.gstatic.com the
+    #    font files. Neither was listed before, so the interface silently fell
+    #    back to system fonts in Docker while looking right under `npm run dev`,
+    #    where no CSP applies.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'sha256-RdeGkrDKu8Nnri4XXBOhJ7BTv6RFM6E1lB5H9a7zLUA='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' ws: wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;
+
+    client_max_body_size 4m;
+
+    # Re-resolve the backend's name instead of trusting the address it had at
+    # startup. nginx normally looks an upstream host up once, when the config
+    # is loaded, and keeps that address forever - so recreating the backend
+    # container gives it a new IP and every request here 502s until nginx is
+    # restarted too. That turns an ordinary backend deploy into a site outage,
+    # and the site looks broken rather than briefly unavailable.
+    #
+    # 127.0.0.11 is Docker's embedded DNS, present on user-defined networks.
+    # Overridable because it is a Docker detail, not a fact about nginx.
+    resolver ${DNS_RESOLVER} valid=10s ipv6=off;
+    resolver_timeout 5s;
+
+    # The name only gets re-resolved when proxy_pass contains a variable, which
+    # is why every proxy_pass below goes through $backend rather than naming
+    # the host directly.
+    set $backend ${BACKEND_URL};
+
     # Handle SPA routing
     location / {
         try_files $uri $uri/ /index.html;
     }
 
+    # index.html must never be cached. It carries the hashed names of the
+    # bundles, so a stale copy pins the browser to the OLD build - the assets
+    # below are immutable for a year precisely because their names change, and
+    # this file is the only thing that says which names to ask for.
+    #
+    # It had no Cache-Control at all, which does not mean "do not cache": with
+    # no directive the browser is free to guess, and it guesses from
+    # Last-Modified. A deploy then does not reach an open tab, and the symptom
+    # is a fix that is live on the server and absent in the browser - which is
+    # exactly what happened after the history fix shipped.
+    # `expires`, NOT `add_header Cache-Control`. An add_header at this level
+    # would replace every inherited one - nginx only inherits them when the
+    # level defines none of its own - and that would strip the CSP, the
+    # frame-ancestors and the nosniff from the one response that is an actual
+    # document. `expires -1` emits no-cache without touching that inheritance.
+    location = /index.html {
+        expires -1;
+    }
+
+    # The AI agent channel must NEVER be reachable from outside: the agent
+    # connects to the backend directly over the internal docker network.
+    location = /ws/agent {
+        return 403;
+    }
+    location ~ ^/ws/agent(/|$) {
+        return 403;
+    }
+
     # Proxy API requests to backend
     location /api {
-        proxy_pass ${BACKEND_URL};
+        proxy_pass $backend$request_uri;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        # Longer than the slowest endpoint behind it, which is writing a
+        # lesson plan: the backend gives that LESSON_PLAN_TIMEOUT_SEC (150) and
+        # nginx's own default is 60, so without this the teacher gets an nginx
+        # 504 page while the backend is still working and about to answer. It
+        # never showed up before because an assessment takes seconds; a plan is
+        # a much bigger document and measured around forty.
+        proxy_read_timeout 180s;
+        proxy_send_timeout 180s;
     }
 
-    # Proxy WebSocket requests to backend
-    location /ws {
-        proxy_pass ${BACKEND_URL};
+    # Proxy UI WebSocket requests (exact /ws path only; /ws/agent is blocked above)
+    location = /ws {
+        proxy_pass $backend$request_uri;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -41,7 +129,7 @@ server {
 
     # Proxy media requests to backend (for video files)
     location /media {
-        proxy_pass ${BACKEND_URL};
+        proxy_pass $backend$request_uri;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -49,10 +137,24 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # Cache static assets
+    # Cache static assets. Safe to keep for a year because vite puts a content
+    # hash in every filename - a changed file is a changed name, and index.html
+    # above is not cached, so the new names are always found.
+    #
+    # The nosniff is repeated here on purpose, and it is not redundant. nginx
+    # inherits add_header from the enclosing level ONLY when the level defines
+    # none of its own, so the Cache-Control below silently dropped every server
+    # header from these responses - and X-Content-Type-Options is the one that
+    # matters for a script or a stylesheet, because it is what stops a browser
+    # from MIME-sniffing one. Measured on the running stack: scripts came back
+    # with no nosniff at all. The rest of the server headers are document- or
+    # connection-level and do nothing on a subresource, so they are not copied
+    # here where they would only rot out of step.
+    #
+    # `expires 1y` is gone with it: it set a second, separate Cache-Control on
+    # the same response, so every asset carried two of them.
     location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2)$ {
-        expires 1y;
-        add_header Cache-Control "public, immutable";
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        add_header X-Content-Type-Options "nosniff" always;
     }
 }
-
