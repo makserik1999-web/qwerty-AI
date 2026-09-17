@@ -5,6 +5,41 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### Sign-in limits that hold, and an account that is really deleted
+
+**Security**
+
+- **The rate limits could be skipped with one header.** The per-IP key was the
+  first entry of `X-Forwarded-For`, and nginx appends the real address to the
+  END of whatever the client sent. An invented address per request was a fresh
+  budget per request, for both sign-in and sign-up. Now `X-Real-IP`, which
+  nginx overwrites, and otherwise the last entry. Verified through nginx: fifty
+  failures with forged headers, then 429.
+- **A successful sign-in wiped the address's count**, so anyone with an account
+  of their own could clear it between guesses at other people's. The address
+  is now spent by failures only (`LOGIN_IP_MAX_FAILURES`, 50 per 15 minutes)
+  and a success does not touch it - which also means a classroom behind one
+  address is never locked out by students signing in correctly.
+- **Every capitalisation of an address had its own five attempts.** The lookup
+  is case-insensitive; the budget key now is too.
+- **Deleting an account left its papers, lesson plans and saved answers** in
+  the database for good. Those collections arrived after the route and were
+  never added to it.
+- **Saving a lesson plan stored whatever JSON arrived** - megabytes, fields the
+  form does not have (the teacher's name and date included), a stage that is a
+  number and cannot be drawn. The save now keeps the document's fields only,
+  as strings, with bounded sizes; the teacher's wording is untouched and a
+  half-rewritten stage is not dropped.
+
+**Fixed**
+
+- `lesson_plans` had no index; listing them scanned the collection.
+- `PENDING_REQUESTS_TTL_SEC` is forwarded by compose.
+- Agent: `format_output` returned `None` for a path the state declares a
+  string; an unreachable fallback and the unused `_latex_is_available` removed.
+- Docs: TLS and Mongo auth marked done in the audit; the storage section of the
+  cost report named the wrong file - the bulk was `Demo.wav`, already cleaned.
+
 ### Қысқа мерзімді жоспар: the lesson plan a teacher has to submit
 
 **Added**

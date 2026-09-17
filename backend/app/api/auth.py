@@ -20,7 +20,7 @@ from app.errors import HTTPExceptionJson
 from app.models import LoginRequest, ProfileRequest, SignupRequest
 from app.security.cookies import _cookie_token, _expired_session_cookie, _session_cookie
 from app.security.passwords import _hash_password, _verify_password
-from app.security.ratelimit import _client_ip, login_limiter, signup_limiter
+from app.security.ratelimit import _client_ip, login_ip_limiter, login_limiter, signup_limiter
 from app.security.sessions import _create_session, _hash_token, _user_from_token, _user_payload
 
 router = APIRouter()
@@ -175,8 +175,12 @@ async def login(body: LoginRequest, request: Request):
     ip = _client_ip(request)
 
     # Whichever one was sent is what the per-account budget is spent against.
-    identifier = email or username
-    if not login_limiter.allow(f"ip:{ip}") or not login_limiter.allow(f"user:{identifier}"):
+    # An address is looked up case-insensitively below, so its key is lowered
+    # too: otherwise every capitalisation of one address was a budget of its
+    # own, and five guesses became five per spelling.
+    identifier = email.lower() if email else username
+    ip_key = f"ip:{ip}"
+    if login_ip_limiter.blocked(ip_key) or not login_limiter.allow(f"user:{identifier}"):
         raise HTTPExceptionJson(429, "Too many login attempts. Try again later.")
 
     if email:
@@ -190,11 +194,13 @@ async def login(body: LoginRequest, request: Request):
         user = await db.db.users.find_one({"username": username})
 
     if not user or not _verify_password(password, user.get("password_hash", "")):
+        login_ip_limiter.hit(ip_key)
         raise HTTPExceptionJson(401, "Invalid username or password")
 
     token = await _create_session(str(user["_id"]))
+    # The account's budget only, never the address's: clearing that one on
+    # success let anybody with an account wipe it between guesses at others.
     login_limiter.reset(f"user:{identifier}")
-    login_limiter.reset(f"ip:{ip}")
 
     response = JSONResponse({"user": _user_payload(user)})
     response.headers["Set-Cookie"] = _session_cookie(token, SESSION_TTL_HOURS * 3600)
@@ -279,6 +285,13 @@ async def delete_account(request: Request):
     so deleting the files this person happened to ask for first would take
     answers away from other people. Retention collects them on its own
     schedule once nothing references them.
+
+    Everything else keyed on the account goes: the papers and lesson plans a
+    teacher wrote and the answers somebody saved. Those collections arrived
+    after this route did and were never added to it, so a deleted account's
+    documents stayed in the database for good, with nobody left who could
+    see or remove them. Export jobs and quota events are left to their own
+    expiry, which is hours, not never.
     """
     token = _cookie_token(request)
     user = await _user_from_token(token)
@@ -292,6 +305,9 @@ async def delete_account(request: Request):
     if chat_ids:
         await db.db.messages.delete_many({"chat_id": {"$in": chat_ids}})
     await db.db.chats.delete_many({"user_id": user_id})
+    await db.db.assessments.delete_many({"user_id": user_id})
+    await db.db.lesson_plans.delete_many({"user_id": user_id})
+    await db.db.saved_explanations.delete_many({"user_id": user_id})
     await db.db.users.delete_one({"_id": user["_id"]})
 
     response = JSONResponse({"ok": True})

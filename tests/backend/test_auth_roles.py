@@ -383,5 +383,25 @@ class TestDeletingTheAccount:
         assert run_db(backend.db.db.messages.count_documents({"chat_id": chat_id})) == 0
         assert run_db(backend.db.db.sessions.count_documents({"user_id": user_id})) == 0
 
+    def test_papers_plans_and_saved_answers_go_too(self, signup, client, backend):
+        """Those collections came after this route and were never added to it,
+        so a deleted teacher's papers and plans stayed in the database for good
+        with nobody left who could see or remove them."""
+        collections = ("assessments", "lesson_plans", "saved_explanations")
+        mine = signup().json()["user"]["id"]
+        someone_else = f"other-{uuid.uuid4().hex[:8]}"
+
+        for name in collections:
+            for owner in (mine, someone_else):
+                run_db(backend.db.db[name].insert_one({"user_id": owner}))
+
+        assert client.delete("/api/auth/account").status_code == 200
+
+        for name in collections:
+            assert run_db(backend.db.db[name].count_documents({"user_id": mine})) == 0, name
+            assert run_db(
+                backend.db.db[name].count_documents({"user_id": someone_else})
+            ) == 1, f"{name}: another account's documents went with it"
+
     def test_it_needs_a_session(self, anon_client):
         assert anon_client.delete("/api/auth/account").status_code == 401

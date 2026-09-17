@@ -25,7 +25,9 @@ async def format_output(state: ScienceVideoState) -> Dict[str, Any]:
 
     return {
         "final_text": text,
-        "final_video_path": video_path if state.get("video_needed") else None,
+        # "" rather than None: the state declares a str, reject_non_science
+        # already returns "", and None made every reader add its own `or ""`.
+        "final_video_path": video_path if state.get("video_needed") else "",
         # Carried out so the interface can label the answer with the subject
         # the model actually decided on, rather than guessing it back from the
         # wording. Free text, and the client maps what it recognises.

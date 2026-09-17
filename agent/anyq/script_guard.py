@@ -301,10 +301,6 @@ def _contains_forbidden_manim(script: str) -> bool:
     return any(tok in s for tok in forbidden)
 
 
-def _latex_is_available() -> bool:
-    return shutil.which("latex") is not None
-
-
 _latex_health_cache: Dict[str, Any] = {"checked": False, "healthy": False}
 
 

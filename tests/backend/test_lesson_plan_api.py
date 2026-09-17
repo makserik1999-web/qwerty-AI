@@ -187,6 +187,71 @@ class TestWritingAndKeepingOne:
                               json={"plan": {"stages": []}})
         assert response.status_code == 400
 
+    def _save(self, client, plan_id, plan):
+        return client.put(f"/api/lesson-plans/{plan_id}", json={"plan": plan})
+
+    def test_a_save_keeps_only_the_documents_fields(self, client, teacher, agent):
+        """The save used to store whatever JSON arrived. The fields the
+        generator may not write must not come in through the edit instead."""
+        created = client.post("/api/lesson-plans", json=VALID).json()
+        edited = {**created["plan"], "teacher_name": "Иванов И.И.",
+                  "date": "2026-09-15", "junk": "x" * 10_000}
+
+        saved = self._save(client, created["id"], edited).json()["plan"]
+        for smuggled in ("teacher_name", "date", "junk"):
+            assert smuggled not in saved, smuggled
+        assert saved["lesson_goal"] == PLAN["lesson_goal"]
+
+    def test_a_stage_the_page_cannot_draw_is_mended_or_dropped(self, client, teacher, agent):
+        created = client.post("/api/lesson-plans", json=VALID).json()
+        edited = {**created["plan"], "stages": [
+            42,
+            {"phase": "warmup", "minutes": "a lot", "teacher": ["not", "text"],
+             "student": "Жазады", "id": "made-up"},
+        ]}
+
+        stages = self._save(client, created["id"], edited).json()["plan"]["stages"]
+        assert len(stages) == 1
+        stage = stages[0]
+        assert stage["phase"] == "middle"
+        assert stage["minutes"] == 0
+        assert stage["teacher"] == ""
+        assert stage["id"] != "made-up" and stage["id"].startswith("s-")
+
+    def test_stage_ids_survive_a_save(self, client, teacher, agent):
+        """The page finds the stage being edited by its id."""
+        created = client.post("/api/lesson-plans", json=VALID).json()
+        before = [s["id"] for s in created["plan"]["stages"]]
+
+        saved = self._save(client, created["id"], created["plan"]).json()["plan"]
+        assert [s["id"] for s in saved["stages"]] == before
+
+    def test_a_half_rewritten_stage_is_not_eaten(self, client, teacher, agent):
+        """A teacher can clear a column on the way to rewriting it. Saving then
+        must not delete the stage they are typing into."""
+        created = client.post("/api/lesson-plans", json=VALID).json()
+        edited = {**created["plan"]}
+        edited["stages"] = [{**s} for s in edited["stages"]]
+        edited["stages"][1]["student"] = ""
+
+        saved = self._save(client, created["id"], edited).json()["plan"]
+        assert len(saved["stages"]) == 3
+        assert saved["stages"][1]["student"] == ""
+
+    def test_one_plan_cannot_grow_into_megabytes(self, client, teacher, agent):
+        created = client.post("/api/lesson-plans", json=VALID).json()
+        stage = {**created["plan"]["stages"][0], "teacher": "ә" * 50_000}
+        edited = {**created["plan"], "stages": [stage] * 200}
+
+        saved = self._save(client, created["id"], edited).json()["plan"]
+        assert len(saved["stages"]) <= 30
+        assert all(len(s["teacher"]) <= 4000 for s in saved["stages"])
+
+    def test_stages_that_are_all_unusable_are_no_plan(self, client, teacher, agent):
+        created = client.post("/api/lesson-plans", json=VALID).json()
+        edited = {**created["plan"], "stages": [1, "two", None]}
+        assert self._save(client, created["id"], edited).status_code == 400
+
     def test_deleting_one(self, client, teacher, agent):
         created = client.post("/api/lesson-plans", json=VALID).json()
         assert client.delete(f"/api/lesson-plans/{created['id']}").status_code == 200

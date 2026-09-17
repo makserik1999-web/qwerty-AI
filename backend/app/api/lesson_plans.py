@@ -16,8 +16,9 @@ stage says what the students do and not only the teacher. Repeating those here
 would be two rules to keep in step and one of them would drift.
 """
 
+import re
 import uuid
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from fastapi import APIRouter, Request
 
@@ -51,6 +52,82 @@ _FAILURES = {
     "agent_unavailable": (503, "The generator is unavailable. Please try again shortly."),
     "timeout": (504, "The generator took too long. Please try again."),
 }
+
+
+# The document's fields, and the only ones a saved plan may carry. Anything
+# else in an edit is dropped - the teacher's name, the date and the rest the
+# generator is not allowed to write are not smuggled in through a save either.
+_TEXT_FIELDS = ("section", "lesson_goal", "values", "cross_curricular",
+                "prior_knowledge", "differentiation", "assessment_plan",
+                "health_safety")
+_STAGE_TEXT_FIELDS = ("title", "teacher", "student", "assessment", "resources")
+_PHASES = ("start", "middle", "end")
+_STAGE_ID_RE = re.compile(r"^s-[0-9a-f]{12}$")
+
+# Well above what the generator writes (twelve stages, fields of about a
+# thousand characters) so an edit never loses words, and low enough that one
+# saved plan cannot grow into megabytes.
+_MAX_TEXT = 4000
+_MAX_STAGES = 30
+_MAX_LIST = 20
+
+
+def _text(value: Any) -> str:
+    return value[:_MAX_TEXT] if isinstance(value, str) else ""
+
+
+def _clean_plan(raw: Dict[str, Any]) -> Dict[str, Any]:
+    """An edited plan in the document's shape, with its wording untouched.
+
+    Not a judgement of the content - that is the agent's, and this endpoint's
+    docstring says why it is not repeated here. What is fixed is the SHAPE: the
+    known fields and nothing else, strings where the page expects strings, a
+    bounded size. Without it the save stored whatever JSON arrived, so a plan
+    could hold megabytes, keys the form does not have, or a stage that is a
+    number - and the page renders every plan it lists.
+
+    Text is not stripped and empty stages are not dropped: the teacher may be
+    halfway through rewriting one, and a save must not eat what they are typing.
+    """
+    plan: Dict[str, Any] = {field: _text(raw.get(field)) for field in _TEXT_FIELDS}
+
+    objectives: List[Dict[str, str]] = []
+    for item in (raw.get("objectives") if isinstance(raw.get("objectives"), list) else [])[:_MAX_LIST]:
+        if isinstance(item, str):
+            item = {"text": item}
+        if isinstance(item, dict):
+            objectives.append({"code": _text(item.get("code"))[:20],
+                               "text": _text(item.get("text"))})
+    plan["objectives"] = objectives
+
+    criteria = raw.get("success_criteria")
+    plan["success_criteria"] = [
+        _text(item) for item in (criteria if isinstance(criteria, list) else [])[:_MAX_LIST]
+        if isinstance(item, str)
+    ]
+
+    stages: List[Dict[str, Any]] = []
+    for item in (raw.get("stages") if isinstance(raw.get("stages"), list) else [])[:_MAX_STAGES]:
+        if not isinstance(item, dict):
+            continue
+        try:
+            minutes = int(item.get("minutes"))
+        except (TypeError, ValueError):
+            minutes = 0
+        stage_id = item.get("id")
+        stage: Dict[str, Any] = {
+            # Kept when it is one this endpoint issued, because the page finds
+            # the stage being edited by it; anything else gets a fresh one.
+            "id": stage_id if isinstance(stage_id, str) and _STAGE_ID_RE.fullmatch(stage_id)
+            else f"s-{uuid.uuid4().hex[:12]}",
+            "phase": item.get("phase") if item.get("phase") in _PHASES else "middle",
+            "minutes": max(0, min(120, minutes)),
+        }
+        for field in _STAGE_TEXT_FIELDS:
+            stage[field] = _text(item.get(field))
+        stages.append(stage)
+    plan["stages"] = stages
+    return plan
 
 
 def _validated_spec(body: LessonPlanRequest) -> Dict[str, Any]:
@@ -163,16 +240,16 @@ async def read_plan(plan_id: str, request: Request):
 async def update_plan(plan_id: str, body: PlanUpdate, request: Request):
     """The plan as the teacher edited it.
 
-    Stored as given. A plan is a document somebody is about to submit under
-    their own name, so the teacher's wording wins over anything this endpoint
-    might think about it - what is checked is that it is still a plan, not
-    whether it is a good one.
+    Stored with its wording as given. A plan is a document somebody is about
+    to submit under their own name, so the teacher's wording wins over
+    anything this endpoint might think about it - what is checked is that it
+    is still a plan, not whether it is a good one.
     """
     user = await require_teacher(request)
 
-    plan = body.plan
-    if not isinstance(plan, dict) or not isinstance(plan.get("stages"), list):
+    if not isinstance(body.plan, dict) or not isinstance(body.plan.get("stages"), list):
         raise HTTPExceptionJson(400, "A plan must have stages")
+    plan = _clean_plan(body.plan)
     if not plan["stages"]:
         raise HTTPExceptionJson(400, "A plan must have at least one stage")
 

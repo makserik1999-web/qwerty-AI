@@ -67,6 +67,11 @@ services:
       # setting that exists to be turned and cannot be reached from .env is a
       # mistake this compose file has already made twice.
       - AGENT_ACK_TIMEOUT_SEC=${AGENT_ACK_TIMEOUT_SEC:-20}
+      # How long an unanswered request is kept before the person is told it
+      # failed and their quota is handed back. Must stay above the agent's
+      # own deadline (AGENT_REQUEST_DEADLINE_SEC, 1200 by default), or a
+      # render that is still going gets written off as lost.
+      - PENDING_REQUESTS_TTL_SEC=${PENDING_REQUESTS_TTL_SEC:-1800}
       # The session cookie gets its Secure flag from the same switch that turns
       # TLS on, so HTTPS cannot be enabled while the cookie still travels in
       # clear text on any plain-HTTP request. COOKIE_SECURE overrides it for a
@@ -89,6 +94,7 @@ services:
       - GENERATION_MAX_PER_DAY=${GENERATION_MAX_PER_DAY:-50}
       - GENERATION_QUEUE_MAX=${GENERATION_QUEUE_MAX:-20}
       - SIGNUP_MAX_PER_HOUR=${SIGNUP_MAX_PER_HOUR:-100}
+      - LOGIN_IP_MAX_FAILURES=${LOGIN_IP_MAX_FAILURES:-50}
       # Usernames allowed to read cache statistics - which are other people's
       # questions, so this is a deliberate grant and empty by default. It was
       # read from the environment but never forwarded here, so the allowlist

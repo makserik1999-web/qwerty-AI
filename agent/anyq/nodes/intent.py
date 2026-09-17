@@ -3,7 +3,7 @@
 Moved verbatim out of nodes.py.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from spoon_ai.schema import Message
 
@@ -58,7 +58,7 @@ def route_after_intent(state: ScienceVideoState) -> str:
     return "science" if state.get("is_science") else "reject"
 
 
-def _heuristic_video_needed(query: str) -> Optional[Dict[str, Any]]:
+def _heuristic_video_needed(query: str) -> Dict[str, Any]:
     """
     Always return True for video generation for science questions.
     Only skip video for empty queries.
@@ -81,12 +81,7 @@ async def decide_video_needed(state: ScienceVideoState) -> Dict[str, Any]:
         return {"video_needed": False, "video_reason": "non-science"}
 
     # For science questions, ALWAYS generate videos
-    heuristic = _heuristic_video_needed(q)
-    if heuristic is not None:
-        return heuristic
-
-    # Fallback: always generate video for science
-    return {"video_needed": True, "video_reason": "science question - always generate video"}
+    return _heuristic_video_needed(q)
 
 
 def route_after_video_needed(state: ScienceVideoState) -> str:

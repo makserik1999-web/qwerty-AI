@@ -70,6 +70,12 @@ MAX_SCREENSHOT_B64_LEN = MAX_SCREENSHOT_BYTES * 4 // 3 + 16
 # Login rate limiting (in-memory; single-process uvicorn)
 LOGIN_MAX_ATTEMPTS = int(os.getenv("LOGIN_MAX_ATTEMPTS", "5"))
 LOGIN_WINDOW_SEC = int(os.getenv("LOGIN_WINDOW_SEC", "900"))  # 15 min
+# Failed sign-ins per IP per window. Much looser than the per-account limit
+# above, for the same reason signups are: a school computer room is one
+# address, and thirty students mistyping on the first day of term must not
+# lock the room out. The per-account limit is what protects one password;
+# this one only has to make spraying many accounts slow.
+LOGIN_IP_MAX_FAILURES = int(os.getenv("LOGIN_IP_MAX_FAILURES", "50"))
 
 # Agent channel
 AGENT_HANDSHAKE_TIMEOUT_SEC = float(os.getenv("AGENT_HANDSHAKE_TIMEOUT_SEC", "10"))

@@ -32,6 +32,8 @@ async def lifespan(app: FastAPI):
     await db.db.chats.create_index([("user_id", 1), ("updated_at", -1)])
     # The only way a paper is ever read: this teacher's, newest first.
     await db.db.assessments.create_index([("user_id", 1), ("created_at", -1)])
+    # Lesson plans are read the same way, and were shipped without one.
+    await db.db.lesson_plans.create_index([("user_id", 1), ("created_at", -1)])
     await db.db.messages.create_index([("chat_id", 1), ("timestamp", 1)])
     # A person's own library: listed newest-saved first, and checked for
     # a duplicate before every save.
