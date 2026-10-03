@@ -17,6 +17,8 @@ interface TabDef {
 const STUDENT_TABS: TabDef[] = [
   { to: '/app/explain', labelKey: 'nav.explain', icon: 'sparkle' },
   { to: '/app/library', labelKey: 'nav.library', icon: 'book' },
+  // Leaves the shell: joining a quiz is the phone screen, full-bleed.
+  { to: '/join', labelKey: 'nav.joinQuiz', icon: 'listCheck' },
   { to: '/app/settings', labelKey: 'nav.settings', icon: 'settings' },
 ]
 
@@ -25,6 +27,7 @@ const TEACHER_TABS: TabDef[] = [
   { to: '/app/generate', labelKey: 'nav.generate', icon: 'file' },
   { to: '/app/plan', labelKey: 'nav.plan', icon: 'clipboard' },
   { to: '/app/check', labelKey: 'nav.check', icon: 'clipboard' },
+  { to: '/app/quizzes', labelKey: 'nav.quizzes', icon: 'listCheck' },
   { to: '/app/library', labelKey: 'nav.library', icon: 'book' },
   { to: '/app/billing', labelKey: 'nav.billing', icon: 'wallet' },
   { to: '/app/settings', labelKey: 'nav.settings', icon: 'settings' },

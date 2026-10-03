@@ -310,6 +310,26 @@ async def _handle_lesson_plan(websocket, request_id: str, spec: Dict[str, Any]) 
               flush=True)
 
 
+async def _handle_quiz(websocket, request_id: str, spec: Dict[str, Any]) -> None:
+    """Write quiz questions, off the main receive loop - same reason as the
+    other documents: one text call, never queued behind a render."""
+    from anyq.quizzes import generate_quiz
+
+    telemetry.new_run(request_id, str(spec.get("topic") or ""), kind="quiz")
+    try:
+        result = await generate_quiz(spec)
+    finally:
+        telemetry.write()
+
+    payload: Dict[str, Any] = {"type": "quiz_result", "request_id": request_id}
+    payload.update(result)
+    try:
+        await _send_json(websocket, payload)
+    except Exception as e:  # noqa: BLE001 - the socket may have gone
+        print(f"Failed to send quiz for {request_id}: {type(e).__name__}: {e}",
+              flush=True)
+
+
 async def _handle_embed(websocket, request_id: str, text: str) -> None:
     """Answer one embedding request, off the main receive loop."""
     from anyq.embeddings import embed_question
@@ -350,7 +370,7 @@ async def _authenticate(websocket) -> bool:
             # A backend talking to an older agent must not wait for a
             # confirmation that is never sent, which is what declaring it here
             # is for.
-            "features": ["embed", "assessment", "lesson_plan", "ack"],
+            "features": ["embed", "assessment", "lesson_plan", "quiz", "ack"],
         }))
         raw = await asyncio.wait_for(
             websocket.recv(), timeout=AGENT_HANDSHAKE_TIMEOUT_SEC
@@ -577,6 +597,16 @@ async def agent_client() -> None:
                             spec = data.get("spec")
                             asyncio.create_task(
                                 _handle_lesson_plan(
+                                    websocket, request_id, spec if isinstance(spec, dict) else {}
+                                )
+                            )
+                            continue
+
+                        # Quiz questions, for the same reason again.
+                        if data.get("type") == "quiz":
+                            spec = data.get("spec")
+                            asyncio.create_task(
+                                _handle_quiz(
                                     websocket, request_id, spec if isinstance(spec, dict) else {}
                                 )
                             )

@@ -157,6 +157,9 @@ services:
       - "${HTTPS_PORT:-3443}:3443"
     environment:
       - BACKEND_URL=http://backend:8000
+      # Not a depends_on: nginx resolves it per request, so the site keeps
+      # working while the quiz service restarts - only its routes 502.
+      - QUIZ_URL=http://quiz:8100
       - DNS_RESOLVER=${DNS_RESOLVER:-127.0.0.11}
       # TLS. Off by default - on localhost there is no certificate to serve.
       # With it on, 3443 serves HTTPS and 3000 answers with a 301 to it, so
@@ -310,6 +313,58 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  # Quizzes: a service of its own - its own collections, its own live
+  # channels, and nothing shared with the backend's code. It asks the backend
+  # who a teacher is and nothing else; questions are written by the agent via
+  # the backend, and only saved here.
+  quiz:
+    build:
+      context: ./quiz
+      dockerfile: Dockerfile
+    container_name: anyq-quiz
+    restart: unless-stopped
+    environment:
+      # The same least-privilege database user as the backend: it owns
+      # different collections, not a different database, until it needs one.
+      - MONGO_URL=mongodb://${MONGO_APP_USER:-}:${MONGO_APP_PASSWORD:-}@mongo:27017/${DATABASE_NAME:-anyq_db}?authSource=${DATABASE_NAME:-anyq_db}
+      - DATABASE_NAME=${DATABASE_NAME:-anyq_db}
+      - QUIZ_IDENTITY_URL=http://backend:8000/api/auth/me
+      # The teacher's live board authenticates with the session cookie, so
+      # its socket checks Origin against the same list the backend uses.
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      - QUIZ_MAX_PLAYERS=${QUIZ_MAX_PLAYERS:-80}
+      - QUIZ_MAX_OPEN_SESSIONS=${QUIZ_MAX_OPEN_SESSIONS:-3}
+      - QUIZ_SESSION_MAX_HOURS=${QUIZ_SESSION_MAX_HOURS:-4}
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - anyq-network
+    # Nothing here writes to disk, so nothing may.
+    read_only: true
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys,urllib.request; d=urllib.request.urlopen('http://localhost:8100/health', timeout=4).read(); sys.exit(0 if b'connected' in d else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.5"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
   # Export worker: GIF/mp4 clips, frames and teacher decks.
   exporter:

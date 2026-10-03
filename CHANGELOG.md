@@ -5,6 +5,62 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### Quizzes: a service of their own, from the editor to the projector
+
+**Added**
+
+A quiz mode, built from the editor prototype and taken further: a teacher's
+list of quizzes, the editor, a projector screen, a phone screen for students,
+and a results page. Teachers only, like the other documents; students need no
+account - they join with a six-character code, or by pointing a camera at the
+projector's QR code.
+
+**A service, not a module.** `quiz/` is its own FastAPI service and container
+(`anyq-quiz`) with its own collections and live channels, sharing no code
+with the backend. It crosses into the rest of the system in three places,
+each on purpose: it asks the backend's `/api/auth/me` who a teacher is;
+questions are written by the agent through the backend (`/api/quiz-drafts`)
+and only saved here; and a deleted account reaches it through an outbox
+(`account_events`) the backend writes in the same request. The frontend's
+quiz screens are likewise a module (`frontend/src/quiz/`) loaded as its own
+chunk. `docs/QUIZ_SERVICE.md` has the boundaries and what a second replica
+would need.
+
+**What makes a question worth asking is its wrong answers.** Every wrong
+option carries a note - for the teacher only - naming the misunderstanding
+behind it. When a quarter of the class or more picks the same wrong option,
+the results lead with it: "9 answered 20 m/s² - multiplied force by mass",
+and one click opens Explain with that question already written, aimed at
+exactly what went wrong.
+
+**What a phone is never told.** The right answer before it has answered; the
+next question before this one; the notes. Answers are marked on the server,
+once (a double tap is one answer), against the server's clock - the phone
+works out its own offset from `serverNow`, so a wrong clock cannot buy time.
+
+**The stage** has a look of its own: four answer colours from the steppe and
+four marks from Kazakh ornament (шаңырақ, crescent, nested rhombus, ram's
+horn) so no answer depends on colour alone; the code on a split-flap board;
+names dropping into the lobby; a synchronized countdown on every phone and
+the projector; a lane per student while it runs - progress only, never who
+got what wrong, because the projector is a wall the class reads; a podium at
+the end. The QR encoder is in-house (no dependency) and was checked against
+OpenCV's decoder across versions 1-15.
+
+**Fixed on the way**
+
+- A phone that asked for the next state a moment before the countdown ended
+  on the server's clock was told "countdown" again and never asked twice -
+  the screen stayed on "1". Seen on a Docker VM whose clock ran 8% slow; any
+  network can imitate it. Every answer now schedules the next check.
+- The students' socket refused unlisted origins, which would have shut out a
+  class joining a stack run on the school network. A token, unlike a cookie,
+  has to be sent, so the check protected nothing there; the teacher's socket,
+  which does ride on a cookie, keeps it.
+
+160 new tests: the quiz service and its nginx routing 110, the agent 29, the
+backend 17, and a live end-to-end run through nginx 4. 851 in the unit suite.
+
 ### Sign-in limits that hold, and an account that is really deleted
 
 **Security**

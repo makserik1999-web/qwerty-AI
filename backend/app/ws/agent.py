@@ -118,12 +118,13 @@ async def websocket_agent_endpoint(websocket: WebSocket):
             # whole: this is the one place a reply from the agent turns into a
             # value the API returns, and a field nobody asked for should not
             # make that trip just because the agent sent it.
-            if data.get("type") in ("assessment_result", "lesson_plan_result"):
+            if data.get("type") in ("assessment_result", "lesson_plan_result",
+                                    "quiz_result"):
                 agent_manager.resolve_assessment(request_id, {
                     k: v for k, v in data.items()
                     if k in ("questions", "total_marks", "requested",
                              "plan", "minutes_planned", "dropped_codes",
-                             "error")
+                             "dropped", "error")
                 })
                 continue
 

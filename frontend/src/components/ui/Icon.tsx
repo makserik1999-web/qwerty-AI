@@ -1,6 +1,8 @@
 export type IconName =
   | 'alert'
+  | 'arrowDown'
   | 'arrowRight'
+  | 'arrowUp'
   | 'book'
   | 'check'
   | 'checkCircle'
@@ -8,14 +10,20 @@ export type IconName =
   | 'chevronLeft'
   | 'chevronRight'
   | 'clipboard'
+  | 'clock'
   | 'close'
+  | 'copy'
   | 'download'
+  | 'eye'
+  | 'eyeOff'
   | 'file'
   | 'grid'
   | 'info'
   | 'lightbulb'
+  | 'listCheck'
   | 'logOut'
   | 'mail'
+  | 'maximize'
   | 'menu'
   | 'minus'
   | 'moon'
@@ -34,6 +42,7 @@ export type IconName =
   | 'sun'
   | 'trash'
   | 'upload'
+  | 'video'
   | 'volumeOff'
   | 'volumeOn'
   | 'wallet'
@@ -46,7 +55,9 @@ const PATHS: Record<IconName, React.ReactNode> = {
       <path d="M12 8v5M12 16.5v.01" />
     </>
   ),
+  arrowDown: <path d="M12 5v14m-6-6 6 6 6-6" />,
   arrowRight: <path d="M4 12h15m-6-6 6 6-6 6" />,
+  arrowUp: <path d="M12 19V5m-6 6 6-6 6 6" />,
   book: (
     <>
       <path d="M5 4h11a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2V4Z" />
@@ -182,6 +193,44 @@ const PATHS: Record<IconName, React.ReactNode> = {
       <path d="M4 8a2 2 0 0 1 2-2h11v4" />
       <path d="M4 8v9a2 2 0 0 0 2 2h13V10H6a2 2 0 0 1-2-2Z" />
       <path d="M16 14h.01" />
+    </>
+  ),
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7.5V12l3 2" />
+    </>
+  ),
+  copy: (
+    <>
+      <rect x="8" y="8" width="12" height="12" rx="2" />
+      <path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" />
+    </>
+  ),
+  eye: (
+    <>
+      <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" />
+      <circle cx="12" cy="12" r="3" />
+    </>
+  ),
+  eyeOff: (
+    <>
+      <path d="m4 4 16 16" />
+      <path d="M10.4 5.6c.5-.07 1.06-.1 1.6-.1 6 0 9.5 6.5 9.5 6.5a16 16 0 0 1-2.9 3.7M6.7 6.9C4 8.6 2.5 12 2.5 12S6 18.5 12 18.5c1.8 0 3.4-.5 4.7-1.3" />
+      <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+    </>
+  ),
+  listCheck: (
+    <>
+      <path d="m4 6.5 2 2 3-3M4 16.5l2 2 3-3" />
+      <path d="M12 7.5h8M12 17.5h8" />
+    </>
+  ),
+  maximize: <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />,
+  video: (
+    <>
+      <rect x="3" y="6" width="13" height="12" rx="2" />
+      <path d="m16 10.5 5-3v9l-5-3" />
     </>
   ),
   warning: (

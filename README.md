@@ -17,10 +17,13 @@ An interactive educational platform that generates AI-powered animated videos to
 └─────────────────┘                  └─────────────────┘                    └──────────────┘
                                              │
                                              ▼
-                                       ┌───────────┐
-                                       │  MongoDB  │
-                                       └───────────┘
+                                       ┌───────────┐     ┌──────────────┐
+                                       │  MongoDB  │◄────│ Quiz service │◄── /api/quiz, /api/play,
+                                       └───────────┘     │  (FastAPI)   │    /ws/quiz via nginx
+                                                         └──────────────┘
 ```
+
+Quizzes run as their own service; see [docs/QUIZ_SERVICE.md](docs/QUIZ_SERVICE.md).
 
 ## Features
 
@@ -30,6 +33,9 @@ An interactive educational platform that generates AI-powered animated videos to
   HttpOnly session cookies; user identity is derived server-side, never trusted
   from the client
 - **Chat History**: Persistent chat storage with MongoDB
+- **Quizzes**: classroom quizzes students join from their phones with a code;
+  a live projector board, and results that point at the misunderstanding a
+  class shares
 
 ## Quick Start
 

@@ -292,6 +292,12 @@ async def delete_account(request: Request):
     documents stayed in the database for good, with nobody left who could
     see or remove them. Export jobs and quota events are left to their own
     expiry, which is hours, not never.
+
+    Quizzes live in a service of their own, so they are not deleted here: an
+    `account_deleted` event is recorded instead, in the same request, and the
+    quiz service removes that account's quizzes, runs and answers when it
+    reads it. Recording rather than calling means a quiz service that happens
+    to be down cannot make a deletion half-happen.
     """
     token = _cookie_token(request)
     user = await _user_from_token(token)
@@ -308,6 +314,11 @@ async def delete_account(request: Request):
     await db.db.assessments.delete_many({"user_id": user_id})
     await db.db.lesson_plans.delete_many({"user_id": user_id})
     await db.db.saved_explanations.delete_many({"user_id": user_id})
+    await db.db.account_events.insert_one({
+        "type": "account_deleted",
+        "user_id": user_id,
+        "created_at": datetime.now(timezone.utc),
+    })
     await db.db.users.delete_one({"_id": user["_id"]})
 
     response = JSONResponse({"ok": True})

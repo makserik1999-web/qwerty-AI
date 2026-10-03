@@ -174,6 +174,10 @@ class AgentConnectionManager:
         """Ask the agent to write one Қысқа мерзімді жоспар."""
         return await self._request_document("lesson_plan", "plan", spec, timeout)
 
+    async def request_quiz(self, spec: dict, timeout: float) -> dict:
+        """Ask the agent to write quiz questions for the quiz service."""
+        return await self._request_document("quiz", "quiz", spec, timeout)
+
     def resolve_assessment(self, request_id: str, payload: dict) -> bool:
         """Hand an agent's document to whoever asked for it.
 

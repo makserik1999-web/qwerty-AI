@@ -16,6 +16,7 @@ from app.api import (
     lesson_plans,
     library,
     media,
+    quiz_drafts,
     quota,
     saved,
 )
@@ -46,6 +47,7 @@ app.include_router(exports.router)
 app.include_router(quota.router)
 app.include_router(assessments.router)
 app.include_router(lesson_plans.router)
+app.include_router(quiz_drafts.router)
 app.include_router(saved.router)
 
 # /ws/agent and /ws are exact paths (no path params)

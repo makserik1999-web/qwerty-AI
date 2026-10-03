@@ -69,6 +69,21 @@ class AssessmentRequest(BaseModel):
     count: int = 5
 
 
+class QuizDraftRequest(BaseModel):
+    """Which questions to write. The topic is the only free text; `avoid` is
+    the questions already in the quiz, passed as data so "add more" does not
+    hand back the same ones."""
+
+    subject: str
+    grade: int
+    topic: str
+    lang: str
+    count: int = 8
+    mix: str = "mixed"
+    difficulty: str = "medium"
+    avoid: List[str] = []
+
+
 class LessonPlanRequest(BaseModel):
     """Which lesson to plan. Checked against closed sets in the endpoint the
     same way an assessment request is - the topic and the section are the only

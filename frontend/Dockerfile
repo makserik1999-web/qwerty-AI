@@ -35,6 +35,9 @@ RUN chmod +x /docker-entrypoint.d/15-anyq-tls.sh
 
 # Default backend URL (can be overridden at runtime)
 ENV BACKEND_URL=http://backend:8000
+# The quiz service. Rendered into the template like the backend's, so it has
+# to be defined even where compose does not set it.
+ENV QUIZ_URL=http://quiz:8100
 # Docker's embedded DNS, so the backend can move without taking the site down.
 ENV DNS_RESOLVER=127.0.0.11
 # Off by default: this stack is normally run on localhost, where there is no

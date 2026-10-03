@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { ExplanationView } from '../components/ExplanationView'
 import { NarrationToggle, type NarrationVoice } from '../components/NarrationToggle'
 import { EffortPicker } from '../components/EffortPicker'
@@ -66,6 +67,18 @@ export function Explain() {
   // never chosen by anyone, and visibly choppy on a classroom projector.
   const [effort, setEffort] = useState<Effort>('medium')
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  /* A question handed over by another screen - the quiz results' "explain
+     this with a video" - lands in the box ready to send, not sent: asking
+     costs a generation, and that is the teacher's decision to make. */
+  useEffect(() => {
+    const handed = searchParams.get('q')
+    if (!handed) return
+    setQuestion(handed.slice(0, 600))
+    setSearchParams({}, { replace: true })
+    window.requestAnimationFrame(() => inputRef.current?.focus())
+  }, [searchParams, setSearchParams])
 
   const steps: ProgressStep[] = STAGE_ORDER.map((key) => ({
     key,

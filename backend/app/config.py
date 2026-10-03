@@ -138,6 +138,25 @@ ASSESSMENT_MAX_PER_HOUR = int(os.getenv("ASSESSMENT_MAX_PER_HOUR", "40"))
 ASSESSMENT_TIMEOUT_SEC = float(os.getenv("ASSESSMENT_TIMEOUT_SEC", "90"))
 
 
+# ============== Quiz drafts ==============
+# Questions for the quiz service, written by the agent. The quiz service holds
+# no model key and never talks to one: the editor asks for a draft here and
+# saves the result there, so generation stays where every other generated
+# document is made. Same closed-set reasoning as the documents above - every
+# field reaches a prompt.
+QUIZ_DRAFT_SUBJECTS = CONTENT_SUBJECTS
+QUIZ_DRAFT_LANGUAGES = CONTENT_LANGUAGES
+QUIZ_DRAFT_GRADES = ASSESSMENT_GRADES
+QUIZ_DRAFT_MIXES = ("choice", "mixed", "short")
+QUIZ_DRAFT_DIFFICULTIES = ASSESSMENT_DIFFICULTIES
+QUIZ_DRAFT_MAX_COUNT = 20
+QUIZ_DRAFT_TOPIC_MAX_LEN = 200
+# What "add more" sends so the new questions are different ones.
+QUIZ_DRAFT_MAX_AVOID = 40
+QUIZ_DRAFT_MAX_PER_HOUR = int(os.getenv("QUIZ_DRAFT_MAX_PER_HOUR", "60"))
+QUIZ_DRAFT_TIMEOUT_SEC = float(os.getenv("QUIZ_DRAFT_TIMEOUT_SEC", "120"))
+
+
 # ============== Lesson plans (Қысқа мерзімді жоспар) ==============
 # The short-term plan a teacher submits for every lesson. The subjects,
 # languages and grades are the assessment ones - same curriculum, same

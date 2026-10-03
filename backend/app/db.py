@@ -34,6 +34,10 @@ async def lifespan(app: FastAPI):
     await db.db.assessments.create_index([("user_id", 1), ("created_at", -1)])
     # Lesson plans are read the same way, and were shipped without one.
     await db.db.lesson_plans.create_index([("user_id", 1), ("created_at", -1)])
+    # The outbox other services read to learn an account is gone (the quiz
+    # service, so far). Kept a month: long enough for a consumer that was
+    # down to catch up, short enough that it does not grow forever.
+    await db.db.account_events.create_index("created_at", expireAfterSeconds=30 * 24 * 3600)
     await db.db.messages.create_index([("chat_id", 1), ("timestamp", 1)])
     # A person's own library: listed newest-saved first, and checked for
     # a duplicate before every save.
