@@ -507,6 +507,40 @@
   color: var(--text-primary);
 }
 
+/* Speed. Fixed width so "1×" and "1,25×" do not shift the seek bar, and
+   tinted while the video is not at normal speed - easy to forget otherwise. */
+.player__speed {
+  flex: none;
+}
+.player__speed .menu__trigger {
+  min-width: 4.25rem;
+  justify-content: center;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+.player__speed.is-changed .menu__trigger {
+  color: var(--primary-deep);
+}
+.player__speed .menu__list {
+  min-width: 9rem;
+}
+
+/* A phone has no room for the bar between the buttons, so it takes a row of
+   its own above them, the way phone video players lay it out. */
+@media (max-width: 520px) {
+  .player__controls {
+    flex-wrap: wrap;
+    gap: var(--space-xs) var(--space-sm);
+  }
+  .player__seek {
+    order: -1;
+    flex-basis: 100%;
+  }
+  .player__time {
+    margin-right: auto;
+  }
+}
+
 .player--failed {
   display: flex;
   align-items: center;

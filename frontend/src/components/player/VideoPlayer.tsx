@@ -1,6 +1,8 @@
+import { useEffect } from 'react'
 import { useI18n } from '../../lib/i18n'
 import { cx, formatClock } from '../../lib/utils'
 import { Icon, IconButton } from '../ui'
+import { SpeedMenu, usePlaybackRate } from './PlaybackSpeed'
 import { hasUsableDuration, useVideoPlayer } from './useVideoPlayer'
 
 /**
@@ -44,6 +46,16 @@ export function VideoPlayer({ src, title, autoPlay = false, className }: VideoPl
     seekTo,
     setScrubbing,
   } = useVideoPlayer(src)
+  const [rate, setRate] = usePlaybackRate()
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+    // A new src resets playbackRate to defaultPlaybackRate, so both are set
+    // and the next answer starts at the speed this one was left at.
+    video.defaultPlaybackRate = rate
+    video.playbackRate = rate
+  }, [videoRef, rate, src])
 
   const known = hasUsableDuration(duration)
   const atEnd = known && currentTime >= duration - 0.05
@@ -109,6 +121,7 @@ export function VideoPlayer({ src, title, autoPlay = false, className }: VideoPl
             onChange={(event) => seekTo(Number(event.target.value))}
           />
         </label>
+        <SpeedMenu rate={rate} onChange={setRate} />
         <a
           className="player__download"
           href={src}

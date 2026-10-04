@@ -5,6 +5,17 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### Playback speed
+
+**Added**
+
+A speed menu in the player - 0.5×, 0.75×, normal, 1.25×, 1.5×, 2× - for the
+rendered video and for the built-in scenes alike. The choice is remembered on
+the device, so the next answer starts at the same speed, and the button is
+tinted while it is anything but normal. The video keeps its voice at pitch.
+On a phone the seek bar now takes a row of its own above the buttons; next to
+the new menu, between them, it had no room left.
+
 ### Quizzes: a service of their own, from the editor to the projector
 
 **Added**

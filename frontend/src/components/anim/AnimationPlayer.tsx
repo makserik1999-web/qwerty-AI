@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useI18n } from '../../lib/i18n'
 import type { SceneId } from '../../lib/types'
 import { cx, formatClock } from '../../lib/utils'
+import { SpeedMenu, usePlaybackRate } from '../player/PlaybackSpeed'
 import { Icon, IconButton } from '../ui'
 import { SceneStage } from './SceneStage'
 import { SCENE_TITLES } from './scenes'
@@ -43,6 +44,7 @@ export function AnimationPlayer({
   const reducedMotion = usePrefersReducedMotion()
   const [time, setTime] = useState(0)
   const [playing, setPlaying] = useState(autoPlay && !reducedMotion)
+  const [rate, setRate] = usePlaybackRate()
   const frameRef = useRef<number>()
   const lastRef = useRef<number>()
 
@@ -60,7 +62,7 @@ export function AnimationPlayer({
       const last = lastRef.current ?? now
       lastRef.current = now
       setTime((prev) => {
-        const next = prev + (now - last) / 1000
+        const next = prev + ((now - last) / 1000) * rate
         if (next >= duration) {
           setPlaying(false)
           return duration
@@ -73,7 +75,7 @@ export function AnimationPlayer({
     return () => {
       if (frameRef.current) cancelAnimationFrame(frameRef.current)
     }
-  }, [playing, duration])
+  }, [playing, duration, rate])
 
   const atEnd = time >= duration - 0.01
 
@@ -121,6 +123,7 @@ export function AnimationPlayer({
             }}
           />
         </label>
+        <SpeedMenu rate={rate} onChange={setRate} />
       </div>
 
       {reducedMotion ? (
