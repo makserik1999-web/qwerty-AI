@@ -72,9 +72,20 @@ server {
     listen 3000;
     server_name _;
 
+    # Let's Encrypt proves the domain over plain HTTP: it fetches a token that
+    # certbot left in this shared directory. A file it asked for, not site
+    # content - and the one thing answered here rather than redirected, so a
+    # renewal does not depend on the HTTPS side being healthy.
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/acme;
+        default_type text/plain;
+    }
+
     # A permanent redirect and nothing else. No content is ever served over
     # plain HTTP once TLS is on.
-    return 301 https://$host__HTTPS_PORT_SUFFIX__$request_uri;
+    location / {
+        return 301 https://$host__HTTPS_PORT_SUFFIX__$request_uri;
+    }
 }
 EOF
 
@@ -84,3 +95,41 @@ EOF
 sed -i "s|__HTTPS_PORT_SUFFIX__|${TLS_PUBLIC_PORT_SUFFIX:-}|" "$CONF_D/redirect.conf"
 
 echo "anyq: serving HTTPS on 3443, redirecting 3000 -> https://\$host${TLS_PUBLIC_PORT_SUFFIX:-}"
+
+# Other names for the same site - www.<domain> - answered with a 301 to the
+# first name in TLS_SERVER_NAME, over HTTPS too. Without it www would serve
+# the whole site under a second origin: a second session cookie, and an Origin
+# that the backend's and the quiz board's CORS_ORIGINS do not list.
+if [ -n "${TLS_REDIRECT_HOSTS:-}" ]; then
+    canonical="${TLS_SERVER_NAME%% *}"
+    cat >> "$CONF_D/redirect.conf" <<EOF
+
+server {
+    listen 3443 ssl;
+    http2 on;
+    server_name ${TLS_REDIRECT_HOSTS};
+
+    ssl_certificate     ${CERT};
+    ssl_certificate_key ${KEY};
+
+    return 301 https://${canonical}${TLS_PUBLIC_PORT_SUFFIX:-}\$request_uri;
+}
+EOF
+    echo "anyq: redirecting ${TLS_REDIRECT_HOSTS} -> https://${canonical}${TLS_PUBLIC_PORT_SUFFIX:-}"
+fi
+
+# certbot renews the certificate in place, but nginx read it once, at start,
+# and would go on serving the old one until it expired. So it is looked at
+# every hour and nginx reloads when it changed. A reload is graceful: open
+# connections - a class's quiz sockets included - finish on the old workers.
+(
+    stamp() { cksum "$CERT" "$KEY" 2>/dev/null || true; }
+    last="$(stamp)"
+    while sleep "${TLS_RELOAD_CHECK_SEC:-3600}"; do
+        now="$(stamp)"
+        if [ -n "$now" ] && [ "$now" != "$last" ]; then
+            echo "anyq: certificate changed on disk, reloading nginx"
+            nginx -s reload && last="$now"
+        fi
+    done
+) </dev/null &

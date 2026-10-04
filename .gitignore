@@ -58,6 +58,10 @@ media/
 *.mp4
 *.png
 *.gif
+# ...but not the interface's own images. *.png above is about render output,
+# and it also kept the logo out of git: a fresh clone could not build the
+# frontend ("Could not resolve ../../assets/logo.png").
+!frontend/src/assets/*.png
 
 # Temporary files
 *.tmp

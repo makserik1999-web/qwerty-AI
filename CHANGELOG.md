@@ -5,6 +5,58 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### Production: one VPS with Docker
+
+**Added**
+
+`docker-compose.prod.yml` and `deploy/`: the same stack on any Linux server
+with Docker, under a real domain. `docs/DEPLOY.md` is the walkthrough.
+
+- **HTTPS from Let's Encrypt.** `deploy/init-tls.sh` gets the first
+  certificate: the site comes up once on plain HTTP, certbot proves the
+  domain through it, and the stack switches to HTTPS - the frontend still
+  refuses to start without a certificate, so this is the only way round that.
+  A certbot service renews it; nginx notices the changed files within the
+  hour and reloads by itself, gracefully. `www.` answers with a 301 to the
+  bare domain over HTTPS too, so there is one origin and one session cookie.
+- **Nightly backups** at 02:00 Astana: `mongodump` of the database, kept 14
+  days, and a mirror of the rendered videos beside it. On the host, outside
+  every docker volume. The service logs in as the app user - the root
+  password stays out of it - and goes unhealthy when no dump has finished in
+  26 hours. `deploy/restore.sh` takes a fresh backup before replacing
+  anything and asks for the domain to confirm.
+- **Monitoring.** `deploy/monitor.sh`, from cron every five minutes: services
+  and healthchecks, the site from the outside in, days left on the
+  certificate, disk. Alerts to Telegram, once per change rather than every
+  five minutes.
+- **`deploy/deploy.sh`** refuses an `.env` that would come up quietly wrong -
+  a secret still from the example, TLS off, CORS pointing at localhost - then
+  builds, starts, waits for every healthcheck, and checks from outside:
+  `/ws/agent` 403, http to https 301, HSTS, the agent connected. A deploy
+  that changed nothing restarts nothing: on Docker 29's image store BuildKit's
+  provenance record gave every cached rebuild a new image ID, and every
+  service was recreated - quiz sockets and all - so it is switched off.
+- `deploy/init-env.sh` writes that `.env` with fresh random secrets;
+  `deploy/prepare-server.sh` adds swap, the backups directory, the cron line
+  and, when asked, the firewall.
+
+**Fixed**
+
+Found by deploying a clean export of the repository - what a server clones -
+onto fresh volumes:
+
+- **A fresh database had no app user.** The mongo image creates the root user
+  on an empty volume and nothing else; every service logs in as `anyq_app`,
+  so a new server's backend was refused by its own database and the site
+  never started. `scripts/mongo-init/10-app-user.js` creates it on that first
+  boot, and `deploy.sh` makes sure of it on every deploy.
+- **A fresh clone could not build the frontend.** `*.png` in `.gitignore`
+  (meant for render output) had kept `frontend/src/assets/logo.png` out of git
+  all along. Committed, with an exception for the interface's own images, and
+  a test that fails when a file under a build directory is ignored.
+- Shell scripts are pinned to LF in `.gitattributes`: a CR is part of the
+  command to bash on Linux.
+
 ### Playback speed
 
 **Added**

@@ -85,6 +85,16 @@ server {
         expires -1;
     }
 
+    # Let's Encrypt's HTTP check, for the first certificate: deploy/init-tls.sh
+    # brings the site up on plain HTTP once, without TLS, and certbot leaves
+    # its token in this shared directory. With TLS on, port 3000 belongs to
+    # redirect.conf, which answers the same path for the renewals. Without
+    # this, the SPA fallback below would answer index.html and the check fails.
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/acme;
+        default_type text/plain;
+    }
+
     # The AI agent channel must NEVER be reachable from outside: the agent
     # connects to the backend directly over the internal docker network.
     location = /ws/agent {

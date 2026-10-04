@@ -19,8 +19,14 @@ services:
       - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USER:-}
       - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD:-}
       - MONGO_INITDB_DATABASE=${DATABASE_NAME:-anyq_db}
+      # The image creates only the root user above. The app user every
+      # service logs in as is created by scripts/mongo-init/10-app-user.js,
+      # which the image runs once on that same empty-directory boot.
+      - MONGO_APP_USER=${MONGO_APP_USER:-}
+      - MONGO_APP_PASSWORD=${MONGO_APP_PASSWORD:-}
     volumes:
       - mongo_data:/data/db
+      - ./scripts/mongo-init:/docker-entrypoint-initdb.d:ro
     networks:
       - anyq-network
     healthcheck:

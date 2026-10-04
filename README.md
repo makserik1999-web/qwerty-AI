@@ -70,6 +70,11 @@ docker compose up --build -d
 - **Frontend**: http://localhost:3000
 - First time? Click **Create Account**, then **Sign In**.
 
+### Production
+
+One VPS with Docker, a domain, HTTPS from Let's Encrypt, nightly backups and
+monitoring: [docs/DEPLOY.md](docs/DEPLOY.md).
+
 ## Services
 
 | Service   | Port | Description                           |

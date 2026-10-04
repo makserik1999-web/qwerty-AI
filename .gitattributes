@@ -6,3 +6,8 @@
 # and the theme script would be silently blocked on one of them. Pinning the
 # file to LF makes the hash a property of the commit instead of the machine.
 frontend/index.html text eol=lf
+
+# Shell scripts run on Linux - in the containers, and on the server from
+# deploy/. A CR at the end of a line is part of the command to bash there
+# ("$'\r': command not found"), so they are LF whatever the checkout.
+*.sh text eol=lf
