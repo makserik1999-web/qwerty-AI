@@ -5,6 +5,48 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### Production: a home server behind a Cloudflare tunnel
+
+**Changed**
+
+Production moved from a VPS with Let's Encrypt to a home server with no
+public address: Debian 12 on an Ivy Bridge i3, 8 GB, behind
+`akronustaz.com` and a Cloudflare tunnel. `docs/DEPLOY.md` is rewritten for
+it, including what to set in the Cloudflare dashboard.
+
+- **The tunnel.** A `cloudflared` service (pinned, no self-update, token
+  from `TUNNEL_TOKEN`, healthy only when connected to Cloudflare's edge)
+  carries the traffic to nginx on port 80. Nothing is published: the one
+  port is `127.0.0.1:8080`, for checking the site from the box itself.
+- **TLS left the stack.** certbot, `deploy/init-tls.sh`, the 443 listener,
+  the certificate mounts, the ACME path, the http-to-https and www
+  redirects, and the development TLS mode with `scripts/make_dev_cert.sh`
+  are gone - a redirect to https in nginx would loop forever behind the
+  tunnel. Cloudflare terminates TLS; the cookie's Secure flag comes from
+  `COOKIE_SECURE=1`. The entrypoint is now `15-anyq-listen.sh`.
+- **The client's address.** nginx takes it from `CF-Connecting-IP`, trusting
+  only private-network peers and only with `TRUST_CF_CONNECTING_IP=1` -
+  without it every visitor arrived as cloudflared and they all shared one
+  set of sign-in, sign-up and quiz-join limits. `X-Forwarded-For` is
+  replaced with that address instead of appended to, `X-Forwarded-Proto` is
+  passed on from Cloudflare, and uvicorn in the backend and quiz service
+  runs with `--proxy-headers`.
+- **mongo pinned to 7.0.43** in all three places: the box has AVX but no
+  AVX2, and 8 does not start on it. In production its cache is capped at
+  1 GB, which otherwise sizes itself from the whole machine.
+- **Rendering yields to the site:** `cpu_shares: 512` and CPU caps on the
+  agent and exporter; renders were already one at a time. Videos start at
+  480p (`EFFORT_DEFAULT=low`) until render times on the box are measured.
+- Log rotation on every production service, cloudflared included.
+- `deploy.sh` checks the box and then the way in through Cloudflare: the
+  agent channel 403 on both, http to https, a websocket handshake through
+  Cloudflare, and that the backend sees the address from `CF-Connecting-IP`.
+  `prepare-server.sh` no longer touches the firewall.
+
+**Known, next:** Cloudflare gives up on a response after 100 seconds (524).
+A lesson plan can take up to 150 and a quiz draft up to 120. Both should
+become background jobs the page polls; written down in `docs/DEPLOY.md`.
+
 ### Production: one VPS with Docker
 
 **Added**

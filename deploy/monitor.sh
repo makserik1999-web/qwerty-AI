@@ -7,11 +7,14 @@
 #
 # Looks at:
 #   - every service: running, and healthy where it has a healthcheck - which
-#     covers the database, the agent's link to the backend and a backup in
-#     the last 26 hours;
-#   - the site from the outside in: the page, the API, the quiz service;
-#   - the certificate: more than 14 days left;
+#     covers the database, the agent's link to the backend, the tunnel's link
+#     to Cloudflare and a backup in the last 26 hours;
+#   - the site on the box itself (127.0.0.1:8080) and the way visitors get in,
+#     through Cloudflare - so a broken tunnel and a broken site tell apart;
 #   - disk space: less than 85% used.
+#
+# No certificate check: the one visitors see is Cloudflare's, and Cloudflare
+# renews it.
 #
 # Alerts go to Telegram when TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID are set in
 # .env, and always to stdout (cron's log). Only when the set of problems
@@ -28,7 +31,7 @@ REMIND_SEC=$((6 * 3600))
 
 token="$(env_get TELEGRAM_BOT_TOKEN)"
 chat="$(env_get TELEGRAM_CHAT_ID)"
-domain="$(env_get TLS_SERVER_NAME)"; domain="${domain%% *}"
+domain="$(env_get SITE_DOMAIN)"
 
 notify() {
     printf '%s %s\n' "$(date '+%F %T')" "$1"
@@ -62,27 +65,16 @@ for service in $expected; do
     fi
 done
 
-# The site, through nginx.
+# The site: on the box, then through Cloudflare.
 check() {
-    local want="$1" url="$2" what="$3" got
-    got="$(status_of "$url")"
+    local got="$1" want="$2" what="$3"
     [ "$got" = "$want" ] || problems+=("$what: HTTP $got")
 }
-check 200 "https://$domain/" "сайт"
-check 401 "https://$domain/api/auth/me" "API"
-check 404 "https://$domain/api/play/code/AAAAAA" "квизы"
-
-# The certificate.
-if command -v openssl >/dev/null 2>&1; then
-    end="$(echo | openssl s_client -connect 127.0.0.1:443 -servername "$domain" 2>/dev/null \
-        | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2 || true)"
-    if [ -n "$end" ]; then
-        days=$(( ($(date -d "$end" +%s) - $(date +%s)) / 86400 ))
-        [ "$days" -ge 14 ] || problems+=("сертификат истекает через $days дн. - docker compose logs certbot")
-    else
-        problems+=("сертификат не читается на :443")
-    fi
-fi
+check "$(local_status /)" 200 "сайт на сервере"
+check "$(local_status /api/auth/me)" 401 "API на сервере"
+check "$(local_status /api/play/code/AAAAAA)" 404 "квизы на сервере"
+check "$(public_status "https://$domain/")" 200 "сайт через Cloudflare"
+check "$(public_status "https://$domain/api/auth/me")" 401 "API через Cloudflare"
 
 # Disk: the root filesystem and wherever docker keeps its data.
 for path in / "$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || echo /)"; do

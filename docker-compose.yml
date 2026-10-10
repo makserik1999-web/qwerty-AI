@@ -1,7 +1,11 @@
 services:
   # MongoDB Database
   mongo:
-    image: mongo:7
+    # A fixed 7.0 patch release, the same one backup and restore use in
+    # docker-compose.prod.yml. Not 8: the production box is an Ivy Bridge i3,
+    # which has AVX but not AVX2, and 8 does not start on it. Not a floating
+    # tag either: a pull on another day would be another database.
+    image: mongo:7.0.43
     container_name: anyq-mongo
     restart: unless-stopped
     # Authentication, which this database ran without. It is on the internal
@@ -78,11 +82,11 @@ services:
       # own deadline (AGENT_REQUEST_DEADLINE_SEC, 1200 by default), or a
       # render that is still going gets written off as lost.
       - PENDING_REQUESTS_TTL_SEC=${PENDING_REQUESTS_TTL_SEC:-1800}
-      # The session cookie gets its Secure flag from the same switch that turns
-      # TLS on, so HTTPS cannot be enabled while the cookie still travels in
-      # clear text on any plain-HTTP request. COOKIE_SECURE overrides it for a
-      # deployment where TLS is terminated further out, by something this
-      # stack knows nothing about.
+      # The session cookie's Secure flag. This stack serves plain HTTP; TLS,
+      # when there is any, is terminated further out - in production by
+      # Cloudflare, in front of the tunnel - so COOKIE_SECURE=1 is the switch
+      # there. HTTPS_TERMINATED=1 still turns the flag on too (config.py),
+      # for an .env written before TLS left this stack.
       - HTTPS_TERMINATED=${HTTPS_TERMINATED:-0}
       - COOKIE_SECURE=${COOKIE_SECURE:-}
       # Explicit allowlist; credentials are enabled so "*" is never valid here.
@@ -160,46 +164,24 @@ services:
     restart: unless-stopped
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
-      - "${HTTPS_PORT:-3443}:3443"
     environment:
       - BACKEND_URL=http://backend:8000
       # Not a depends_on: nginx resolves it per request, so the site keeps
       # working while the quiz service restarts - only its routes 502.
       - QUIZ_URL=http://quiz:8100
       - DNS_RESOLVER=${DNS_RESOLVER:-127.0.0.11}
-      # TLS. Off by default - on localhost there is no certificate to serve.
-      # With it on, 3443 serves HTTPS and 3000 answers with a 301 to it, so
-      # nothing is ever served in clear text. The entrypoint REFUSES TO START
-      # if the certificate is missing rather than falling back to HTTP, which
-      # is the failure nobody would notice.
-      - HTTPS_TERMINATED=${HTTPS_TERMINATED:-0}
-      - TLS_SERVER_NAME=${TLS_SERVER_NAME:-localhost}
-      # Only needed when the public HTTPS port is not 443: $host carries no
-      # port, so the redirect would otherwise point at nothing.
-      - TLS_PUBLIC_PORT_SUFFIX=${TLS_PUBLIC_PORT_SUFFIX:-}
-    volumes:
-      # The certificate, read-only. certbot writes fullchain.pem and
-      # privkey.pem under /etc/letsencrypt/live/<domain>/ with exactly these
-      # names, so a real certificate is a change of source path and nothing
-      # else. scripts/make_dev_cert.sh puts a self-signed pair here for
-      # testing that the path works at all.
-      - ${TLS_CERT_SOURCE:-./frontend/certs}:/etc/nginx/certs:ro
+      # Plain HTTP on 3000 here; docker-compose.prod.yml moves it to 80 for
+      # the Cloudflare tunnel. No TLS in this container at all.
+      - NGINX_PORT=3000
     depends_on:
       backend:
         condition: service_healthy
     networks:
       - anyq-network
     healthcheck:
-      # Whichever port this container is actually serving on. With TLS on, 3000
-      # answers a 301 and nothing else, so an HTTP probe there fails and the
-      # container reports unhealthy forever - which stops anything with a
-      # `depends_on: service_healthy` on it from ever starting. Following the
-      # redirect instead would be worse: it points at the PUBLIC https port,
-      # which in production is 443 and is not what this container listens on.
-      # --no-check-certificate because a self-signed certificate is a valid
-      # local setup and this probe is not the thing that vouches for it.
-      test: ["CMD-SHELL",
-             "wget -q -O /dev/null --no-check-certificate https://127.0.0.1:3443/ || wget -q -O /dev/null http://127.0.0.1:3000/"]
+      # Whichever port this container is actually serving on - 3000 here, 80
+      # in production - read inside the container, so one probe fits both.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:$${NGINX_PORT:-3000}/"]
       interval: 15s
       timeout: 5s
       retries: 5

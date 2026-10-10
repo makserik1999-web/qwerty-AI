@@ -30,8 +30,8 @@ COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 # runs /docker-entrypoint.d in name order and renders at 20-, so this lands
 # first. Explicitly chmod'ed: a file copied from a Windows checkout arrives
 # without its executable bit and the entrypoint would skip it silently.
-COPY docker-entrypoint.d/15-anyq-tls.sh /docker-entrypoint.d/15-anyq-tls.sh
-RUN chmod +x /docker-entrypoint.d/15-anyq-tls.sh
+COPY docker-entrypoint.d/15-anyq-listen.sh /docker-entrypoint.d/15-anyq-listen.sh
+RUN chmod +x /docker-entrypoint.d/15-anyq-listen.sh
 
 # Default backend URL (can be overridden at runtime)
 ENV BACKEND_URL=http://backend:8000
@@ -40,11 +40,11 @@ ENV BACKEND_URL=http://backend:8000
 ENV QUIZ_URL=http://quiz:8100
 # Docker's embedded DNS, so the backend can move without taking the site down.
 ENV DNS_RESOLVER=127.0.0.11
-# Off by default: this stack is normally run on localhost, where there is no
-# certificate to serve.
-ENV HTTPS_TERMINATED=0
-ENV TLS_SERVER_NAME=localhost
+# Development defaults. Production (docker-compose.prod.yml) listens on 80 for
+# the Cloudflare tunnel and takes the client's address from CF-Connecting-IP.
+ENV NGINX_PORT=3000
+ENV TRUST_CF_CONNECTING_IP=0
 
-EXPOSE 3000 3443
+EXPOSE 3000
 
 CMD ["nginx", "-g", "daemon off;"]

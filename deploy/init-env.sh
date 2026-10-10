@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
 # Writes .env for a production server, once.
 #
-#     bash deploy/init-env.sh akronai.kz [admin@akronai.kz]
+#     bash deploy/init-env.sh akronustaz.com
 #
 # Starts from .env.example, so every setting keeps its documentation, and fills
-# in what a server needs: the domain, HTTPS on 80/443, fresh random secrets for
-# the agent channel and both database users, and COMPOSE_FILE so every
-# `docker compose` here includes docker-compose.prod.yml.
+# in what a server behind the Cloudflare tunnel needs: the public domain, the
+# cookie's Secure flag, fresh random secrets for the agent channel and both
+# database users, and COMPOSE_FILE so every `docker compose` here includes
+# docker-compose.prod.yml.
 #
-# The API keys are left empty on purpose: they are pasted in by hand, and they
-# must be NEW ones - see docs/DEPLOY.md, "Ключи".
+# The tunnel token and the API keys are left empty on purpose: they are pasted
+# in by hand, and the keys must be NEW ones - see docs/DEPLOY.md.
 #
 # Refuses to touch an existing .env: regenerating the database passwords
 # under a running database locks every service out of it.
@@ -17,8 +18,7 @@
 source "$(dirname "$0")/lib.sh"
 
 domain="${1:-}"
-email="${2:-}"
-[ -n "$domain" ] || die "укажите домен: bash deploy/init-env.sh akronai.kz [почта-для-letsencrypt]"
+[ -n "$domain" ] || die "укажите домен: bash deploy/init-env.sh akronustaz.com"
 printf '%s' "$domain" | grep -Eq '^[a-z0-9]([a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}$' \
     || die "'$domain' не похож на домен (только строчные буквы, без https:// и слэшей)"
 [ ! -e "$ENV_FILE" ] || die ".env уже есть - не перезаписываю. Правьте его руками или удалите, если стек ещё ни разу не запускался."
@@ -53,17 +53,17 @@ set_var AGENT_SECRET "$(random 64)"
 set_var MONGO_ROOT_PASSWORD "$(random 40)"
 set_var MONGO_APP_PASSWORD "$(random 40)"
 
-set_var HTTPS_TERMINATED 1
-set_var TLS_SERVER_NAME "$domain"
-set_var FRONTEND_PORT 80
-set_var HTTPS_PORT 443
-set_var TLS_PUBLIC_PORT_SUFFIX ""
+set_var SITE_DOMAIN "$domain"
 set_var CORS_ORIGINS "https://$domain"
-case "$domain" in
-    www.*) set_var TLS_REDIRECT_HOSTS "" ;;
-    *) set_var TLS_REDIRECT_HOSTS "www.$domain" ;;
-esac
-set_var LETSENCRYPT_EMAIL "$email"
+# TLS ends at Cloudflare; nginx here is plain HTTP. The cookie still has to
+# be Secure, because the browser only ever talks https to this site.
+set_var COOKIE_SECURE 1
+set_var HTTPS_TERMINATED 0
+set_var TUNNEL_TOKEN ""
+
+# 480p to start with: the box is a 2-core i3, and medium (720p) renders
+# several times slower. Raise it once render times on the server are known.
+set_var EFFORT_DEFAULT low
 
 set_var BACKUP_DIR /var/backups/anyq
 
@@ -71,7 +71,8 @@ cat <<EOF
 
 .env создан (права 600). Секреты агента и базы сгенерированы.
 
-Осталось вписать руками - НОВЫЕ ключи, не те, что уже где-то светились:
+Осталось вписать руками - ключи НОВЫЕ, не те, что уже где-то светились:
+    TUNNEL_TOKEN=           токен туннеля из панели Cloudflare (обязательно)
     OPENROUTER_API_KEY=     без него не работает ИИ
     AZURE_SPEECH_KEY=       без него видео без озвучки
     AZURE_SPEECH_REGION=
@@ -81,5 +82,5 @@ cat <<EOF
 
     nano .env
 
-Дальше: bash deploy/init-tls.sh
+Дальше: bash deploy/deploy.sh
 EOF

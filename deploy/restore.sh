@@ -30,7 +30,7 @@ fi
 
 name="${1##*/}"
 [ -f "$backup_dir/mongo/$name" ] || die "нет файла $backup_dir/mongo/$name"
-domain="$(env_get TLS_SERVER_NAME)"; domain="${domain%% *}"
+domain="$(env_get SITE_DOMAIN)"
 
 cat <<EOF
 

@@ -1,4 +1,5 @@
-# Production, on one VPS with Docker. Layered over docker-compose.yml:
+# Production: one home server behind a Cloudflare tunnel. Layered over
+# docker-compose.yml:
 #
 #     COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml    (in .env)
 #
@@ -6,14 +7,21 @@
 # nobody has to remember a -f flag at 2 a.m. deploy/init-env.sh writes that
 # line; docs/DEPLOY.md is the walkthrough.
 #
-# What this adds to the stack, and nothing else:
-#   - the certificate comes from Let's Encrypt (certbot, renewing itself)
-#     instead of a directory on the host;
-#   - a backup service: the database every night, the rendered videos
-#     mirrored beside it;
-#   - a restore service that only ever runs when asked (profile "restore").
-# Ports, TLS and the cookie flag stay where they were: .env (FRONTEND_PORT=80,
-# HTTPS_PORT=443, HTTPS_TERMINATED=1).
+# How a request gets in:
+#
+#   browser --https--> Cloudflare --tunnel--> cloudflared --http--> frontend:80
+#
+# The box has no public address and publishes no port: cloudflared dials out
+# to Cloudflare and the requests come back down that connection. TLS ends at
+# Cloudflare's edge; the session cookie's Secure flag comes from
+# COOKIE_SECURE=1 in .env, and nginx takes the client's address from
+# CF-Connecting-IP. The one published port is 127.0.0.1:8080 - the site
+# without Cloudflare, for checking over ssh from the server itself.
+#
+# Also here: a nightly backup, a restore that runs only when asked, log
+# rotation on everything, and CPU priority for the site over rendering.
+#
+# `ports: !override` needs Docker Compose 2.24.4 or newer (deploy.sh checks).
 
 x-logging: &logging
   driver: json-file
@@ -22,37 +30,61 @@ x-logging: &logging
     max-file: "3"
 
 services:
+  mongo:
+    # The WiredTiger cache defaults to half of (RAM - 1 GB) of the whole
+    # machine, not of this container's 2 GB limit - on 8 GB that is 3.5 GB,
+    # and mongod would be killed for going over its own limit under load.
+    command: ["mongod", "--auth", "--wiredTigerCacheSizeGB", "1"]
+    logging: *logging
+
+  backend:
+    logging: *logging
+
+  quiz:
+    logging: *logging
+
   frontend:
     environment:
-      # certbot keeps the files under live/<cert-name>/; init-tls.sh names
-      # the certificate "anyq", so this path does not depend on the domain.
-      - TLS_CERT_DIR=/etc/nginx/certs/live/anyq
-      # www.<domain> and any other alias: a 301 to TLS_SERVER_NAME.
-      - TLS_REDIRECT_HOSTS=${TLS_REDIRECT_HOSTS:-}
-    volumes:
-      # Same mount point as the development certificate in docker-compose.yml,
-      # which compose merges by target - so this replaces that bind mount
-      # rather than adding a second one. The whole letsencrypt tree, not just
-      # live/: the files in live/ are symlinks into archive/.
-      - letsencrypt:/etc/nginx/certs:ro
-      # Where certbot leaves the token Let's Encrypt fetches over HTTP.
-      - acme_webroot:/var/www/acme:ro
+      # Port 80 is what the tunnel's route points at (frontend:80).
+      - NGINX_PORT=80
+      # The client's address from Cloudflare's CF-Connecting-IP - which only
+      # cloudflared, inside this docker network, can deliver here. Without it
+      # every visitor has cloudflared's address and they all share one set
+      # of sign-in, sign-up and quiz-join limits.
+      - TRUST_CF_CONNECTING_IP=1
+    # Replaces the development port rather than adding to it. Loopback only:
+    # `curl http://127.0.0.1:8080/` on the server, or an ssh tunnel to it.
+    ports: !override
+      - "127.0.0.1:8080:80"
+    logging: *logging
 
-  certbot:
-    image: certbot/certbot:v5.8.0
-    container_name: anyq-certbot
+  # The way in. Dials out to Cloudflare and carries the requests for the
+  # route set up in the Cloudflare dashboard (akronustaz.com -> frontend:80).
+  cloudflared:
+    image: cloudflare/cloudflared:2026.10.0
+    container_name: anyq-cloudflared
     restart: unless-stopped
-    # Checks twice a day; certbot only renews within 30 days of expiry, so
-    # almost every run is a no-op. The frontend notices the new files and
-    # reloads nginx by itself (docker-entrypoint.d/15-anyq-tls.sh).
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - trap exit TERM; while :; do certbot renew --webroot -w /var/www/acme --quiet; sleep 12h & wait $${!}; done
-    volumes:
-      - letsencrypt:/etc/letsencrypt
-      - acme_webroot:/var/www/acme
-    # Not on anyq-network: it talks to Let's Encrypt and to nothing in the
-    # stack, so it is left on the project's default network, away from mongo.
+    # --no-autoupdate: the version is the one pinned above, changed on
+    # purpose, not swapped underneath a running site. The metrics address is
+    # fixed so the healthcheck below knows where to ask.
+    command: ["tunnel", "--no-autoupdate", "--metrics", "127.0.0.1:20241", "run"]
+    environment:
+      # Read by cloudflared itself. From the dashboard: Zero Trust ->
+      # Networks -> Tunnels -> the tunnel -> the token in the install command.
+      # Empty is caught by deploy.sh; cloudflared would only restart forever.
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN:-}
+    depends_on:
+      - frontend
+    networks:
+      - anyq-network
+    healthcheck:
+      # Ready means connected to Cloudflare's edge, not merely running.
+      test: ["CMD", "cloudflared", "tunnel", "--metrics", "127.0.0.1:20241", "ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    read_only: true
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -61,7 +93,28 @@ services:
       resources:
         limits:
           memory: 128m
-          cpus: "0.25"
+          cpus: "0.5"
+    logging: *logging
+
+  # Rendering. The agent works one request at a time already - its generation
+  # worker takes them off a queue one by one - so the cap is about the size of
+  # one render, and the shares about who waits when the CPU is full: the site
+  # (nginx, backend, mongo, quiz at the default 1024) goes first, rendering
+  # and exports at 512 take what is left. The box is a 2-core / 4-thread i3.
+  agent:
+    cpu_shares: 512
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+    logging: *logging
+
+  exporter:
+    cpu_shares: 512
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
     logging: *logging
 
   # Nightly backups. The same image as the database, so mongodump matches the
@@ -69,7 +122,7 @@ services:
   # readWrite on the one database is all a dump of that database needs, and
   # the root password stays out of this container.
   backup:
-    image: mongo:7
+    image: mongo:7.0.43
     container_name: anyq-backup
     restart: unless-stopped
     entrypoint: ["bash", "/opt/anyq/backup.sh"]
@@ -84,8 +137,8 @@ services:
       - BACKUP_KEEP_DAYS=${BACKUP_KEEP_DAYS:-14}
     volumes:
       # On the host, outside every docker volume, so `docker compose down -v`
-      # cannot take the backups with the data. Still the same machine: copy
-      # it somewhere else too (docs/DEPLOY.md, "Копия бэкапов").
+      # cannot take the backups with the data - and a plain directory, so
+      # copying them off the box is an rsync or scp away.
       - ${BACKUP_DIR:-/var/backups/anyq}:/backups
       - media_data:/media:ro
       - ./deploy/backup.sh:/opt/anyq/backup.sh:ro
@@ -119,8 +172,9 @@ services:
 
   # Only for deploy/restore.sh. The one container with the media volume
   # writable and the backups read-only - the opposite of the service above.
+  # A one-off: no restart policy, it exits when the restore is done.
   restore:
-    image: mongo:7
+    image: mongo:7.0.43
     profiles: ["restore"]
     entrypoint: ["bash", "/opt/anyq/backup.sh"]
     environment:
@@ -143,7 +197,3 @@ services:
       - CHOWN
       - DAC_OVERRIDE
     logging: *logging
-
-volumes:
-  letsencrypt:
-  acme_webroot:

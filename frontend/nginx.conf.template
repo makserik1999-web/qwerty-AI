@@ -1,18 +1,22 @@
+# The scheme the browser actually used. Behind the Cloudflare tunnel nginx
+# itself only ever sees plain HTTP - TLS ends at Cloudflare's edge, which says
+# so in X-Forwarded-Proto: https. Passing $scheme on instead would tell the
+# backend every request was insecure. With no such header (development, a
+# check over the ssh tunnel) it is this hop's own scheme.
+map $http_x_forwarded_proto $anyq_forwarded_proto {
+    default $http_x_forwarded_proto;
+    ""      $scheme;
+}
+
 server {
-    # Which sockets this site answers on, written by the entrypoint
-    # (docker-entrypoint.d/15-anyq-tls.sh) from HTTPS_TERMINATED:
-    #
-    #   off - `listen 3000;`
-    #   on  - `listen 3443 ssl;` plus the certificate, and a second server
-    #         block in redirect.conf that answers 3000 with a 301 to https.
-    #
-    # An include rather than two whole templates: everything below - the
-    # headers, the proxying, the caching rules - has to be identical on both,
-    # and two copies of it would drift. nginx cannot start with an
-    # `ssl_certificate` pointing at a file that is not there, which is why
-    # this cannot simply be a line that is always present.
+    # The port, and whose word to take for the client's address, are written
+    # by the entrypoint (docker-entrypoint.d/15-anyq-listen.sh): NGINX_PORT,
+    # and CF-Connecting-IP only when TRUST_CF_CONNECTING_IP=1. Includes rather
+    # than template variables because real_ip.inc is either a few lines or
+    # nothing at all.
     include /etc/nginx/conf.d/listen.inc;
-    server_name ${TLS_SERVER_NAME};
+    include /etc/nginx/conf.d/real_ip.inc;
+    server_name _;
     root /usr/share/nginx/html;
     index index.html;
 
@@ -85,15 +89,6 @@ server {
         expires -1;
     }
 
-    # Let's Encrypt's HTTP check, for the first certificate: deploy/init-tls.sh
-    # brings the site up on plain HTTP once, without TLS, and certbot leaves
-    # its token in this shared directory. With TLS on, port 3000 belongs to
-    # redirect.conf, which answers the same path for the renewals. Without
-    # this, the SPA fallback below would answer index.html and the check fails.
-    location ^~ /.well-known/acme-challenge/ {
-        root /var/www/acme;
-        default_type text/plain;
-    }
 
     # The AI agent channel must NEVER be reachable from outside: the agent
     # connects to the backend directly over the internal docker network.
@@ -104,14 +99,20 @@ server {
         return 403;
     }
 
+    # Every proxied request carries the same four headers. X-Real-IP and
+    # X-Forwarded-For are $remote_addr - the client itself once real_ip.inc
+    # has taken it from CF-Connecting-IP - and X-Forwarded-For is replaced,
+    # not appended to: an entry the client wrote is not evidence of anything,
+    # and uvicorn's --proxy-headers would report the first one.
+
     # Proxy API requests to backend
     location /api {
         proxy_pass $backend$request_uri;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $anyq_forwarded_proto;
         # Longer than the slowest endpoint behind it, which is writing a
         # lesson plan: the backend gives that LESSON_PLAN_TIMEOUT_SEC (150) and
         # nginx's own default is 60, so without this the teacher gets an nginx
@@ -132,8 +133,8 @@ server {
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $anyq_forwarded_proto;
     }
 
     location ^~ /api/play/ {
@@ -141,8 +142,8 @@ server {
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $anyq_forwarded_proto;
     }
 
     # A class of phones holding a socket each for the length of a quiz.
@@ -154,8 +155,8 @@ server {
         proxy_set_header Connection "upgrade";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $anyq_forwarded_proto;
         proxy_read_timeout 3600s;
         proxy_send_timeout 3600s;
         proxy_buffering off;
@@ -169,8 +170,8 @@ server {
         proxy_set_header Connection "upgrade";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $anyq_forwarded_proto;
         proxy_read_timeout 86400s;
         proxy_send_timeout 86400s;
         proxy_connect_timeout 7d;
@@ -183,8 +184,8 @@ server {
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $anyq_forwarded_proto;
     }
 
     # Cache static assets. Safe to keep for a year because vite puts a content

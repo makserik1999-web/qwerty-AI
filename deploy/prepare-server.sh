@@ -7,27 +7,21 @@
 #   - a swap file, when there is none: building the agent image and rendering
 #     with LaTeX both spike memory, and the OOM killer picks the database;
 #   - the backups directory, readable by root only;
-#   - the monitoring cron line;
-#   - the firewall (ufw): ssh, 80 and 443 - only when asked, with --firewall,
-#     because a firewall switched on over ssh is how people lock themselves out.
+#   - the monitoring cron line.
+#
+# It does NOT touch the firewall, ssh or Tailscale. Nothing here needs an open
+# port - the Cloudflare tunnel dials out - so ufw stays exactly as it is, and
+# the stack publishes nothing but 127.0.0.1:8080.
 #
 # Safe to run again: each step looks before it acts.
 
 source "$(dirname "$0")/lib.sh"
 
-firewall=0
-for arg in "$@"; do
-    case "$arg" in
-        --firewall) firewall=1 ;;
-        *) die "неизвестный флаг $arg (есть --firewall)" ;;
-    esac
-done
-
+[ $# -eq 0 ] || die "флагов нет: sudo bash deploy/prepare-server.sh"
 [ "$(id -u)" = 0 ] || die "нужен root: sudo bash deploy/prepare-server.sh"
-need_cmd docker "Поставьте Docker: https://docs.docker.com/engine/install/ (раздел для вашего дистрибутива)"
-docker compose version >/dev/null 2>&1 || die "нет docker compose v2: apt install docker-compose-plugin"
+need_cmd docker "Поставьте Docker: https://docs.docker.com/engine/install/debian/"
+need_compose 2.24.4
 need_cmd curl "apt install curl"
-command -v openssl >/dev/null 2>&1 || warn "нет openssl - мониторинг не сможет проверять срок сертификата (apt install openssl)"
 
 say "Swap"
 if [ -n "$(swapon --show --noheadings 2>/dev/null)" ]; then
@@ -65,25 +59,9 @@ cat > /etc/logrotate.d/anyq-monitor <<'EOF'
 EOF
 echo "  /etc/cron.d/anyq-monitor -> /var/log/anyq-monitor.log"
 
-say "Фаервол"
-if [ "$firewall" = 1 ]; then
-    need_cmd ufw "apt install ufw"
-    # The port this very session came in on, so it stays open whatever it is.
-    ssh_port="$(printf '%s' "${SSH_CONNECTION:-}" | awk '{print $4}')"
-    ssh_port="${ssh_port:-22}"
-    ufw allow "$ssh_port/tcp" >/dev/null
-    ufw allow 80/tcp >/dev/null
-    ufw allow 443/tcp >/dev/null
-    ufw --force enable >/dev/null
-    echo "  открыты: $ssh_port (ssh), 80, 443"
-    # Docker publishes ports past ufw's rules, which is why the stack
-    # publishes only 80 and 443 and nothing else - mongo is not on the host.
-else
-    echo "  не трогаю. Чтобы открыть только ssh, 80 и 443: sudo bash deploy/prepare-server.sh --firewall"
-fi
-
 cat <<'EOF'
 
-Сервер готов. Проверить тревоги (когда TELEGRAM_* в .env заполнены):
+Сервер готов. Фаервол, ssh и Tailscale не трогал.
+Проверить тревоги (когда TELEGRAM_* в .env заполнены):
     bash deploy/monitor.sh --test
 EOF

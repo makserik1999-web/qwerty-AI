@@ -33,4 +33,12 @@ EXPOSE 8000
 # UI clients are not left undetected by the looser setting: the browser runs
 # its own heartbeat over the same socket, pinging every 25s and giving up
 # after 35 (frontend/src/lib/useWebSocket.ts).
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--ws-ping-interval", "30", "--ws-ping-timeout", "90"]
+#
+# --proxy-headers with every peer trusted: the only thing that can reach this
+# port is the internal docker network, and the one thing on it that talks
+# HTTP here is nginx - whose address changes with every recreate, and this
+# uvicorn (0.27) takes exact addresses only, no subnets. nginx REPLACES
+# X-Forwarded-For with the client it resolved (CF-Connecting-IP behind the
+# Cloudflare tunnel) rather than appending to what the client sent, so the
+# address and scheme uvicorn reports are nginx's word, not the browser's.
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--ws-ping-interval", "30", "--ws-ping-timeout", "90", "--proxy-headers", "--forwarded-allow-ips", "*"]

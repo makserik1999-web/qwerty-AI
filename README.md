@@ -72,8 +72,8 @@ docker compose up --build -d
 
 ### Production
 
-One VPS with Docker, a domain, HTTPS from Let's Encrypt, nightly backups and
-monitoring: [docs/DEPLOY.md](docs/DEPLOY.md).
+One server with Docker behind a Cloudflare tunnel - no public IP, no open
+ports - with nightly backups and monitoring: [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ## Services
 

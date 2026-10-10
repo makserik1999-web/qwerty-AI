@@ -82,12 +82,38 @@ wait_service() {
     done
 }
 
-# HTTP status of a URL on THIS server, under the site's real name - so it is
-# checked before DNS points here, and without a round trip through it.
-status_of() {
-    local url="$1" host port
-    host="$(printf '%s' "$url" | sed -E 's#^[a-z]+://([^/:]+).*#\1#')"
-    case "$url" in https://*) port=443 ;; *) port=80 ;; esac
-    curl -s -o /dev/null -w '%{http_code}' --max-time 20 \
-        --resolve "$host:$port:127.0.0.1" ${INSECURE:+-k} "$url" || true
+# The site without Cloudflare: nginx on the loopback port docker-compose.prod.yml
+# publishes. What answers here is the stack itself, whatever the tunnel does.
+LOCAL_URL="${ANYQ_LOCAL_URL:-http://127.0.0.1:8080}"
+
+# HTTP status of a path on the local port. Extra arguments go to curl.
+local_status() {
+    local path="$1"; shift
+    curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$@" "$LOCAL_URL$path" || true
+}
+
+# HTTP status of a public URL - through DNS, Cloudflare and the tunnel, the way
+# a visitor gets there. Extra arguments go to curl.
+public_status() {
+    local url="$1"; shift
+    curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$@" "$url" || true
+}
+
+# The status a websocket handshake gets: 101 when the upgrade made it through.
+# The key is RFC 6455's own example - base64 of exactly 16 bytes, or 400.
+# curl then waits on the open socket until --max-time, hence the `|| true`.
+ws_status() {
+    curl -s -o /dev/null -w '%{http_code}' --max-time 5 --http1.1 \
+        -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
+        -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' \
+        "$@" || true
+}
+
+# Docker Compose at least this version: `ports: !override` arrived in 2.24.4.
+need_compose() {
+    local have
+    have="$(docker compose version --short 2>/dev/null | sed 's/^v//')"
+    [ -n "$have" ] || die "нет docker compose v2 (пакет docker-compose-plugin из репозитория Docker)"
+    [ "$(printf '%s\n%s\n' "$1" "$have" | sort -V | head -1)" = "$1" ] \
+        || die "docker compose $have, нужен $1 или новее. Поставьте Docker из репозитория Docker, не из Debian: https://docs.docker.com/engine/install/debian/"
 }

@@ -96,42 +96,47 @@ class TestTheDatabaseRequiresAPassword:
 
 
 # -------------------------------------------------------------------- TLS --
+#
+# TLS left this stack when production moved behind a Cloudflare tunnel:
+# Cloudflare terminates it at the edge and the tunnel brings plain HTTP to
+# nginx on port 80. What is asserted now is that nothing of the old setup is
+# half-left - a redirect to https here would loop forever behind the tunnel -
+# and that the cookie still gets its Secure flag (the class below).
 
 
-class TestTheSiteCanServeHTTPS:
-    def test_the_frontend_takes_a_certificate(self, compose):
-        block = _service(compose, "frontend")
-        assert "/etc/nginx/certs:ro" in block, "no certificate is mounted"
+class TestPlainHttpBehindTheTunnel:
+    def test_nginx_has_no_tls_left(self):
+        conf = (ROOT / "frontend" / "nginx.conf.template").read_text(encoding="utf-8")
+        for gone in ("ssl_certificate", "listen 443", "3443", "acme-challenge",
+                     "return 301 https"):
+            assert gone not in conf, gone
 
-    def test_the_certificate_is_mounted_read_only(self, compose):
-        assert ":/etc/nginx/certs:ro" in _service(compose, "frontend")
-
-    def test_the_https_port_is_published(self, compose):
-        assert "3443" in _service(compose, "frontend")
-
-    def test_the_entrypoint_that_decides_this_is_shipped(self):
-        script = ROOT / "frontend" / "docker-entrypoint.d" / "15-anyq-tls.sh"
-        assert script.is_file()
+    def test_no_redirect_to_https_is_written(self):
+        """Cloudflare reaches nginx over plain HTTP. A 301 to https here would
+        come back through Cloudflare as plain HTTP again, forever."""
+        script = (ROOT / "frontend" / "docker-entrypoint.d" / "15-anyq-listen.sh")
         body = script.read_text(encoding="utf-8")
-        # It must refuse rather than fall back. Serving the whole site in
-        # clear text because a file was missing is the failure nobody notices.
+        assert "return 301" not in body
+        assert 'rm -f "$CONF_D/redirect.conf"' in body, "a stale redirect.conf would survive"
+
+    def test_the_port_is_checked_before_it_is_written(self):
+        body = (ROOT / "frontend" / "docker-entrypoint.d" / "15-anyq-listen.sh").read_text(encoding="utf-8")
         assert "exit 1" in body
-        assert "redirect.conf" in body, "plain HTTP is not redirected"
 
     def test_the_dockerfile_makes_it_executable(self):
         """A file copied out of a Windows checkout arrives without its
         executable bit, and the nginx entrypoint skips it in silence - so the
-        site would come up on plain HTTP with TLS switched on."""
+        site would come up listening on nothing it was told to."""
         dockerfile = (ROOT / "frontend" / "Dockerfile").read_text(encoding="utf-8")
-        assert "chmod +x /docker-entrypoint.d/15-anyq-tls.sh" in dockerfile
+        assert "chmod +x /docker-entrypoint.d/15-anyq-listen.sh" in dockerfile
 
-    def test_the_healthcheck_survives_the_redirect(self, compose):
-        """With TLS on, port 3000 answers a 301 and nothing else. A plain HTTP
-        probe there fails, the container is unhealthy forever, and everything
-        that depends on it stops starting."""
+    def test_the_healthcheck_follows_the_port(self, compose):
+        """3000 in development, 80 in production: a probe of a fixed port is
+        unhealthy forever on the other one, and everything that depends on
+        the frontend stops starting."""
         block = _service(compose, "frontend")
         healthcheck = block[block.index("healthcheck:"):]
-        assert "3443" in healthcheck, healthcheck
+        assert "NGINX_PORT" in healthcheck, healthcheck
 
     def test_the_private_key_cannot_be_committed(self):
         ignored = GITIGNORE.read_text(encoding="utf-8")
