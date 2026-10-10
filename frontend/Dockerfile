@@ -3,11 +3,11 @@ FROM node:20-alpine AS build
 
 WORKDIR /app
 
-# Copy package files
-COPY package.json ./
+# Copy package files (lockfile first: reproducible installs)
+COPY package.json package-lock.json ./
 
 # Install dependencies
-RUN npm install
+RUN npm ci
 
 # Copy source files
 COPY . .
@@ -21,14 +21,30 @@ FROM nginx:alpine
 # Copy built files
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# Copy nginx configuration template
+# Copy nginx configuration template. The official nginx entrypoint renders
+# /etc/nginx/templates/*.template automatically (envsubst), so no manual
+# envsubst in CMD is needed.
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+
+# Decides the listeners before the templates are rendered. The nginx image
+# runs /docker-entrypoint.d in name order and renders at 20-, so this lands
+# first. Explicitly chmod'ed: a file copied from a Windows checkout arrives
+# without its executable bit and the entrypoint would skip it silently.
+COPY docker-entrypoint.d/15-anyq-listen.sh /docker-entrypoint.d/15-anyq-listen.sh
+RUN chmod +x /docker-entrypoint.d/15-anyq-listen.sh
 
 # Default backend URL (can be overridden at runtime)
 ENV BACKEND_URL=http://backend:8000
+# The quiz service. Rendered into the template like the backend's, so it has
+# to be defined even where compose does not set it.
+ENV QUIZ_URL=http://quiz:8100
+# Docker's embedded DNS, so the backend can move without taking the site down.
+ENV DNS_RESOLVER=127.0.0.11
+# Development defaults. Production (docker-compose.prod.yml) listens on 80 for
+# the Cloudflare tunnel and takes the client's address from CF-Connecting-IP.
+ENV NGINX_PORT=3000
+ENV TRUST_CF_CONNECTING_IP=0
 
 EXPOSE 3000
 
-# Use envsubst to substitute environment variables and start nginx
-CMD ["/bin/sh", "-c", "envsubst '${BACKEND_URL}' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
-
+CMD ["nginx", "-g", "daemon off;"]
