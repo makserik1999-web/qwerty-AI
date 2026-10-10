@@ -11,7 +11,7 @@ router = APIRouter()
 
 @router.get("/")
 async def root():
-    return {"message": "Anyq Backend is running"}
+    return {"message": "Akron Backend is running"}
 
 
 @router.get("/health")

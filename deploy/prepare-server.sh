@@ -44,7 +44,7 @@ echo "  $backup_dir (700, root)"
 say "Мониторинг (cron, каждые 5 минут)"
 repo="$(pwd)"
 cat > /etc/cron.d/anyq-monitor <<EOF
-# Anyq: deploy/monitor.sh - alerts to Telegram when something breaks.
+# Akron: deploy/monitor.sh - alerts to Telegram when something breaks.
 */5 * * * * root cd $repo && bash deploy/monitor.sh >> /var/log/anyq-monitor.log 2>&1
 EOF
 chmod 644 /etc/cron.d/anyq-monitor

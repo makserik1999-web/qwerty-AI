@@ -43,7 +43,7 @@ notify() {
 }
 
 if [ "${1:-}" = "--test" ]; then
-    notify "Anyq ($domain): проверка связи мониторинга"
+    notify "Akron ($domain): проверка связи мониторинга"
     exit 0
 fi
 
@@ -98,12 +98,12 @@ now="$(date +%s)"
 
 if [ -n "$current" ]; then
     if [ "$current" != "$previous" ] || [ $((now - last_sent)) -ge "$REMIND_SEC" ]; then
-        notify "Anyq ($domain): проблемы
+        notify "Akron ($domain): проблемы
 $(printf '%s\n' "$current" | sed 's/^/- /')"
         last_sent="$now"
     fi
 elif [ -n "$previous" ]; then
-    notify "Anyq ($domain): всё снова в порядке"
+    notify "Akron ($domain): всё снова в порядке"
 fi
 printf '%s\n%s\n' "$last_sent" "$current" > "$STATE"
 

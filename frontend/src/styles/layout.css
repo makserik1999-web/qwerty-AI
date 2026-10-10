@@ -20,12 +20,6 @@
   gap: 6px;
 }
 
-.logo__word-ai {
-  font-weight: var(--fw-regular);
-  color: var(--text-secondary);
-  letter-spacing: 0.06em;
-}
-
 .logo:hover {
   text-decoration: none;
 }

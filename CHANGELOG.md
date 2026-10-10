@@ -5,6 +5,21 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### The product is called Akron
+
+**Changed**
+
+Everything a person sees says Akron instead of Anyq: the wordmark (AKRON,
+without the AI), the page title and description, every interface string in
+Kazakh, Russian and English, the quiz join page, the footer, the teacher deck
+(PPTX), the fallback name of a downloaded file (`akron-export`), and the
+Telegram alerts from `deploy/monitor.sh`.
+
+The code keeps `anyq` on purpose - the Python package, container and volume
+names, the database, the session cookie, the browser storage keys and the
+`ANYQ_*` variables. Renaming those would log everyone out, reset saved
+settings and leave the data in volumes nothing mounts.
+
 ### Production: a home server behind a Cloudflare tunnel
 
 **Changed**

@@ -24,7 +24,7 @@ if __name__ == "__main__":
     import asyncio
 
     async def main():
-        print("Science Manim Graph Agent (Anyq + MCP)")
+        print("Science Manim Graph Agent (Akron + MCP)")
         while True:
             user_message = input("you> ").strip()
             if not user_message:

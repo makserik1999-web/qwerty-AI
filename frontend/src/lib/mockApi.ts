@@ -74,5 +74,5 @@ export async function regenerateQuestion(
 
 export async function exportDocument(format: 'pdf' | 'docx'): Promise<string> {
   await sleep(1400)
-  return `anyq-assessment.${format}`
+  return `akron-assessment.${format}`
 }

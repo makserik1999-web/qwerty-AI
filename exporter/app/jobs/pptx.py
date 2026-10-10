@@ -105,7 +105,7 @@ def _textbox(slide, left, top, width, height, text, size, color=TEXT, bold=False
 
 def run_pptx(source: Path, destination: Path, params: Dict[str, Any],
              max_bytes: int, on_progress: Callable[[int], None]) -> Dict[str, Any]:
-    title = str(params.get("source_title") or "Anyq").strip()
+    title = str(params.get("source_title") or "Akron").strip()
     body = str(params.get("educator_text") or "")
     steps = _paragraphs(body)
     wanted = max(MIN_STEPS, min(MAX_STEPS, len(steps) or MIN_STEPS))
@@ -126,7 +126,7 @@ def run_pptx(source: Path, destination: Path, params: Dict[str, Any],
     _textbox(slide, Inches(1), Inches(2.4), Inches(11.3), Inches(2),
              title, 40, TEXT, bold=True)
     _textbox(slide, Inches(1), Inches(4.4), Inches(11.3), Inches(0.8),
-             "Anyq", 18, ACCENT)
+             "Akron", 18, ACCENT)
 
     # --- one slide per step -----------------------------------------------
     frames_dir = destination.parent / f"{destination.stem}_frames"
@@ -166,7 +166,7 @@ def run_pptx(source: Path, destination: Path, params: Dict[str, Any],
         _textbox(slide, Inches(1), Inches(3.2), Inches(11.3), Inches(1.2),
                  title, 28, TEXT, bold=True)
         _textbox(slide, Inches(1), Inches(4.4), Inches(11.3), Inches(0.8),
-                 "The full animation is in Anyq", 16, MUTED)
+                 "The full animation is in Akron", 16, MUTED)
 
         deck.save(str(destination))
     finally:

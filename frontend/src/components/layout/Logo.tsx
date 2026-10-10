@@ -15,10 +15,10 @@ interface LogoProps {
   markOnly?: boolean
 }
 
-/** The Anyq lockup: the supplied mark, plus the wordmark. */
+/** The Akron lockup: the supplied mark, plus the wordmark. */
 export function Logo({ to = '/', className, size = 32, markOnly = false }: LogoProps) {
   return (
-    <Link to={to} className={cx('logo', className)} aria-label="Anyq AI">
+    <Link to={to} className={cx('logo', className)} aria-label="Akron">
       <img
         src={logoUrl}
         alt=""
@@ -29,7 +29,7 @@ export function Logo({ to = '/', className, size = 32, markOnly = false }: LogoP
 
       {markOnly ? null : (
         <span className="logo__word">
-          ANYQ<span className="logo__word-ai">AI</span>
+          AKRON
         </span>
       )}
     </Link>

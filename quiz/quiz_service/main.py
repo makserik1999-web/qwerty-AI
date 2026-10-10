@@ -26,7 +26,7 @@ async def lifespan(app: FastAPI):
         database.db.client.close()
 
 
-app = FastAPI(title="Anyq Quiz", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="Akron Quiz", version="1.0.0", lifespan=lifespan)
 app.add_exception_handler(ApiError, api_error_handler)
 
 app.include_router(quizzes.router)

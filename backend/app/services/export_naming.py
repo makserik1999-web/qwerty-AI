@@ -34,7 +34,7 @@ _SEPARATORS = re.compile(r"[\s_]+")
 _REPEATED_DASH = re.compile(r"-{2,}")
 
 MAX_STEM = 60
-FALLBACK_STEM = "anyq-export"
+FALLBACK_STEM = "akron-export"
 
 
 def transliterate(text: str) -> str:

@@ -4,7 +4,7 @@
  */
 
 export const kk = {
-  'app.name': 'Anyq',
+  'app.name': 'Akron',
   'app.tagline': 'Сұрағыңды анимацияға айналдыр',
 
   'common.signIn': 'Кіру',
@@ -113,17 +113,17 @@ export const kk = {
   'landing.nav.about': 'Біз туралы',
   'landing.hero.title': 'Кез келген сұрақ — қысқа анимациялық түсіндірме',
   'landing.hero.subtitle':
-    'Сұрағыңды қазақша немесе орысша жаз. Anyq оны қадамдап түсіндіріп, сол түсіндірмені геометриялық анимацияға айналдырады. Күндер емес — минуттар ішінде.',
+    'Сұрағыңды қазақша немесе орысша жаз. Akron оны қадамдап түсіндіріп, сол түсіндірмені геометриялық анимацияға айналдырады. Күндер емес — минуттар ішінде.',
   'landing.hero.cta': 'Тегін бастау',
   'landing.hero.secondary': 'Мысалдарды көру',
   'landing.hero.caption':
-    'Пифагор теоремасы — Anyq құрастырған анимациядан алынған кадр.',
+    'Пифагор теоремасы — Akron құрастырған анимациядан алынған кадр.',
   'landing.compare.title': 'Оқығаннан гөрі көрген түсінікті',
   'landing.compare.subtitle':
     'Тұтқаны солға-оңға сүйреңіз. Сол жағында — оқулықтағы мәтін, оң жағында — сол мәтіннен жасалған анимация.',
   'landing.compare.hint': 'Тұтқаны сүйреңіз',
   'landing.compare.textLabel': 'Оқулық мәтіні',
-  'landing.compare.videoLabel': 'Anyq анимациясы',
+  'landing.compare.videoLabel': 'Akron анимациясы',
   'landing.compare.sliderLabel': 'Мәтін мен анимацияны салыстыру тұтқасы',
   'landing.compare.textTitle': 'Пифагор теоремасы',
   'landing.compare.textBody':
@@ -134,22 +134,22 @@ export const kk = {
     'Сұрағыңды өз сөзіңмен жаз. Тіл автоматты анықталады, қаласаң өзің таңдай аласың.',
   'landing.how.step2.title': 'Түсіндір',
   'landing.how.step2.body':
-    'Anyq жауапты қадамдарға бөліп жазады: не берілген, қандай заңдылық қолданылады, нәтиже қандай.',
+    'Akron жауапты қадамдарға бөліп жазады: не берілген, қандай заңдылық қолданылады, нәтиже қандай.',
   'landing.how.step3.title': 'Анимациялау',
   'landing.how.step3.body':
     'Әр қадам геометриялық сахнаға айналады. Нәтижесі — бірнеше минутта дайын болатын қысқа түсіндірме бейне.',
   'landing.examples.title': 'Дайын мысалдар',
   'landing.examples.subtitle':
-    'Бәрі Anyq арқылы құрастырылған. Меңзерді апарсаңыз — ойнайды.',
+    'Бәрі Akron арқылы құрастырылған. Меңзерді апарсаңыз — ойнайды.',
   'landing.examples.play': 'Ойнату үшін меңзерді апарыңыз',
   'landing.why.title': 'Неге қазақ тілінде?',
   'landing.why.body1':
     'Бір анимациялық түсіндірмені қолмен жасауға аниматордың бірнеше күні кетеді. Аудиториясы шағын тіл үшін мұндай контентті көлемді түрде шығару экономикалық тұрғыдан тиімсіз. Сондықтан қазақ тілінде сапалы визуалды оқу материалы жоқтың қасы.',
   'landing.why.body2':
-    'Anyq осы жұмысты автоматтандырады. Үлкен тілдердегі оқушылар визуалды түсіндірме көріп жатқанда, қазақ тілді оқушы тек қалың мәтінмен қалмауы керек.',
+    'Akron осы жұмысты автоматтандырады. Үлкен тілдердегі оқушылар визуалды түсіндірме көріп жатқанда, қазақ тілді оқушы тек қалың мәтінмен қалмауы керек.',
   'landing.why.stat1': 'Бір анимацияны қолмен жасау уақыты',
   'landing.why.stat1v': '3–5 күн',
-  'landing.why.stat2': 'Anyq арқылы',
+  'landing.why.stat2': 'Akron арқылы',
   'landing.why.stat2v': '4 минут',
   'landing.why.stat3': 'Қазақша қолдау',
   'landing.why.stat3v': 'Әдепкі тіл',
@@ -642,7 +642,7 @@ export const kk = {
   'quiz.host.openResults': 'Нәтижелерді ашу',
   'quiz.host.backToQuiz': 'Квизге оралу',
   'quiz.host.actionFailed': 'Орындалмады. Қайталап көріңіз.',
-  'quiz.join.brand': 'Anyq квиз',
+  'quiz.join.brand': 'Akron квиз',
   'quiz.join.title': 'Квизге қосылу',
   'quiz.join.lead': 'Мұғалім экранда көрсеткен 6 таңбалы кодты жаз',
   'quiz.join.codeLabel': 'Квиз коды',
@@ -726,7 +726,7 @@ export const kk = {
 export type StringKey = keyof typeof kk
 
 export const ru: Record<StringKey, string> = {
-  'app.name': 'Anyq',
+  'app.name': 'Akron',
   'app.tagline': 'Преврати свой вопрос в анимацию',
 
   'common.signIn': 'Войти',
@@ -834,16 +834,16 @@ export const ru: Record<StringKey, string> = {
   'landing.nav.about': 'О нас',
   'landing.hero.title': 'Любой вопрос — короткое анимированное объяснение',
   'landing.hero.subtitle':
-    'Напишите вопрос на казахском или русском. Anyq разберёт его по шагам и превратит объяснение в геометрическую анимацию. За минуты, а не за дни.',
+    'Напишите вопрос на казахском или русском. Akron разберёт его по шагам и превратит объяснение в геометрическую анимацию. За минуты, а не за дни.',
   'landing.hero.cta': 'Начать бесплатно',
   'landing.hero.secondary': 'Посмотреть примеры',
-  'landing.hero.caption': 'Теорема Пифагора — кадр из анимации, созданной Anyq.',
+  'landing.hero.caption': 'Теорема Пифагора — кадр из анимации, созданной Akron.',
   'landing.compare.title': 'Увидеть понятнее, чем прочитать',
   'landing.compare.subtitle':
     'Перетащите ручку влево или вправо. Слева — текст из учебника, справа — анимация, сделанная из этого текста.',
   'landing.compare.hint': 'Потяните ручку',
   'landing.compare.textLabel': 'Текст учебника',
-  'landing.compare.videoLabel': 'Анимация Anyq',
+  'landing.compare.videoLabel': 'Анимация Akron',
   'landing.compare.sliderLabel': 'Ручка сравнения текста и анимации',
   'landing.compare.textTitle': 'Теорема Пифагора',
   'landing.compare.textBody':
@@ -854,22 +854,22 @@ export const ru: Record<StringKey, string> = {
     'Напишите вопрос своими словами. Язык определяется автоматически, но его можно выбрать вручную.',
   'landing.how.step2.title': 'Объяснить',
   'landing.how.step2.body':
-    'Anyq разбирает ответ по шагам: что дано, какая закономерность применяется, какой получается результат.',
+    'Akron разбирает ответ по шагам: что дано, какая закономерность применяется, какой получается результат.',
   'landing.how.step3.title': 'Анимировать',
   'landing.how.step3.body':
     'Каждый шаг становится геометрической сценой. На выходе — короткое объясняющее видео за считаные минуты.',
   'landing.examples.title': 'Готовые примеры',
   'landing.examples.subtitle':
-    'Всё сделано в Anyq. Наведите курсор — начнётся воспроизведение.',
+    'Всё сделано в Akron. Наведите курсор — начнётся воспроизведение.',
   'landing.examples.play': 'Наведите курсор для воспроизведения',
   'landing.why.title': 'Почему на казахском?',
   'landing.why.body1':
     'На одно анимированное объяснение вручную у аниматора уходит несколько дней. Для языка с небольшой аудиторией выпускать такой контент в объёме экономически невыгодно. Поэтому качественных визуальных учебных материалов на казахском почти нет.',
   'landing.why.body2':
-    'Anyq автоматизирует эту работу. Пока ученики в больших языках смотрят визуальные объяснения, казахоязычный ученик не должен оставаться один на один с плотным текстом.',
+    'Akron автоматизирует эту работу. Пока ученики в больших языках смотрят визуальные объяснения, казахоязычный ученик не должен оставаться один на один с плотным текстом.',
   'landing.why.stat1': 'Одна анимация вручную',
   'landing.why.stat1v': '3–5 дней',
-  'landing.why.stat2': 'Через Anyq',
+  'landing.why.stat2': 'Через Akron',
   'landing.why.stat2v': '4 минуты',
   'landing.why.stat3': 'Казахский язык',
   'landing.why.stat3v': 'Язык по умолчанию',
@@ -1351,7 +1351,7 @@ export const ru: Record<StringKey, string> = {
   'quiz.host.openResults': 'Открыть результаты',
   'quiz.host.backToQuiz': 'Вернуться к квизу',
   'quiz.host.actionFailed': 'Не получилось. Попробуйте ещё раз.',
-  'quiz.join.brand': 'Anyq квиз',
+  'quiz.join.brand': 'Akron квиз',
   'quiz.join.title': 'Войти в квиз',
   'quiz.join.lead': 'Введи 6-значный код с экрана учителя',
   'quiz.join.codeLabel': 'Код квиза',
@@ -1433,7 +1433,7 @@ export const ru: Record<StringKey, string> = {
 }
 
 export const en: Record<StringKey, string> = {
-  'app.name': 'Anyq',
+  'app.name': 'Akron',
   'app.tagline': 'Turn your question into an animation',
 
   'common.signIn': 'Sign in',
@@ -1542,17 +1542,17 @@ export const en: Record<StringKey, string> = {
   'landing.nav.about': 'About us',
   'landing.hero.title': 'Any question, as a short animated explanation',
   'landing.hero.subtitle':
-    'Write your question in Kazakh or Russian. Anyq works through it step by step and turns the explanation into a geometric animation. In minutes, not days.',
+    'Write your question in Kazakh or Russian. Akron works through it step by step and turns the explanation into a geometric animation. In minutes, not days.',
   'landing.hero.cta': 'Start free',
   'landing.hero.secondary': 'See examples',
   'landing.hero.caption':
-    'The Pythagorean theorem — a frame from an animation made by Anyq.',
+    'The Pythagorean theorem — a frame from an animation made by Akron.',
   'landing.compare.title': 'Easier to see than to read',
   'landing.compare.subtitle':
     'Drag the handle left or right. On the left is the textbook text; on the right is the animation made from it.',
   'landing.compare.hint': 'Drag the handle',
   'landing.compare.textLabel': 'Textbook text',
-  'landing.compare.videoLabel': 'Anyq animation',
+  'landing.compare.videoLabel': 'Akron animation',
   'landing.compare.sliderLabel': 'Handle comparing the text with the animation',
   'landing.compare.textTitle': 'The Pythagorean theorem',
   'landing.compare.textBody':
@@ -1563,21 +1563,21 @@ export const en: Record<StringKey, string> = {
     'Write the question in your own words. The language is detected automatically, and you can override it.',
   'landing.how.step2.title': 'Explain',
   'landing.how.step2.body':
-    'Anyq breaks the answer into steps: what is given, which rule applies, what the result is.',
+    'Akron breaks the answer into steps: what is given, which rule applies, what the result is.',
   'landing.how.step3.title': 'Animate',
   'landing.how.step3.body':
     'Each step becomes a geometric scene. The result is a short explainer video, ready in minutes.',
   'landing.examples.title': 'Ready-made examples',
-  'landing.examples.subtitle': 'All made with Anyq. Hover to play.',
+  'landing.examples.subtitle': 'All made with Akron. Hover to play.',
   'landing.examples.play': 'Hover to play',
   'landing.why.title': 'Why Kazakh?',
   'landing.why.body1':
     'A single animated explanation takes an animator several days by hand. For a language with a small audience, producing that content at scale is not economically viable. As a result, quality visual learning material in Kazakh barely exists.',
   'landing.why.body2':
-    'Anyq automates that work. While students in larger languages watch visual explanations, a Kazakh-speaking student should not be left alone with a wall of text.',
+    'Akron automates that work. While students in larger languages watch visual explanations, a Kazakh-speaking student should not be left alone with a wall of text.',
   'landing.why.stat1': 'One animation by hand',
   'landing.why.stat1v': '3–5 days',
-  'landing.why.stat2': 'With Anyq',
+  'landing.why.stat2': 'With Akron',
   'landing.why.stat2v': '4 minutes',
   'landing.why.stat3': 'Kazakh',
   'landing.why.stat3v': 'Default language',
@@ -2061,7 +2061,7 @@ export const en: Record<StringKey, string> = {
   'quiz.host.openResults': 'Open the results',
   'quiz.host.backToQuiz': 'Back to the quiz',
   'quiz.host.actionFailed': 'That didn’t work. Try again.',
-  'quiz.join.brand': 'Anyq quiz',
+  'quiz.join.brand': 'Akron quiz',
   'quiz.join.title': 'Join a quiz',
   'quiz.join.lead': 'Type the 6-character code on your teacher’s screen',
   'quiz.join.codeLabel': 'Quiz code',

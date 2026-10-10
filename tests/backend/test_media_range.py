@@ -142,7 +142,7 @@ class TestDownloadNaming:
         assert response.status_code == 200
         disposition = response.headers["content-disposition"]
         assert "lichnyy" not in disposition.lower()
-        assert "anyq-export" in disposition, "should fall back to the neutral name"
+        assert "akron-export" in disposition, "should fall back to the neutral name"
 
     async def test_a_plain_request_is_not_an_attachment(self, client, new_user):
         """Playback must not download: the header would break the player."""

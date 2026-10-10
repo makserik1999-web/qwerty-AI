@@ -34,7 +34,7 @@ export function Footer() {
         </nav>
       </div>
       <div className="container footer__bottom">
-        <p className="caption">© 2026 Anyq. {t('landing.footer.rights')}</p>
+        <p className="caption">© 2026 Akron. {t('landing.footer.rights')}</p>
       </div>
     </footer>
   )

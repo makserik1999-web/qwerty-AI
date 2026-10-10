@@ -51,8 +51,8 @@ def test_a_path_separator_cannot_survive(naming):
 
 
 def test_an_empty_title_falls_back(naming):
-    assert naming.download_filename("", ".gif") == "anyq-export.gif"
-    assert naming.download_filename("???", ".gif") == "anyq-export.gif"
+    assert naming.download_filename("", ".gif") == "akron-export.gif"
+    assert naming.download_filename("???", ".gif") == "akron-export.gif"
 
 
 def test_a_long_title_is_trimmed(naming):

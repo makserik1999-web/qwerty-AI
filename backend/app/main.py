@@ -26,7 +26,7 @@ from app.errors import HTTPExceptionJson, _http_exception_json_handler
 from app.ws import agent as ws_agent
 from app.ws import ui as ws_ui
 
-app = FastAPI(title="Anyq Backend", version="1.1.0", lifespan=lifespan)
+app = FastAPI(title="Akron Backend", version="1.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

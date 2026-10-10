@@ -4,7 +4,12 @@
 https://github.com/user-attachments/assets/94bb2d73-97fc-424a-856a-d01a279a6879
 
 
-# Anyq - Interactive Learning Platform
+# Akron - Interactive Learning Platform
+
+> The product is called **Akron**. In the code it is still `anyq`: the
+> Python package, container and volume names, the database, the session
+> cookie and browser storage keys keep that name, because renaming them
+> would log everyone out and orphan the data.
 
 An interactive educational platform that generates AI-powered animated videos to explain scientific concepts.
 
@@ -191,4 +196,4 @@ authenticates with `AGENT_SECRET` before processing anything.
 
 ---
 
-**Anyq v1.0** - Interactive Learning Platform
+**Akron v1.0** - Interactive Learning Platform

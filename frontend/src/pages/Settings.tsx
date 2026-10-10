@@ -165,7 +165,7 @@ export function Settings() {
           }
         >
           <div className="row">
-            <Avatar name={name || 'Anyq'} size="lg" />
+            <Avatar name={name || 'Akron'} size="lg" />
             <div className="stack stack-sm">
               <span className="field__label">{t('settings.avatar')}</span>
               <p className="caption">{t('settings.avatarHint')}</p>
