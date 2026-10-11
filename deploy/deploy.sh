@@ -29,6 +29,12 @@ need_compose 2.24.4
 say "Проверяю .env"
 problems=()
 [ "$(stat -c %a "$ENV_FILE")" = "600" ] || { chmod 600 "$ENV_FILE"; warn ".env был доступен не только владельцу - поставил 600"; }
+# The key for "one trial per phone number". Made once, here, before any trial
+# exists; changing it later would make every number look unused again.
+if [ -z "$(env_get PHONE_HASH_SECRET)" ]; then
+    printf '\nPHONE_HASH_SECRET=%s\n' "$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 64)" >> "$ENV_FILE"
+    warn "добавил в .env PHONE_HASH_SECRET - не меняйте и не удаляйте его"
+fi
 domain="$(env_get SITE_DOMAIN)"
 case "$domain" in
     ""|localhost|*/*|*:*) problems+=("SITE_DOMAIN - не домен ('$domain'): нужно akronustaz.com, без https://") ;;

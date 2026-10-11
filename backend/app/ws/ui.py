@@ -25,7 +25,7 @@ from app.repositories.messages import save_message
 from app.security.origins import _is_allowed_origin
 from app.security.sessions import _user_from_token
 from app.security.verified import EMAIL_UNVERIFIED, may_generate
-from app.services import cache_service, quota, usage_log
+from app.services import cache_service, plans, quota, usage_log
 from app.validators import (
     _validate_chat_id,
     _validate_prompt,
@@ -138,6 +138,13 @@ async def _handle_ui_frame(websocket: WebSocket, user_id: str, data: dict) -> No
         effort = str(payload.get("effort") or "").strip().lower()
         if effort not in EFFORT_LEVELS:
             effort = EFFORT_DEFAULT
+        # The plan caps the quality: 1080p is a Ұстаз thing. Capped before the
+        # cache key is made, so the answer is filed under what was rendered,
+        # not under what was asked for.
+        account = await db.db.users.find_one({"_id": ObjectId(user_id)}) or {}
+        entitlement = await plans.resolve(account) if account else None
+        if entitlement and entitlement.plan:
+            effort = plans.clamp_effort(effort, entitlement.plan)
         variant = cache_service.render_variant(narration, voice, video_length, effort)
 
         cached = None
@@ -183,9 +190,6 @@ async def _handle_ui_frame(websocket: WebSocket, user_id: str, data: dict) -> No
         # generation is a paid model call. Read from the account, like every
         # other access decision, never from the frame. The code lets the
         # interface say it in the reader's language.
-        account = await db.db.users.find_one(
-            {"_id": ObjectId(user_id)}, {"role": 1, "email": 1, "email_verified_at": 1}
-        )
         if ((account or {}).get("role") or USER_ROLE_DEFAULT) != "teacher":
             await websocket.send_json({
                 "type": "error",
@@ -242,10 +246,29 @@ async def _handle_ui_frame(websocket: WebSocket, user_id: str, data: dict) -> No
             })
             return
 
+        # One video off the plan, taken before anything is saved and given
+        # back if no video comes of it. The request id names the reservation.
+        request_id = str(uuid.uuid4())
+        try:
+            entitlement = await plans.reserve(entitlement.user if entitlement else account,
+                                              "videos", request_id)
+        except plans.PlanRefusal as refusal:
+            await websocket.send_json({
+                "type": "error",
+                "data": {
+                    "message": "Making a video needs the trial or the Ұстаз plan, "
+                               "and this plan's videos are used up."
+                               if refusal.code == "plan_exhausted"
+                               else "Making a video needs the trial or the Ұстаз plan.",
+                    "chat_id": chat_id,
+                    "code": refusal.code,
+                },
+            })
+            return
+
         await save_message(chat_id, "user", prompt, screenshots)
         await websocket.send_json({"type": "message_received"})
 
-        request_id = str(uuid.uuid4())
         agent_manager.pending_requests[request_id] = {
             "user_id": user_id,
             "chat_id": chat_id,
@@ -257,6 +280,8 @@ async def _handle_ui_frame(websocket: WebSocket, user_id: str, data: dict) -> No
             # The answer must be filed under the same variant it was asked
             # for, or the next asker gets the wrong kind of video.
             "variant": variant,
+            # A trial video carries a watermark; the cache gets the clean copy.
+            "watermark": entitlement.watermark,
         }
         await quota.record(user_id, request_id)
         try:
@@ -270,11 +295,13 @@ async def _handle_ui_frame(websocket: WebSocket, user_id: str, data: dict) -> No
                 narration_voice=voice,
                 video_length=video_length,
                 effort=effort,
+                watermark=entitlement.watermark,
             )
         except Exception as e:
             agent_manager.pending_requests.pop(request_id, None)
             # Nothing was rendered, so nothing is owed.
             await quota.refund(request_id)
+            await plans.release(request_id)
             # A request the agent never confirmed is not a failure the person
             # has to understand - it is one they can simply retry, and saying
             # so beats handing them the mechanism. Every other send failure

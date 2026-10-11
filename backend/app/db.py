@@ -83,6 +83,13 @@ async def lifespan(app: FastAPI):
     await db.db.sms_log.create_index([("ip", 1), ("at", -1)])
     await db.db.sms_log.create_index([("at", -1)])
     await db.db.sms_log.create_index("expires_at", expireAfterSeconds=0)
+    # Plans. One trial per phone number (an HMAC of it) and per account; the
+    # claims are never removed with the account, which is the point.
+    await db.db.trial_claims.create_index("phone_hash", unique=True)
+    await db.db.trial_claims.create_index("user_id")
+    await db.db.plan_reservations.create_index("ref", unique=True)
+    await db.db.plan_reservations.create_index("expires_at", expireAfterSeconds=0)
+    await db.db.users.create_index("subscription.expires_at", sparse=True)
 
     print(f"Connected to MongoDB at {MONGO_URL}")
     if not AGENT_SECRET:
@@ -90,14 +97,19 @@ async def lifespan(app: FastAPI):
 
     # Imported here, not at module scope: retention needs `db`, which this
     # module defines, so a top-level import would be circular.
+    from app.services.plans import reminder_loop, seed_plans
     from app.services.retention import retention_loop
+
+    await seed_plans()
 
     sweep_task = asyncio.create_task(_sweep_pending_requests_loop())
     retention_task = asyncio.create_task(retention_loop())
+    reminder_task = asyncio.create_task(reminder_loop())
     try:
         yield
     finally:
         sweep_task.cancel()
         retention_task.cancel()
+        reminder_task.cancel()
         db.client.close()
         print("Disconnected from MongoDB")

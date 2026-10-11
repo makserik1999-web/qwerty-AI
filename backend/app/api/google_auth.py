@@ -246,6 +246,8 @@ async def google_callback(request: Request, code: str = "", state: str = "", err
                 return _fail("/signup", "failed")
             user = {**doc, "_id": result.inserted_id}
 
+    if user.get("blocked_at"):
+        return _fail("/signin", "blocked")
     token = await _create_session(str(user["_id"]))
     response = RedirectResponse(flow.get("next") or "/app/explain", status_code=302)
     response.headers.append("Set-Cookie", _state_cookie("", 0))

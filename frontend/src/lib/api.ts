@@ -12,6 +12,7 @@
  * which the server does not know. `detail` is kept for the cases nothing has
  * been translated for yet.
  */
+import type { StringKey } from './strings'
 import type { Role, StaffRole } from './types'
 
 /** What /api/auth/* returns. `username` is derived server-side from the email. */
@@ -50,11 +51,27 @@ export class ApiError extends Error {
   }
 }
 
-/** Codes any generating request can come back with, said in the reader's language. */
-export function generationRefusal(error: unknown): 'auth.verifyFirst' | null {
+const PLAN_RESOURCES = ['videos', 'assessments', 'quiz_drafts', 'lesson_plans']
+
+/**
+ * The string for a refusal any generating request can come back with - an
+ * unconfirmed email, no plan, a plan used up - or null for anything else.
+ * Takes the code and resource directly too, for the video socket's frames.
+ */
+export function refusalKey(code: string, resource?: unknown): StringKey | null {
+  if (code === 'email_unverified') return 'auth.verifyFirst'
+  if (code === 'plan_required') return 'plan.refusal.required'
+  if (code === 'plan_exhausted') {
+    const kind = PLAN_RESOURCES.includes(String(resource)) ? String(resource) : 'videos'
+    return `plan.refusal.exhausted.${kind}` as StringKey
+  }
+  return null
+}
+
+export function generationRefusal(error: unknown): StringKey | null {
   if (!(error instanceof ApiError)) return null
-  const code = error.reason || (error as { code?: string }).code
-  return code === 'email_unverified' ? 'auth.verifyFirst' : null
+  const code = error.reason || (error as { code?: string }).code || ''
+  return refusalKey(code, error.data.resource)
 }
 
 /** Status 0 means the request never arrived - offline, or the server is down. */
@@ -211,4 +228,68 @@ export async function verifyPhone(phone: string, code: string): Promise<ApiUser>
     body: JSON.stringify({ phone, code }),
   })
   return user
+}
+
+/* Plans ------------------------------------------------------------------- */
+
+export type PlanResource = 'videos' | 'assessments' | 'quiz_drafts' | 'lesson_plans'
+type PerResource<T> = Record<PlanResource, T>
+
+export interface PlanSummary {
+  kind: 'free' | 'trial' | 'ustaz'
+  plan_id: string | null
+  title: string | null
+  limits: Partial<PerResource<number | null>>
+  used: PerResource<number>
+  /** null = unlimited */
+  available: PerResource<number | null>
+  carryover: number
+  extra_videos: number
+  watermark: boolean
+  max_effort: 'low' | 'medium' | 'high' | null
+  docx_signature: boolean
+  /** Why a free account has no trial: teacher_only, phone_required, phone_used. */
+  trial_unavailable: string | null
+  trial_used_up: boolean
+  subscription: null | {
+    plan_id: string
+    title: string | null
+    status: 'active' | 'paused' | 'expired'
+    expires_at: string | null
+    period_end: string | null
+    pause_until: string | null
+    can_pause: boolean
+    suggest_year: boolean
+  }
+}
+
+export interface PlanOffer {
+  _id: string
+  kind: 'subscription' | 'addon'
+  title: string
+  price: number
+  period?: 'month' | 'school_year'
+  limits?: Partial<PerResource<number | null>>
+  videos?: number
+}
+
+export async function getPlan(): Promise<{
+  plan: PlanSummary
+  offers: PlanOffer[]
+  trial_limits: Partial<PerResource<number | null>> | null
+}> {
+  return request('/plan')
+}
+
+export async function pausePlan(): Promise<{ plan: PlanSummary }> {
+  return request('/plan/pause', { method: 'POST' })
+}
+
+export async function resumePlan(): Promise<{ plan: PlanSummary }> {
+  return request('/plan/resume', { method: 'POST' })
+}
+
+/** Where the Word file of a paper downloads from. */
+export function assessmentDocxUrl(id: string): string {
+  return `/api/assessments/${encodeURIComponent(id)}/docx`
 }

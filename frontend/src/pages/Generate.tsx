@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import {
   Alert,
+  AnchorButton,
   Badge,
   Button,
   Card,
@@ -19,7 +20,7 @@ import {
   useToast,
 } from '../components/ui'
 import { MarkdownMessage } from '../components/MarkdownMessage'
-import { ApiError, generationRefusal } from '../lib/api'
+import { ApiError, assessmentDocxUrl, generationRefusal } from '../lib/api'
 import {
   generateAssessment,
   regenerateQuestion,
@@ -137,10 +138,9 @@ export function Generate() {
    * Printing, which is also how a teacher gets a PDF.
    *
    * The paper is already laid out on screen, and every browser's print dialog
-   * offers "save as PDF" - so this needs no server and works today. A real
-   * .docx does need one (the exporter, which already carries python-pptx for
-   * the teacher deck) and is not built yet, so that button says so rather
-   * than pretending.
+   * offers "save as PDF" - so this needs no server and works today. The
+   * .docx is built by the backend (GET /api/assessments/{id}/docx); a trial
+   * paper carries "Akron арқылы жасалды" in its footer.
    */
   function onPrint() {
     setTab('document')
@@ -283,9 +283,15 @@ export function Generate() {
               <Button icon="download" disabled={!assessment} onClick={onPrint}>
                 {t('generate.print')}
               </Button>
-              <Button icon="download" disabled title={t('generate.docxSoon')}>
-                {t('generate.exportDocx')}
-              </Button>
+              {assessment ? (
+                <AnchorButton icon="download" href={assessmentDocxUrl(assessment.id)} download>
+                  {t('generate.exportDocx')}
+                </AnchorButton>
+              ) : (
+                <Button icon="download" disabled>
+                  {t('generate.exportDocx')}
+                </Button>
+              )}
             </div>
           </div>
 

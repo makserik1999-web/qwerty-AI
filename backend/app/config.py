@@ -165,6 +165,17 @@ SMS_SENDER = os.getenv("SMS_SENDER", "").strip()
 # way to run up a bill. Past this many in 24 hours, sending stops for everyone.
 SMS_DAILY_MAX = int(os.getenv("SMS_DAILY_MAX", "200"))
 
+# ============== Plans ==============
+# Keys the record of which phone numbers have had a trial. The record keeps
+# an HMAC of the number, never the number, and outlives the account - that is
+# what makes "one trial per number" survive deleting the account and signing
+# up again. Set once and never change it: a new secret makes every number
+# look unused. Empty falls back to a key derived from AGENT_SECRET.
+PHONE_HASH_SECRET = os.getenv("PHONE_HASH_SECRET", "").strip()
+
+# Days before a subscription ends that its owner is emailed.
+PLAN_REMINDER_DAYS = int(os.getenv("PLAN_REMINDER_DAYS", "3"))
+
 
 # ============== Assessments ==============
 # Closed sets, because every one of these reaches a prompt. Free text there is

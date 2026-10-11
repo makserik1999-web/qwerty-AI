@@ -25,6 +25,7 @@ import {
   loadChat,
   toConversation,
 } from '../lib/chats'
+import { getPlan, refusalKey, type PlanSummary } from '../lib/api'
 import { useI18n } from '../lib/i18n'
 import {
   AgentError,
@@ -48,6 +49,21 @@ export function Explain() {
   const { toast } = useToast()
   const { user, explainLang, saveToLibrary } = useStore()
   const { ask, stage, isConnected } = useLive()
+
+  // What the plan has left, shown by the button so a refusal is never the
+  // first a teacher hears of a limit.
+  const [plan, setPlan] = useState<PlanSummary | null>(null)
+  const refreshPlan = useCallback(async () => {
+    if (user?.role !== 'teacher') return
+    try {
+      setPlan((await getPlan()).plan)
+    } catch {
+      /* the hint is optional; the server still enforces the limit */
+    }
+  }, [user?.role])
+  useEffect(() => {
+    void refreshPlan()
+  }, [refreshPlan])
 
   const [question, setQuestion] = useState('')
   const [outputLang, setOutputLang] = useState<LangChoice>('auto')
@@ -119,6 +135,7 @@ export function Explain() {
         const explanation = explanationFromAnswer(answer)
         setCurrent(explanation)
         setState('result')
+        void refreshPlan()
         setConversations((prev) => [
           {
             id: explanation.chatId ?? explanation.id,
@@ -138,21 +155,24 @@ export function Explain() {
         // the work was lost.
         // A refusal with a code is said in the reader's language; the
         // server's sentence is English.
+        const refusal = error instanceof AgentError ? refusalKey(error.code, 'videos') : null
         setFailure(
           error instanceof AnswerTimeout
             ? t('explain.timedOut')
             : error instanceof AgentError && error.code === 'teacher_only'
               ? t('explain.teacherOnly')
-              : error instanceof AgentError && error.code === 'email_unverified'
-                ? t('auth.verifyFirst')
-              : error instanceof AgentError
-                ? error.message
-                : null,
+              : refusal
+                ? t(refusal)
+                : error instanceof AgentError
+                  ? error.message
+                  : null,
         )
         setState('error')
+        // Whatever happened, the plan's count may have moved.
+        void refreshPlan()
       }
     },
-    [ask, effort, narration, t, voice, videoLength],
+    [ask, effort, narration, refreshPlan, t, voice, videoLength],
   )
 
   function onSubmit(event: React.FormEvent) {
@@ -369,6 +389,11 @@ export function Explain() {
                     </>
                   ) : null}
                 </div>
+                {plan && plan.kind !== 'free' && plan.available.videos !== null ? (
+                  <span className="caption explain__plan-hint">
+                    {t('plan.left.videos')}: {plan.available.videos}
+                  </span>
+                ) : null}
                 <Button
                   type="submit"
                   variant="primary"

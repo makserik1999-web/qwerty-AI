@@ -17,7 +17,9 @@ import uuid
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Request
+from fastapi.responses import Response
 
+from app.api.plan import refusal
 from app.config import (
     ASSESSMENT_DIFFICULTIES,
     ASSESSMENT_GRADES,
@@ -35,7 +37,8 @@ from app.repositories import assessments as repo
 from app.security.ratelimit import LoginLimiter
 from app.security.roles import require_teacher
 from app.security.verified import require_may_generate
-from app.services import usage_log
+from app.services import docx_export, plans, usage_log
+from app.services.export_naming import content_disposition, download_filename
 from app.ws.manager import agent_manager
 
 router = APIRouter()
@@ -137,8 +140,19 @@ async def generate(body: AssessmentRequest, request: Request):
         )
 
     spec = _validated_spec(body)
-    questions = await _ask_agent(spec)
-    created = await repo.create_assessment(user_id, spec, _with_ids(questions))
+    # One paper off the plan; given back if no paper comes of it.
+    ref = f"assessment:{uuid.uuid4().hex}"
+    try:
+        await plans.reserve(user, "assessments", ref)
+    except plans.PlanRefusal as exc:
+        raise refusal(exc) from None
+    try:
+        questions = await _ask_agent(spec)
+        created = await repo.create_assessment(user_id, spec, _with_ids(questions))
+    except BaseException:
+        await plans.release(ref)
+        raise
+    await plans.commit(ref)
     await usage_log.log(user_id, "assessment")
     return created
 
@@ -156,6 +170,26 @@ async def read_paper(assessment_id: str, request: Request):
     if not found:
         raise HTTPExceptionJson(404, "Not found")
     return found
+
+
+DOCX_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+
+@router.get("/api/assessments/{assessment_id}/docx")
+async def paper_docx(assessment_id: str, request: Request):
+    """The paper as a Word file. Anyone who has the paper may download it;
+    the plan only decides whether "Akron арқылы жасалды" is in the footer."""
+    user = await require_teacher(request)
+    found = await repo.get_assessment(assessment_id, str(user["_id"]))
+    if not found:
+        raise HTTPExceptionJson(404, "Not found")
+    entitlement = await plans.resolve(user, activate=False)
+    signature = not (entitlement.kind == plans.ON_USTAZ
+                     and not (entitlement.plan or {}).get("docx_signature"))
+    content = docx_export.assessment_docx(found, signature=signature)
+    name = download_filename(f"{docx_export.title_of(found)} {found.get('topic', '')}", ".docx")
+    return Response(content, media_type=DOCX_TYPE,
+                    headers={"Content-Disposition": content_disposition(name)})
 
 
 @router.put("/api/assessments/{assessment_id}/questions")

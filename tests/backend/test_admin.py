@@ -22,7 +22,19 @@ from bson import ObjectId
 
 # Routes support may not use. A new admin route has to be added here or to
 # nowhere, consciously: the test fails if support's 403s and this set differ.
-ADMIN_ONLY = {"/api/admin/audit", "/api/admin/cache/stats"}
+ADMIN_ONLY = {
+    "/api/admin/audit",
+    "/api/admin/cache/stats",
+    "/api/admin/users/{user_id}/subscription",
+    "/api/admin/users/{user_id}/subscription/end",
+    "/api/admin/users/{user_id}/extra-videos",
+    "/api/admin/plans",
+    "/api/admin/plans/{plan_id}",
+}
+
+# Let through: anything but the guard's own answers. A POST sent here with no
+# body is a 422 - the request reached the route, which is all this checks.
+GUARD_ANSWERS = (403, 404)
 
 
 def run_db(coro):
@@ -80,7 +92,7 @@ def admin_routes(backend):
 
 
 def call(client, method, template, user_id):
-    path = template.replace("{user_id}", user_id)
+    path = template.replace("{user_id}", user_id).replace("{plan_id}", "trial")
     return client.request(method, path)
 
 
@@ -111,7 +123,7 @@ class TestEveryAdminRouteIsGuarded:
         refused = set()
         for method, template, _ in admin_routes(backend):
             response = call(support, method, template, support.user["id"])
-            assert response.status_code in (200, 403), f"{method} {template} -> {response.status_code}"
+            assert response.status_code != 404, f"{method} {template} -> {response.status_code}"
             if response.status_code == 403:
                 refused.add(template)
         assert refused == ADMIN_ONLY
@@ -120,7 +132,9 @@ class TestEveryAdminRouteIsGuarded:
         admin = account(staff_role="admin")
         for method, template, _ in admin_routes(backend):
             response = call(admin, method, template, admin.user["id"])
-            assert response.status_code == 200, f"{method} {template} -> {response.status_code}"
+            assert response.status_code not in GUARD_ANSWERS, f"{method} {template} -> {response.status_code}"
+            if method == "GET":
+                assert response.status_code == 200, f"{method} {template} -> {response.status_code}"
 
     def test_an_unknown_staff_value_is_not_staff(self, backend, account):
         """Only the closed set counts; anything else written there is nobody."""

@@ -14,7 +14,7 @@ from app.config import (
     CACHE_ENABLED,
 )
 from app.repositories.messages import save_message
-from app.services import cache_service, quota, usage_log
+from app.services import cache_service, plans, quota, usage_log
 from app.ws.manager import _notify_pending_failures, agent_manager, ui_manager
 
 router = APIRouter()
@@ -158,6 +158,7 @@ async def websocket_agent_endpoint(websocket: WebSocket):
                     await quota.refund(request_id)
                 except Exception as e:
                     print(f"quota refund failed: {type(e).__name__}: {e}")
+                await plans.release(request_id)
                 await usage_log.log(user_id, "explanation", ok=False)
                 await ui_manager.send_to_user(user_id, {
                     "type": "error",
@@ -171,6 +172,19 @@ async def websocket_agent_endpoint(websocket: WebSocket):
             video_url = None
             if video_path and _SAFE_MEDIA_RE.fullmatch(os.path.basename(video_path)):
                 video_url = f"/media/{os.path.basename(video_path)}"
+            # A trial video is watermarked; the agent also returns the clean
+            # render, and that is what the shared library keeps.
+            clean_path = str(data.get("clean_video_path") or "")
+            clean_url = video_url
+            if clean_path and _SAFE_MEDIA_RE.fullmatch(os.path.basename(clean_path)):
+                clean_url = f"/media/{os.path.basename(clean_path)}"
+
+            # The plan's unit stays spent only if a video came of it; a
+            # text-only answer gives it back.
+            if status == "complete" and video_url:
+                await plans.commit(request_id)
+            elif status == "complete":
+                await plans.release(request_id)
 
             if status == "complete" and response_text:
                 try:
@@ -205,7 +219,7 @@ async def websocket_agent_endpoint(websocket: WebSocket):
                             prompt=request_info.get("prompt", ""),
                             screenshots=request_info.get("screenshots", []),
                             text=response_text,
-                            video_url=video_url,
+                            video_url=clean_url,
                             variant=request_info.get("variant", ""),
                         )
                     except Exception as e:

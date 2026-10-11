@@ -79,4 +79,8 @@ async def _user_from_token(token: Optional[str]) -> Optional[Dict[str, Any]]:
     if expires_at and expires_at < datetime.now(timezone.utc):
         await db.db.sessions.delete_one({"_id": session["_id"]})
         return None
-    return await db.db.users.find_one({"_id": ObjectId(session["user_id"])})
+    user = await db.db.users.find_one({"_id": ObjectId(session["user_id"])})
+    # A blocked account is signed out everywhere, on its next request.
+    if user and user.get("blocked_at"):
+        return None
+    return user

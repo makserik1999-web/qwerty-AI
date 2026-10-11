@@ -5,6 +5,44 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### Plans: Сынақ and Ұстаз, counted
+
+**Added**
+
+- Plans in the database (`plans`), seeded with Сынақ, Ұстаз by the month
+  (4 990 ₸), Ұстаз for the school year (29 900 ₸, to 1 June) and +10 videos
+  (990 ₸). Limits, prices, the carry-over cap and the quality ceiling are
+  edited in the admin panel without a deploy.
+- Сынақ: starts by itself when a teacher confirms a phone; once per number,
+  ever - an HMAC of the number (`PHONE_HASH_SECRET`) is kept in
+  `trial_claims` and outlives the account. 2 videos with the «Akron · сынақ»
+  mark at up to 720p, 2 БЖБ/ТЖБ, 3 AI quizzes, 2 lesson plans; no expiry.
+- Ұстаз: counted in monthly periods from the day it started; unused videos
+  carry into the next period (capped at 20); bought videos are spent after
+  the month's. 1080p, no mark, no DOCX signature.
+- Every generation takes one unit before it starts, with an atomic
+  conditional increment, and gives it back if nothing came of it (a failed
+  render, a text-only answer, a lost agent, a timed-out request). Library
+  answers cost nothing. Refusals carry `plan_required` / `plan_exhausted`
+  and the resource, translated in the interface.
+- The watermark is burned in by the agent with ffmpeg after rendering; the
+  clean render is what the shared library keeps.
+- DOCX of an assessment (python-docx, built in the request): the paper in its
+  own language, with «Akron арқылы жасалды» in the footer unless on Ұстаз.
+- Summer pause for the monthly plan (15 May to August): the paid days left
+  resume on 1 September, automatically or earlier by hand.
+- Email reminder three days before a subscription ends.
+- «Тариф» page: what the account is on, meters for what is left, the trial
+  offer with the phone form, the pause, the school-year suggestion after 25
+  days, prices with a contact line until payment exists. The Explain page
+  shows the videos left by the button.
+- Admin: grant or extend Ұстаз, end it, add videos (admin); reset a trial,
+  block and unblock (support too); edit plans. A reason is required and
+  goes into the audit log. Blocked accounts are signed out on their next
+  request and cannot sign in.
+- AI quiz drafts say `purpose`: "new" is one of the plan's quizzes, "edit"
+  (up to 5 questions into an existing quiz) is not counted.
+
 ### Real accounts: a confirmed email, password reset, Google, a phone
 
 **Added**

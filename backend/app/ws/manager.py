@@ -259,7 +259,8 @@ class AgentConnectionManager:
     async def send_to_agent(self, request_id: str, user_id: str, chat_id: str,
                             text: Optional[str], screenshots: List[Dict[str, Any]],
                             narration: bool = True, narration_voice: str = "aigul",
-                            video_length: str = "", effort: str = ""):
+                            video_length: str = "", effort: str = "",
+                            watermark: Optional[str] = None):
         """Hand one question to the agent, and wait to be told it arrived.
 
         The wait is the point. This used to end at send_json, which reports
@@ -303,6 +304,9 @@ class AgentConnectionManager:
                 "narration_voice": narration_voice,
                 "video_length": video_length,
                 "effort": effort,
+                # Text to burn into the video, for a trial. Absent otherwise,
+                # so an older agent sees exactly the request it always did.
+                **({"watermark": watermark} if watermark else {}),
             })
 
             if ack is not None:
@@ -340,6 +344,13 @@ async def _refund_quietly(request_id: str) -> None:
         await refund(request_id)
     except Exception as e:  # noqa: BLE001 - a refund must never break a sweep
         print(f"quota refund failed for {request_id}: {type(e).__name__}: {e}")
+    try:
+        from app.services.plans import release
+
+        # The plan's video too: the same rule, the same moment.
+        await release(request_id)
+    except Exception as e:  # noqa: BLE001 - a refund must never break a sweep
+        print(f"plan release failed for {request_id}: {type(e).__name__}: {e}")
 
 
 async def _notify_pending_failures(message: str):

@@ -52,6 +52,9 @@ set_var COMPOSE_PROJECT_NAME anyq
 set_var AGENT_SECRET "$(random 64)"
 set_var MONGO_ROOT_PASSWORD "$(random 40)"
 set_var MONGO_APP_PASSWORD "$(random 40)"
+# One trial per phone number is checked against an HMAC keyed by this.
+# Never change it once trials exist.
+set_var PHONE_HASH_SECRET "$(random 64)"
 
 set_var SITE_DOMAIN "$domain"
 set_var CORS_ORIGINS "https://$domain"

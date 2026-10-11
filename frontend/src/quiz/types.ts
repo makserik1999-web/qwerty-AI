@@ -317,4 +317,6 @@ export interface DraftInput {
   mix: 'choice' | 'mixed' | 'short'
   difficulty: 'easy' | 'medium' | 'hard'
   avoid?: string[]
+  /** 'new' is one of the plan's quizzes; 'edit' adds to one and is not counted. */
+  purpose?: 'new' | 'edit'
 }

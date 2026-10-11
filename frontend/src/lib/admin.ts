@@ -5,7 +5,7 @@
  * staff role on the server and answers 404 to anyone else; the interface only
  * avoids offering a link that would lead there.
  */
-import { ApiError } from './api'
+import { ApiError, type PlanSummary } from './api'
 import type { Role, StaffRole } from './types'
 
 export interface Usage {
@@ -31,6 +31,9 @@ export interface AdminUser {
   phone: string | null
   phone_verified: boolean
   google: boolean
+  /** free | trial | ustaz_month | ustaz_year | paused */
+  plan: string
+  blocked: boolean
   usage: Usage
 }
 
@@ -51,6 +54,8 @@ export interface AdminUserDetail extends AdminUser {
     limit_day: number
   }
   recent: UsageEntry[]
+  plan_detail: PlanSummary
+  blocked_reason: string
 }
 
 export interface StatsDay extends Usage {
@@ -126,4 +131,87 @@ export function getAudit(skip = 0, limit = 50) {
 
 export function getCacheStats() {
   return request<CacheStats>('/cache/stats')
+}
+
+/* Changing things ------------------------------------------------------------
+ * Every call carries a reason: the server refuses without one and writes it
+ * into the audit log next to who did it.
+ */
+
+async function send<T>(path: string, method: 'POST' | 'PUT', body: unknown): Promise<T> {
+  let response: Response
+  try {
+    response = await fetch(`/api/admin${path}`, {
+      method,
+      credentials: 'include',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+  } catch {
+    throw new ApiError(0, '')
+  }
+  if (!response.ok) {
+    let detail = ''
+    let reason = ''
+    try {
+      const data = await response.json()
+      if (data && typeof data.detail === 'string') detail = data.detail
+      if (data && typeof data.code === 'string') reason = data.code
+    } catch {
+      /* the status is all there is */
+    }
+    throw new ApiError(response.status, detail, reason)
+  }
+  return (await response.json()) as T
+}
+
+const user = (id: string) => `/users/${encodeURIComponent(id)}`
+
+export function grantSubscription(
+  id: string,
+  body: { plan_id: string; months?: number; until?: string; reason: string },
+) {
+  return send<{ plan: PlanSummary }>(`${user(id)}/subscription`, 'POST', body)
+}
+
+export function endSubscription(id: string, reason: string) {
+  return send<{ plan: PlanSummary }>(`${user(id)}/subscription/end`, 'POST', { reason })
+}
+
+export function addExtraVideos(id: string, count: number, reason: string) {
+  return send<{ plan: PlanSummary }>(`${user(id)}/extra-videos`, 'POST', { count, reason })
+}
+
+export function resetTrial(id: string, reason: string) {
+  return send<{ ok: boolean }>(`${user(id)}/trial/reset`, 'POST', { reason })
+}
+
+export function blockUser(id: string, reason: string) {
+  return send<{ ok: boolean }>(`${user(id)}/block`, 'POST', { reason })
+}
+
+export function unblockUser(id: string, reason: string) {
+  return send<{ ok: boolean }>(`${user(id)}/unblock`, 'POST', { reason })
+}
+
+export interface AdminPlan {
+  id: string
+  kind: 'trial' | 'subscription' | 'addon'
+  title: string
+  price: number
+  period?: 'month' | 'school_year'
+  limits?: Record<string, number | null>
+  carryover_cap?: number
+  max_effort?: 'low' | 'medium' | 'high'
+  watermark?: boolean
+  docx_signature?: boolean
+  videos?: number
+}
+
+export function listPlans() {
+  return request<{ items: AdminPlan[] }>('/plans')
+}
+
+export function editPlan(id: string, changes: Partial<AdminPlan> & { reason: string }) {
+  return send<AdminPlan>(`/plans/${encodeURIComponent(id)}`, 'PUT', changes)
 }

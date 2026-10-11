@@ -126,6 +126,9 @@ services:
       - MOBIZON_API_KEY=${MOBIZON_API_KEY:-}
       - SMS_SENDER=${SMS_SENDER:-}
       - SMS_DAILY_MAX=${SMS_DAILY_MAX:-200}
+      # Plans. The phone key must never change once trials exist.
+      - PHONE_HASH_SECRET=${PHONE_HASH_SECRET:-}
+      - PLAN_REMINDER_DAYS=${PLAN_REMINDER_DAYS:-3}
       # Part of every cache key, so raising it retires stored answers the
       # current pipeline would no longer produce. config.py says to bump it
       # when the prompts, the model or the renderer change - and it was read

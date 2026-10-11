@@ -6,8 +6,11 @@ saves them there. Nothing is stored on this side: a draft that is not saved
 is a draft the teacher decided against.
 """
 
+import uuid
+
 from fastapi import APIRouter, Request
 
+from app.api.plan import refusal
 from app.config import (
     QUIZ_DRAFT_DIFFICULTIES,
     QUIZ_DRAFT_GRADES,
@@ -25,13 +28,16 @@ from app.models import QuizDraftRequest
 from app.security.ratelimit import LoginLimiter
 from app.security.roles import require_teacher
 from app.security.verified import require_may_generate
-from app.services import usage_log
+from app.services import plans, usage_log
 from app.ws.manager import agent_manager
 
 router = APIRouter()
 
 # Per teacher, per hour - the same rolling window the other documents use.
 draft_limiter = LoginLimiter(QUIZ_DRAFT_MAX_PER_HOUR, 3600)
+
+# An edit replaces or adds a few questions; a whole quiz is a "new" draft.
+EDIT_MAX_COUNT = 5
 
 _FAILURES = {
     "agent_unavailable": (503, "The generator is unavailable. Please try again shortly."),
@@ -61,6 +67,10 @@ async def draft(body: QuizDraftRequest, request: Request):
         raise HTTPExceptionJson(400, "Unknown difficulty")
     if not 1 <= body.count <= QUIZ_DRAFT_MAX_COUNT:
         raise HTTPExceptionJson(400, f"Between 1 and {QUIZ_DRAFT_MAX_COUNT} questions")
+    if body.purpose not in ("new", "edit"):
+        raise HTTPExceptionJson(400, "Unknown purpose")
+    if body.purpose == "edit" and body.count > EDIT_MAX_COUNT:
+        raise HTTPExceptionJson(400, f"Editing writes at most {EDIT_MAX_COUNT} questions at a time")
 
     if not draft_limiter.allow(f"quiz:{user['_id']}"):
         raise HTTPExceptionJson(
@@ -69,6 +79,30 @@ async def draft(body: QuizDraftRequest, request: Request):
 
     avoid = [a.strip()[:400] for a in body.avoid[:QUIZ_DRAFT_MAX_AVOID]
              if isinstance(a, str) and a.strip()]
+
+    # A new quiz is one of the plan's quizzes. Editing one that exists is
+    # not counted, but still needs a plan: it is a model call all the same.
+    ref = f"quiz_draft:{uuid.uuid4().hex}"
+    try:
+        if body.purpose == "new":
+            await plans.reserve(user, "quiz_drafts", ref)
+        elif (await plans.resolve(user)).kind == plans.FREE:
+            raise plans.PlanRefusal("plan_required", "quiz_drafts")
+    except plans.PlanRefusal as exc:
+        raise refusal(exc) from None
+
+    try:
+        result = await _draft(body, topic, avoid)
+    except BaseException:
+        await plans.release(ref)
+        raise
+    await plans.commit(ref)
+    if body.purpose == "new":
+        await usage_log.log(str(user["_id"]), "quiz_draft")
+    return result
+
+
+async def _draft(body: QuizDraftRequest, topic: str, avoid: list):
     result = await agent_manager.request_quiz(
         {
             "subject": body.subject,
@@ -90,5 +124,4 @@ async def draft(body: QuizDraftRequest, request: Request):
     questions = result.get("questions")
     if not isinstance(questions, list) or not questions:
         raise HTTPExceptionJson(502, "Could not write the questions.")
-    await usage_log.log(str(user["_id"]), "quiz_draft")
     return {"questions": questions, "requested": int(result.get("requested") or body.count)}

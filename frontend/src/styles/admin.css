@@ -154,3 +154,22 @@
     grid-template-columns: 1fr;
   }
 }
+
+.admin__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-md);
+}
+
+.admin__action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-sm);
+  padding: var(--space-sm) 0;
+}
+
+.admin__grow {
+  flex: 1 1 260px;
+}

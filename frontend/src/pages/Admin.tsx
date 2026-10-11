@@ -39,8 +39,9 @@ import { ApiError } from '../lib/api'
 import { useStore } from '../lib/store'
 import type { StaffRole } from '../lib/types'
 import '../styles/admin.css'
+import { PLAN_LABEL, PlansSection, UserPlanPanel } from './AdminPlans'
 
-type Section = 'stats' | 'users' | 'audit'
+type Section = 'stats' | 'users' | 'plans' | 'audit'
 
 const PAGE = 50
 
@@ -98,7 +99,12 @@ export function Admin() {
   const sections: Array<{ value: Section; label: string }> = [
     { value: 'stats', label: 'Статистика' },
     { value: 'users', label: 'Пользователи' },
-    ...(isAdmin ? [{ value: 'audit' as const, label: 'Журнал' }] : []),
+    ...(isAdmin
+      ? [
+          { value: 'plans' as const, label: 'Тарифы' },
+          { value: 'audit' as const, label: 'Журнал' },
+        ]
+      : []),
   ]
 
   return (
@@ -116,7 +122,8 @@ export function Admin() {
       <main className="page admin__page">
         <Tabs label="Разделы админки" value={section} items={sections} onChange={setSection}>
           {section === 'stats' ? <StatsSection isAdmin={isAdmin} /> : null}
-          {section === 'users' ? <UsersSection /> : null}
+          {section === 'users' ? <UsersSection isAdmin={isAdmin} /> : null}
+          {section === 'plans' && isAdmin ? <PlansSection /> : null}
           {section === 'audit' && isAdmin ? <AuditSection /> : null}
         </Tabs>
       </main>
@@ -280,7 +287,7 @@ function CacheSection() {
 
 /* Users ---------------------------------------------------------------------- */
 
-function UsersSection() {
+function UsersSection({ isAdmin }: { isAdmin: boolean }) {
   const [query, setQuery] = useState('')
   const [search, setSearch] = useState('')
   const [skip, setSkip] = useState(0)
@@ -338,6 +345,7 @@ function UsersSection() {
               <th>Имя</th>
               <th>Телефон</th>
               <th>Роль</th>
+              <th>Тариф</th>
               <th>Создан</th>
               <th className="num">Видео</th>
               <th className="num">Из библ.</th>
@@ -363,6 +371,12 @@ function UsersSection() {
                   <span className="admin__roles">
                     {ROLE_LABEL[row.role] ?? row.role}
                     {row.staff_role ? <Badge tone="accent">{row.staff_role}</Badge> : null}
+                  </span>
+                </td>
+                <td>
+                  <span className="admin__roles">
+                    {PLAN_LABEL[row.plan] ?? row.plan}
+                    {row.blocked ? <Badge tone="error">блок</Badge> : null}
                   </span>
                 </td>
                 <td>{formatDate(row.created_at, false)}</td>
@@ -391,19 +405,28 @@ function UsersSection() {
         </div>
       ) : null}
 
-      <UserModal id={openId} onClose={() => setOpenId(null)} />
+      <UserModal id={openId} isAdmin={isAdmin} onClose={() => setOpenId(null)} />
     </div>
   )
 }
 
-function UserModal({ id, onClose }: { id: string | null; onClose: () => void }) {
+function UserModal({
+  id,
+  isAdmin,
+  onClose,
+}: {
+  id: string | null
+  isAdmin: boolean
+  onClose: () => void
+}) {
   const [detail, setDetail] = useState<AdminUserDetail | null>(null)
   const [error, setError] = useState('')
+  // Bumped after an action, to read the account again.
+  const [version, setVersion] = useState(0)
 
   useEffect(() => {
     if (!id) return
     let cancelled = false
-    setDetail(null)
     setError('')
     adminApi
       .getUser(id)
@@ -416,6 +439,10 @@ function UserModal({ id, onClose }: { id: string | null; onClose: () => void }) 
     return () => {
       cancelled = true
     }
+  }, [id, version])
+
+  useEffect(() => {
+    setDetail(null)
   }, [id])
 
   return (
@@ -475,6 +502,8 @@ function UserModal({ id, onClose }: { id: string | null; onClose: () => void }) 
             <Figure label="Квизов ИИ" value={detail.usage.quiz_drafts} />
             <Figure label="Квизов" value={detail.usage.quizzes} />
           </div>
+
+          <UserPlanPanel detail={detail} isAdmin={isAdmin} onChanged={() => setVersion((v) => v + 1)} />
 
           <section className="admin__stack">
             <h3 className="admin__subhead">Последние действия</h3>

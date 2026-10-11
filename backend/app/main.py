@@ -19,6 +19,7 @@ from app.api import (
     lesson_plans,
     media,
     phone,
+    plan,
     quiz_drafts,
     quota,
     saved,
@@ -46,6 +47,7 @@ app.include_router(auth.router)
 app.include_router(email_auth.router)
 app.include_router(google_auth.router)
 app.include_router(phone.router)
+app.include_router(plan.router)
 app.include_router(chats.router)
 app.include_router(media.router)
 app.include_router(admin.router)

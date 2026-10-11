@@ -82,6 +82,9 @@ class QuizDraftRequest(BaseModel):
     mix: str = "mixed"
     difficulty: str = "medium"
     avoid: List[str] = []
+    # "new" drafts a quiz and counts against the plan's quizzes; "edit" adds
+    # or replaces a few questions in one that exists, and does not.
+    purpose: str = "new"
 
 
 class LessonPlanRequest(BaseModel):

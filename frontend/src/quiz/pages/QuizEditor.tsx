@@ -225,6 +225,8 @@ export function QuizEditor() {
       mix,
       difficulty: 'medium' as const,
       avoid: current.questions.map((q) => q.text.trim()).filter(Boolean).slice(0, 40),
+      // Questions for a quiz that exists: not a new one off the plan.
+      purpose: 'edit' as const,
     }
   }
 

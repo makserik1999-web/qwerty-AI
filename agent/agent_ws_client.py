@@ -33,7 +33,7 @@ import re
 import tempfile
 from typing import Any, Dict, List, Tuple
 
-from anyq import progress, telemetry
+from anyq import progress, telemetry, watermark
 
 # Environment and the user-facing failure message now live in the anyq package.
 # Importing anyq.config is also what calls load_dotenv().
@@ -213,11 +213,16 @@ async def process_request(payload: Dict[str, Any]) -> Dict[str, Any]:
             status="complete",
         )
 
+        # A trial video gets the mark burned in; the backend files the clean
+        # render in the library and shows the marked one to the trial account.
+        shown_path, clean_path = await watermark.apply(video_path, payload.get("watermark"))
+
         return {
             "request_id": request_id,
             "status": "complete",
             "text": final_text,
-            "video_path": video_path,
+            "video_path": shown_path,
+            "clean_video_path": clean_path,
             "subject": str(result.get("final_subject") or ""),
         }
     except Exception as e:

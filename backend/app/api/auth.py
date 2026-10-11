@@ -200,6 +200,9 @@ async def login(body: LoginRequest, request: Request):
     if not user or not _verify_password(password, user.get("password_hash", "")):
         login_ip_limiter.hit(ip_key)
         raise HTTPExceptionJson(401, "Invalid username or password")
+    if user.get("blocked_at"):
+        # Said only to someone who knew the password.
+        raise HTTPExceptionJson(403, "This account is blocked", code="account_blocked")
 
     token = await _create_session(str(user["_id"]))
     # The account's budget only, never the address's: clearing that one on

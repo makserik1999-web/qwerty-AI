@@ -22,6 +22,7 @@ from typing import Any, Dict, List
 
 from fastapi import APIRouter, Request
 
+from app.api.plan import refusal
 from app.config import (
     LESSON_PLAN_DURATIONS,
     LESSON_PLAN_GRADES,
@@ -38,7 +39,7 @@ from app.repositories import lesson_plans as repo
 from app.security.ratelimit import LoginLimiter
 from app.security.roles import require_teacher
 from app.security.verified import require_may_generate
-from app.services import usage_log
+from app.services import plans, usage_log
 from app.ws.manager import agent_manager
 
 router = APIRouter()
@@ -215,13 +216,23 @@ async def generate(body: LessonPlanRequest, request: Request):
         )
 
     spec = _validated_spec(body)
-    result = await _ask_agent(spec)
-    created = await repo.create_lesson_plan(
-        user_id,
-        spec,
-        _with_ids(result["plan"]),
-        int(result.get("minutes_planned") or 0),
-    )
+    ref = f"lesson_plan:{uuid.uuid4().hex}"
+    try:
+        await plans.reserve(user, "lesson_plans", ref)
+    except plans.PlanRefusal as exc:
+        raise refusal(exc) from None
+    try:
+        result = await _ask_agent(spec)
+        created = await repo.create_lesson_plan(
+            user_id,
+            spec,
+            _with_ids(result["plan"]),
+            int(result.get("minutes_planned") or 0),
+        )
+    except BaseException:
+        await plans.release(ref)
+        raise
+    await plans.commit(ref)
     await usage_log.log(user_id, "lesson_plan")
     return created
 
