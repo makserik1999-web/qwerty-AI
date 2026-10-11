@@ -218,7 +218,8 @@ services:
       - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.8-flash}
       # OpenRouter is the live chat path: one key reaches every model, so
       # switching model is an env change rather than a code change. Vision
-      # still calls the Google API directly and needs GEMINI_API_KEY.
+      # calls Google directly when GEMINI_API_KEY is set, and goes through
+      # OpenRouter with OPENROUTER_MODEL otherwise.
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
       - OPENROUTER_MODEL=${OPENROUTER_MODEL:-google/gemini-3.8-flash}
       - OPENROUTER_MAX_TOKENS=${OPENROUTER_MAX_TOKENS:-20000}

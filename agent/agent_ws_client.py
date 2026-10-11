@@ -40,9 +40,9 @@ from anyq import progress, telemetry
 from anyq.config import (
     AGENT_HANDSHAKE_TIMEOUT_SEC,
     AGENT_SECRET,
+    DEFAULT_LLM_PROVIDER,
     DEFAULT_WS_URL,
     DOC_SNIPPET_MODE,
-    GEMINI_API_KEY,
     MAX_IMAGE_B64_LEN,
     MAX_IMAGE_BYTES,
     MAX_IMAGES,
@@ -109,11 +109,26 @@ def _safe_error_text(exc: Exception, limit: int = 300) -> str:
     return f"{type(exc).__name__}: {str(exc)[:limit]}"
 
 
+def _llm_key_name() -> str:
+    """The env var holding the key of the provider the graph actually calls.
+
+    This used to be GEMINI_API_KEY whatever the provider, so a deployment on
+    OpenRouter alone answered every question with the no-key message below.
+    spoon_ai names each provider's key {PROVIDER}_API_KEY; an empty provider
+    keeps the old check.
+    """
+    return f"{(DEFAULT_LLM_PROVIDER or 'gemini').upper()}_API_KEY"
+
+
+def _llm_key_configured() -> bool:
+    return bool(os.getenv(_llm_key_name(), "").strip())
+
+
 def _no_key_message() -> str:
-    """Polite explanation shown when GEMINI_API_KEY is not configured."""
+    """Polite explanation shown when the provider's API key is not configured."""
     return (
-        "AI-функции сейчас недоступны: добавьте GEMINI_API_KEY в .env "
-        "(backend и agent) и перезапустите контейнеры, чтобы включить "
+        f"AI-функции сейчас недоступны: добавьте {_llm_key_name()} в .env "
+        "и перезапустите агент, чтобы включить "
         "генерацию объяснений и видео."
     )
 
@@ -170,7 +185,7 @@ async def process_request(payload: Dict[str, Any]) -> Dict[str, Any]:
             if len(tmp_image_paths) == 1:
                 initial["image_path"] = tmp_image_paths[0]
 
-        if not image_data and not GEMINI_API_KEY and DOC_SNIPPET_MODE != "1":
+        if not image_data and not _llm_key_configured() and DOC_SNIPPET_MODE != "1":
             # Polite degradation: without a key the LLM cannot run. Reply with a
             # clear message instead of surfacing a crash to the user.
             # (DOC_SNIPPET_MODE=1 renders a stub video WITHOUT the LLM, so it

@@ -76,7 +76,7 @@ cat <<EOF
     OPENROUTER_API_KEY=     без него не работает ИИ
     AZURE_SPEECH_KEY=       без него видео без озвучки
     AZURE_SPEECH_REGION=
-    GEMINI_API_KEY=         разбор скриншотов (необязательно)
+    GEMINI_API_KEY=         необязательно: скриншоты и без него идут через OpenRouter
     TELEGRAM_BOT_TOKEN=     куда слать тревоги мониторинга (необязательно)
     TELEGRAM_CHAT_ID=
 

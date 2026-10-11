@@ -270,6 +270,16 @@ MANIM_EXECUTABLE = os.getenv("MANIM_EXECUTABLE")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 GEMINI_VISION_MODEL = os.getenv("GEMINI_VISION_MODEL", "gemini-2.5-pro")
 
+# ============== OpenRouter vision ==============
+# Without GEMINI_API_KEY the image goes to OpenRouter instead, to the same
+# model the chat uses: gemini-3.8-flash reads images, so a deployment with
+# one OpenRouter key handles screenshots too. With a Google key nothing
+# changes - that path still wins.
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "").strip()
+OPENROUTER_MODEL = (os.getenv("OPENROUTER_MODEL", "") or "google/gemini-3.8-flash").strip()
+OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions"
+VISION_TIMEOUT_SEC = _get_float("VISION_TIMEOUT_SEC", 90.0)
+
 # ============== Snippet mode ==============
 DOC_SNIPPET_MODE = os.getenv("DOC_SNIPPET_MODE")
 

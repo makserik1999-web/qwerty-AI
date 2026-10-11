@@ -60,8 +60,8 @@ cp .env.example .env
 
 # Edit .env:
 #   1. set AGENT_SECRET to a long random string (backend and agent must share it)
-#   2. add your GEMINI_API_KEY (without it the app still runs, but AI features
-#      reply with a polite "AI functions unavailable" message)
+#   2. add your OPENROUTER_API_KEY (without it the app still runs, but AI
+#      features reply with a polite "AI functions unavailable" message)
 ```
 
 ### 2. Start Services
@@ -93,7 +93,8 @@ ports - with nightly backups and monitoring: [docs/DEPLOY.md](docs/DEPLOY.md).
 
 | Variable              | Required | Default        | Description                    |
 |-----------------------|----------|----------------|--------------------------------|
-| GEMINI_API_KEY        | No*      | -              | Google Gemini API key          |
+| OPENROUTER_API_KEY    | No*      | -              | Key for the default LLM provider (chat, videos, screenshots) |
+| GEMINI_API_KEY        | No       | -              | Google key: screenshots go to Google directly and the "similar question" cache layer turns on. Required only with `DEFAULT_LLM_PROVIDER=gemini` |
 | AGENT_SECRET          | Yes      | -              | Shared secret for the agent channel (must match backend & agent) |
 | DEFAULT_LLM_PROVIDER  | No       | openrouter     | LLM provider to use            |
 | DEFAULT_MODEL         | No       | google/gemini-3.8-flash | Default model (spoon_ai reads the model from `{PROVIDER}_MODEL`, so keep `OPENROUTER_MODEL` in sync) |
@@ -105,8 +106,9 @@ ports - with nightly backups and monitoring: [docs/DEPLOY.md](docs/DEPLOY.md).
 | COOKIE_SECURE         | No       | 0              | Set to 1 when serving over HTTPS |
 | PIPELINE_VERSION      | No       | v2             | Part of every cache key. Bump it when the prompts, the model or the renderer change, so stored answers the current pipeline would not produce stop being served |
 
-\* Without `GEMINI_API_KEY` the app runs but AI features are unavailable
-(polite message instead of an LLM response, no crashes).
+\* Without the key of the chosen provider (`OPENROUTER_API_KEY` by default)
+the app runs but AI features are unavailable (polite message instead of an
+LLM response, no crashes).
 
 ## Project Structure
 
@@ -187,7 +189,7 @@ authenticates with `AGENT_SECRET` before processing anything.
 - Ensure backend is healthy: `docker compose logs backend`
 
 ### Videos not generating
-- Verify `GEMINI_API_KEY` is set correctly
+- Verify `OPENROUTER_API_KEY` is set correctly
 - Check agent logs: `docker compose logs agent`
 
 ### Frontend can't connect
