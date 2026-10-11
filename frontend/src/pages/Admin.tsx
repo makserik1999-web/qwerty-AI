@@ -39,12 +39,23 @@ import { ApiError } from '../lib/api'
 import { useStore } from '../lib/store'
 import type { StaffRole } from '../lib/types'
 import '../styles/admin.css'
+import { JobsSection, MetricsSection, SystemSection } from './AdminOps'
 import { PaymentsSection } from './AdminPayments'
 import { ReferralsSection } from './AdminReferrals'
 import { VideosSection } from './AdminVideos'
 import { PLAN_LABEL, PlansSection, UserPlanPanel } from './AdminPlans'
 
-type Section = 'stats' | 'users' | 'videos' | 'referrals' | 'payments' | 'plans' | 'audit'
+type Section =
+  | 'stats'
+  | 'users'
+  | 'jobs'
+  | 'system'
+  | 'videos'
+  | 'referrals'
+  | 'metrics'
+  | 'payments'
+  | 'plans'
+  | 'audit'
 
 const PAGE = 50
 
@@ -102,10 +113,13 @@ export function Admin() {
   const sections: Array<{ value: Section; label: string }> = [
     { value: 'stats', label: 'Статистика' },
     { value: 'users', label: 'Пользователи' },
+    { value: 'jobs', label: 'Задачи' },
+    { value: 'system', label: 'Система' },
     { value: 'videos', label: 'Библиотека' },
     { value: 'referrals', label: 'Рефералы' },
     ...(isAdmin
       ? [
+          { value: 'metrics' as const, label: 'Метрики' },
           { value: 'payments' as const, label: 'Платежи' },
           { value: 'plans' as const, label: 'Тарифы' },
           { value: 'audit' as const, label: 'Журнал' },
@@ -129,8 +143,11 @@ export function Admin() {
         <Tabs label="Разделы админки" value={section} items={sections} onChange={setSection}>
           {section === 'stats' ? <StatsSection isAdmin={isAdmin} /> : null}
           {section === 'users' ? <UsersSection isAdmin={isAdmin} /> : null}
+          {section === 'jobs' ? <JobsSection /> : null}
+          {section === 'system' ? <SystemSection /> : null}
           {section === 'videos' ? <VideosSection /> : null}
           {section === 'referrals' ? <ReferralsSection /> : null}
+          {section === 'metrics' && isAdmin ? <MetricsSection /> : null}
           {section === 'payments' && isAdmin ? <PaymentsSection /> : null}
           {section === 'plans' && isAdmin ? <PlansSection /> : null}
           {section === 'audit' && isAdmin ? <AuditSection /> : null}

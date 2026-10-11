@@ -37,7 +37,7 @@ from app.repositories import assessments as repo
 from app.security.ratelimit import LoginLimiter
 from app.security.roles import require_teacher
 from app.security.verified import require_may_generate
-from app.services import docx_export, plans, usage_log
+from app.services import docx_export, jobs, plans, usage_log
 from app.services.export_naming import content_disposition, download_filename
 from app.ws.manager import agent_manager
 
@@ -146,14 +146,18 @@ async def generate(body: AssessmentRequest, request: Request):
         await plans.reserve(user, "assessments", ref)
     except plans.PlanRefusal as exc:
         raise refusal(exc) from None
+    await jobs.start("assessment", user_id, ref, spec=spec)
+    await jobs.running(ref)
     try:
         questions = await _ask_agent(spec)
         created = await repo.create_assessment(user_id, spec, _with_ids(questions))
-    except BaseException:
+    except BaseException as exc:
         await plans.release(ref)
+        await jobs.failed(ref, exc)
         raise
     await plans.commit(ref)
     await usage_log.log(user_id, "assessment")
+    await jobs.finish(ref, ok=True, output_id=created["id"])
     return created
 
 

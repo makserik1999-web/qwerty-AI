@@ -2,13 +2,14 @@
 
 The quiz service is a service of its own and holds no model key, so it never
 asks for generation itself. The editor asks here, gets questions back, and
-saves them there. Nothing is stored on this side: a draft that is not saved
-is a draft the teacher decided against.
+saves them there. Nothing is kept on this side: a draft that is not saved is
+a draft the teacher decided against. A draft written in the background waits
+in its job until the page collects it, an hour at most, and is gone after.
 """
 
 import uuid
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Response
 
 from app.api.plan import refusal
 from app.config import (
@@ -28,7 +29,7 @@ from app.models import QuizDraftRequest
 from app.security.ratelimit import LoginLimiter
 from app.security.roles import require_teacher
 from app.security.verified import require_may_generate
-from app.services import plans, usage_log
+from app.services import jobs, plans, usage_log
 from app.ws.manager import agent_manager
 
 router = APIRouter()
@@ -46,7 +47,9 @@ _FAILURES = {
 
 
 @router.post("/api/quiz-drafts")
-async def draft(body: QuizDraftRequest, request: Request):
+async def draft(body: QuizDraftRequest, request: Request, response: Response):
+    """Questions for the editor. `Prefer: respond-async` makes it a job to poll,
+    for the same reason as a lesson plan: two minutes is past Cloudflare's 100 s."""
     user = await require_teacher(request)
     require_may_generate(user)
 
@@ -91,14 +94,31 @@ async def draft(body: QuizDraftRequest, request: Request):
     except plans.PlanRefusal as exc:
         raise refusal(exc) from None
 
+    user_id = str(user["_id"])
+    job_id = await jobs.start("quiz_draft", user_id, ref, spec={
+        "topic": topic, "subject": body.subject, "grade": body.grade, "lang": body.lang,
+        "count": body.count, "purpose": body.purpose})
+    if job_id and jobs.wants_background(request):
+        jobs.spawn(_produce(user_id, body, topic, avoid, ref, background=True))
+        response.status_code = 202
+        return {"job_id": job_id, "status": "queued"}
+    return await _produce(user_id, body, topic, avoid, ref)
+
+
+async def _produce(user_id: str, body: QuizDraftRequest, topic: str, avoid: list, ref: str,
+                   background: bool = False):
+    await jobs.running(ref)
     try:
         result = await _draft(body, topic, avoid)
-    except BaseException:
+    except BaseException as exc:
         await plans.release(ref)
+        await jobs.failed(ref, exc)
         raise
     await plans.commit(ref)
     if body.purpose == "new":
-        await usage_log.log(str(user["_id"]), "quiz_draft")
+        await usage_log.log(user_id, "quiz_draft")
+    # Kept only when nobody is waiting on this response to hand it over.
+    await jobs.finish(ref, ok=True, **({"result": result} if background else {}))
     return result
 
 

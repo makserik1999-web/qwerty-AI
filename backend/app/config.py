@@ -125,6 +125,10 @@ STAFF_ROLES = ("admin", "support")
 # tzdata in the image.
 STATS_UTC_OFFSET_HOURS = int(os.getenv("STATS_UTC_OFFSET_HOURS", "5"))
 
+# Azure's free speech tier, in characters a month. The metrics page measures
+# narration against it; change it if the subscription changes.
+AZURE_TTS_FREE_CHARS = int(os.getenv("AZURE_TTS_FREE_CHARS", "500000"))
+
 # ============== Accounts: email, Google, phone ==============
 # Where people reach the site. Links in emails and the Google redirect are
 # built from it, so it must be exactly what the browser sees.

@@ -67,9 +67,11 @@ export function ReferralsSection() {
                     '—'
                   )}
                 </td>
-                <td className="admin__roles">
-                  {p.same_device ? <Badge tone="error">то же устройство</Badge> : null}
-                  {p.same_network ? <Badge tone="warning">та же сеть</Badge> : null}
+                <td>
+                  <div className="admin__roles">
+                    {p.same_device ? <Badge tone="error">то же устройство</Badge> : null}
+                    {p.same_network ? <Badge tone="warning">та же сеть</Badge> : null}
+                  </div>
                 </td>
               </tr>
             ))}

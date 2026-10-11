@@ -72,6 +72,18 @@ _LOCALES = {"kk": "kk-KZ", "ru": "ru-RU", "en": "en-US"}
 # job rather than trusting the prompt's line-length guidance.
 MAX_NARRATION_CHARS = 4000
 
+# Characters sent to Azure since the last take_spent(). One generation runs at
+# a time (see progress.py), so a module-level count belongs to the request in
+# flight. Every synthesis counts, a repair attempt's too: Azure bills them all.
+_spent_chars = 0
+
+
+def take_spent() -> int:
+    """Characters synthesised since the last call, and start counting again."""
+    global _spent_chars
+    spent, _spent_chars = _spent_chars, 0
+    return spent
+
 
 def voice_for(language: str, choice: str = "") -> str:
     """The Azure voice name, or "" when this language has none."""
@@ -208,6 +220,9 @@ async def prepare(script: str, language: str, voice_choice: str = "") -> str:
         print(f"[narration] failed, rendering silent: "
               f"{type(exc).__name__}: {str(exc)[-200:]}", flush=True)
         return ""
+
+    global _spent_chars
+    _spent_chars += total
 
     shim = _shim()
     for i, (line, data) in enumerate(zip(lines, audio, strict=True)):

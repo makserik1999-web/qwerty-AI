@@ -106,6 +106,12 @@ async def lifespan(app: FastAPI):
     await db.db.users.create_index("referred_by", sparse=True)
     await db.db.referral_rewards.create_index("invitee_id", unique=True)
     await db.db.referral_rewards.create_index([("inviter_id", 1), ("at", -1)])
+    # Generation tasks, kept a year for the metrics.
+    await db.db.generation_jobs.create_index("ref", unique=True)
+    await db.db.generation_jobs.create_index([("status", 1), ("created_at", -1)])
+    await db.db.generation_jobs.create_index([("kind", 1), ("created_at", -1)])
+    await db.db.generation_jobs.create_index([("user_id", 1), ("created_at", -1)])
+    await db.db.generation_jobs.create_index("created_at", expireAfterSeconds=400 * 24 * 3600)
 
     print(f"Connected to MongoDB at {MONGO_URL}")
     if not AGENT_SECRET:
@@ -113,19 +119,25 @@ async def lifespan(app: FastAPI):
 
     # Imported here, not at module scope: retention needs `db`, which this
     # module defines, so a top-level import would be circular.
+    from app.services.jobs import housekeeping_loop, recover_after_restart
     from app.services.plans import reminder_loop, seed_plans
     from app.services.retention import retention_loop
 
     await seed_plans()
+    recovered = await recover_after_restart()
+    if recovered:
+        print(f"Closed {recovered} generation task(s) left open by the previous process")
 
     sweep_task = asyncio.create_task(_sweep_pending_requests_loop())
     retention_task = asyncio.create_task(retention_loop())
     reminder_task = asyncio.create_task(reminder_loop())
+    jobs_task = asyncio.create_task(housekeeping_loop())
     try:
         yield
     finally:
         sweep_task.cancel()
         retention_task.cancel()
         reminder_task.cancel()
+        jobs_task.cancel()
         db.client.close()
         print("Disconnected from MongoDB")

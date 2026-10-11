@@ -344,6 +344,10 @@ async def delete_account(request: Request):
     await db.db.saved_explanations.delete_many({"user_id": user_id})
     await db.db.auth_tokens.delete_many({"user_id": user_id})
     await db.db.phone_codes.delete_many({"user_id": user_id})
+    # The tasks stay for the counts; what was asked, and by whom, goes.
+    await db.db.generation_jobs.update_many(
+        {"user_id": user_id},
+        {"$set": {"user_id": "deleted"}, "$unset": {"spec": "", "result": ""}})
     await db.db.account_events.insert_one({
         "type": "account_deleted",
         "user_id": user_id,

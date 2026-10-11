@@ -31,9 +31,10 @@ import json
 import os
 import re
 import tempfile
+import time
 from typing import Any, Dict, List, Tuple
 
-from anyq import media_info, progress, telemetry, watermark
+from anyq import media_info, narration, progress, telemetry, watermark
 
 # Environment and the user-facing failure message now live in the anyq package.
 # Importing anyq.config is also what calls load_dotenv().
@@ -146,6 +147,7 @@ async def process_request(payload: Dict[str, Any]) -> Dict[str, Any]:
     image_data = payload.get("image_data")
 
     telemetry.new_run(request_id, text)
+    narration.take_spent()
     tmp_image_paths: list = []
     try:
         if not request_id:
@@ -229,6 +231,8 @@ async def process_request(payload: Dict[str, Any]) -> Dict[str, Any]:
             "duration": info.get("duration"),
             "has_audio": info.get("has_audio"),
             "subject": str(result.get("final_subject") or ""),
+            # What this answer cost Azure, for the 500k-a-month free tier.
+            "tts_chars": narration.take_spent(),
         }
     except Exception as e:
         # Honest status: the backend must know the request failed, not be
@@ -240,6 +244,10 @@ async def process_request(payload: Dict[str, Any]) -> Dict[str, Any]:
             "text": _friendly_failure_text(text or ""),
             "video_path": "",
             "error": _safe_error_text(e),
+            # The class name only: the admin panel groups failures by it, and
+            # it carries nothing the model or the asker wrote.
+            "error_type": type(e).__name__,
+            "tts_chars": narration.take_spent(),
         }
     finally:
         for path in tmp_image_paths:
@@ -417,7 +425,10 @@ async def _authenticate(websocket) -> bool:
             # A backend talking to an older agent must not wait for a
             # confirmation that is never sent, which is what declaring it here
             # is for.
-            "features": ["embed", "classify", "assessment", "lesson_plan", "quiz", "ack"],
+            # "heartbeat": a small status frame every half minute - how much
+            # is queued, whether a render is running - for the admin panel.
+            "features": ["embed", "classify", "assessment", "lesson_plan", "quiz", "ack",
+                         "heartbeat"],
         }))
         raw = await asyncio.wait_for(
             websocket.recv(), timeout=AGENT_HANDSHAKE_TIMEOUT_SEC
@@ -441,10 +452,15 @@ async def _run_one_generation(data: Dict[str, Any]) -> Dict[str, Any]:
     request_id = data.get("request_id")
     text = data.get("text") or ""
     progress.begin(str(request_id or ""))
+    started = time.monotonic()
     try:
-        return await asyncio.wait_for(
+        resp = await asyncio.wait_for(
             process_request(data), timeout=REQUEST_DEADLINE_SEC
         )
+        # How long this took here, from leaving the queue to the answer: the
+        # backend sees the queue wait too and cannot tell the two apart.
+        resp["elapsed_sec"] = round(time.monotonic() - started, 1)
+        return resp
     except asyncio.TimeoutError:
         print(
             f"Request {request_id} timed out after {REQUEST_DEADLINE_SEC:.0f}s",
@@ -456,6 +472,9 @@ async def _run_one_generation(data: Dict[str, Any]) -> Dict[str, Any]:
             "text": _friendly_failure_text(text),
             "video_path": "",
             "error": "processing timed out",
+            "error_type": "timeout",
+            "elapsed_sec": round(time.monotonic() - started, 1),
+            "tts_chars": narration.take_spent(),
         }
     except Exception as e:  # pragma: no cover - process_request swallows
         print(
@@ -546,6 +565,34 @@ async def _flush_undelivered(websocket) -> None:
         print(f"Delivered held answer for {held.get('request_id')}", flush=True)
 
 
+HEARTBEAT_SEC = 30.0
+_started_at = time.time()
+
+
+async def _heartbeat_loop(queue: "asyncio.Queue[Dict[str, Any]]") -> None:
+    """Tell the backend how things stand here, twice a minute.
+
+    Not a liveness check - the websocket's own pings are that. This is what
+    the admin panel shows: whether a render is running, how many questions are
+    waiting behind it, how many answers are held for a lost connection.
+    """
+    while True:
+        await asyncio.sleep(HEARTBEAT_SEC)
+        ws = _current_ws
+        if ws is None:
+            continue
+        try:
+            await _send_json(ws, {
+                "type": "heartbeat",
+                "busy": bool(progress.current()),
+                "queue": queue.qsize(),
+                "held": len(_undelivered),
+                "uptime_sec": int(time.time() - _started_at),
+            })
+        except Exception:  # noqa: BLE001 - the receive loop notices a dead socket
+            pass
+
+
 async def agent_client() -> None:
     global _current_ws
 
@@ -565,6 +612,7 @@ async def agent_client() -> None:
     # Kept in a local that outlives every reconnect: a task nobody holds a
     # reference to can be collected mid-render.
     worker = asyncio.create_task(_generation_worker(queue))  # noqa: F841
+    heartbeat = asyncio.create_task(_heartbeat_loop(queue))  # noqa: F841
     # Bound once, not per connection: the sink reads the current socket at
     # send time, so a reconnect needs no rebinding and a report made while
     # there is no connection is simply dropped.

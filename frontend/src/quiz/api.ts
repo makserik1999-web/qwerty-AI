@@ -7,6 +7,7 @@
  * and sent as `X-Player-Token`.
  */
 import { ApiError } from '../lib/api'
+import { BACKGROUND, waitForJob } from '../lib/jobs'
 import type {
   AnswerReply,
   CodeLookup,
@@ -102,11 +103,23 @@ export function deleteQuiz(id: string): Promise<void> {
   return call(`/api/quiz/quizzes/${id}`, json('DELETE'))
 }
 
-/** Questions written by the agent, through the backend. Not saved anywhere. */
-export function draftQuestions(input: DraftInput): Promise<QuizFields['questions']> {
-  return call<{ questions: QuizFields['questions'] }>('/api/quiz-drafts', json('POST', input)).then(
-    (r) => r.questions,
-  )
+type Drafted = { questions: QuizFields['questions'] }
+
+/** Questions written by the agent, through the backend. Not saved anywhere.
+ *  In the background and polled for, like a lesson plan, past Cloudflare's 100 s. */
+export async function draftQuestions(input: DraftInput): Promise<QuizFields['questions']> {
+  const answer = await call<Drafted | { job_id: string }>('/api/quiz-drafts', {
+    ...json('POST', input),
+    headers: BACKGROUND,
+  })
+  if (!('job_id' in answer)) return answer.questions
+  try {
+    return await waitForJob(answer.job_id, (job) => (job.result as Drafted | null | undefined)?.questions)
+  } catch (error) {
+    // The pages tell the service's failures apart by QuizError.
+    if (error instanceof ApiError) throw new QuizError(error.status, error.detail, error.reason)
+    throw error
+  }
 }
 
 export function openRun(

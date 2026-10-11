@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import secrets
+import time
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
@@ -14,10 +15,17 @@ from app.config import (
     CACHE_ENABLED,
 )
 from app.repositories.messages import save_message
-from app.services import cache_service, plans, quota, topic_cache, usage_log
+from app.services import cache_service, jobs, plans, quota, topic_cache, usage_log
 from app.ws.manager import _notify_pending_failures, agent_manager, ui_manager
 
 router = APIRouter()
+
+
+def _number(value, cap: float = 10**9):
+    """A count or a duration from the agent, or None. Never trusted to be a number."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return max(0, min(cap, value))
 
 
 @router.websocket("/ws/agent")
@@ -71,6 +79,18 @@ async def websocket_agent_endpoint(websocket: WebSocket):
                 continue
             if not authed:
                 continue
+            agent_manager.last_seen = time.time()
+
+            # The agent's status, twice a minute: for the system page, nothing else.
+            if data.get("type") == "heartbeat":
+                agent_manager.heartbeat = {
+                    "at": time.time(),
+                    "busy": bool(data.get("busy")),
+                    "queue": _number(data.get("queue"), 10_000),
+                    "held": _number(data.get("held"), 10_000),
+                    "uptime_sec": _number(data.get("uptime_sec")),
+                }
+                continue
 
             request_id = data.get("request_id")
 
@@ -116,6 +136,7 @@ async def websocket_agent_endpoint(websocket: WebSocket):
                 if stage in ("understand", "write", "render") and request_id:
                     info = agent_manager.get_request_info(request_id, pop=False)
                     if info:
+                        await jobs.running(request_id)
                         await ui_manager.send_to_user(info["user_id"], {
                             "type": "progress",
                             "data": {"chat_id": info["chat_id"], "stage": stage},
@@ -171,6 +192,10 @@ async def websocket_agent_endpoint(websocket: WebSocket):
                     print(f"quota refund failed: {type(e).__name__}: {e}")
                 await plans.release(request_id)
                 await usage_log.log(user_id, "explanation", ok=False)
+                await jobs.finish(request_id, ok=False,
+                                  error_type=str(data.get("error_type") or "agent_error"),
+                                  render_sec=_number(data.get("elapsed_sec")),
+                                  tts_chars=_number(data.get("tts_chars")) or 0)
                 await ui_manager.send_to_user(user_id, {
                     "type": "error",
                     "data": {
@@ -196,6 +221,13 @@ async def websocket_agent_endpoint(websocket: WebSocket):
                 await plans.commit(request_id)
             elif status == "complete":
                 await plans.release(request_id)
+            if status == "complete":
+                has_audio = data.get("has_audio")
+                await jobs.finish(request_id, ok=True, video=bool(video_url),
+                                  has_audio=has_audio if isinstance(has_audio, bool) else None,
+                                  duration=_number(data.get("duration"), 3600),
+                                  render_sec=_number(data.get("elapsed_sec")),
+                                  tts_chars=_number(data.get("tts_chars")) or 0)
 
             # A general question's video is filed under its topic for the
             # next person who asks - the clean render, never a trial's copy.

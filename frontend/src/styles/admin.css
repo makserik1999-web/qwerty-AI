@@ -183,3 +183,41 @@
 .admin__video {
   padding: var(--space-md);
 }
+
+/* A question in the tasks table: one line, the rest on hover. */
+.admin__clip {
+  max-width: 28ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Ten sections do not fit a phone: the strip scrolls sideways, the page does not. */
+.admin .tabs {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 1px;
+  scrollbar-width: thin;
+}
+
+.admin .tabs__tab {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* A filter with long labels scrolls inside itself on a phone, like the tabs. */
+.admin .segmented {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.admin .segmented__option {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.admin__wrap {
+  flex-wrap: wrap;
+  white-space: normal;
+}

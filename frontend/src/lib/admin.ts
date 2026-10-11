@@ -296,3 +296,91 @@ export function videoAction(id: string, action: 'publish' | 'reject' | 'delete',
 export function editVideo(id: string, changes: { title?: string; topic_id?: string; reason?: string }) {
   return send<AdminVideo>(`/videos/${encodeURIComponent(id)}`, 'PUT', changes)
 }
+
+/* Tasks, system, metrics -------------------------------------------------- */
+
+export interface AdminJob {
+  id: string
+  kind: 'video' | 'assessment' | 'lesson_plan' | 'quiz_draft'
+  user_id: string
+  email: string
+  status: 'queued' | 'running' | 'done' | 'failed'
+  created_at: string | null
+  started_at: string | null
+  finished_at: string | null
+  render_sec: number | null
+  error_type: string | null
+  video: boolean | null
+  has_audio: boolean | null
+  narration: boolean | null
+  duration: number | null
+  tts_chars: number | null
+  effort: string | null
+  summary: string
+  restart_of: string | null
+  restarted_as: string | null
+  restartable: boolean
+}
+
+export interface JobCounts {
+  queued: number
+  running: number
+  failed_24h: number
+  silent_24h: number
+}
+
+export function listJobs(filters: { status: string; kind: string; silent: boolean; page: number }) {
+  const params = new URLSearchParams({
+    status: filters.status,
+    kind: filters.kind,
+    silent: String(filters.silent),
+    page: String(filters.page),
+  })
+  return request<{ items: AdminJob[]; total: number; page: number; counts: JobCounts }>(`/jobs?${params}`)
+}
+
+export function restartJob(id: string, reason = '') {
+  return send<{ ok: boolean; job_id: string }>(`/jobs/${encodeURIComponent(id)}/restart`, 'POST', { reason })
+}
+
+export interface SystemState {
+  agent: {
+    connected: boolean
+    connected_at: string | null
+    last_seen: string | null
+    features: string[]
+    heartbeat: { at: string | null; busy: boolean; queue: number | null; held: number | null; uptime_sec: number | null } | null
+  }
+  queue: { videos: number; documents: number; oldest_sec: number; exports: number }
+  jobs: JobCounts
+  disk: { free: number | null; total: number | null; free_share: number | null }
+  database: { ok: boolean; data_bytes?: number; storage_bytes?: number }
+  backend: { uptime_sec: number }
+  warnings: string[]
+}
+
+export function getSystem() {
+  return request<SystemState>('/system')
+}
+
+export interface Metrics {
+  days: number
+  funnel: {
+    registered: number
+    phone_confirmed: number
+    trial_started: number
+    trial_used: number
+    trial_spent: number
+    paid: number
+  }
+  active_teachers: { day: number; week: number; month: number }
+  revenue: Array<{ month: string; amount: number }>
+  renders: Array<{ date: string; videos: number; failed: number; silent: number; avg_render_sec: number | null }>
+  failures: Array<{ error_type: string; count: number }>
+  azure: { month: string; chars: number; limit: number; projected: number }
+  utc_offset_hours: number
+}
+
+export function getMetrics(days: number) {
+  return request<Metrics>(`/metrics?days=${days}`)
+}

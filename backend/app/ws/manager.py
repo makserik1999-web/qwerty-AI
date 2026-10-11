@@ -102,6 +102,12 @@ class AgentConnectionManager:
         # Declared by the agent at handshake. Empty means an older build
         # that only understands generation requests.
         self.agent_features: set = set()
+        # For the admin panel's system page: since when the agent has been
+        # connected, when it last said anything, and its last status frame.
+        # Wall-clock seconds, because they are shown as times.
+        self.connected_at: Optional[float] = None
+        self.last_seen: Optional[float] = None
+        self.heartbeat: Dict[str, Any] = {}
 
     async def request_embedding(self, text: str, timeout: float) -> Optional[dict]:
         """Ask the agent for a question's vector and language.
@@ -272,6 +278,8 @@ class AgentConnectionManager:
             # ack for them is ever coming.
             self._fail_pending_acks()
         self.agent_connection = websocket
+        self.connected_at = self.last_seen = time.time()
+        self.heartbeat = {}
         print("AI Agent connected")
 
     def disconnect(self, websocket: Optional[WebSocket] = None):
@@ -284,6 +292,7 @@ class AgentConnectionManager:
         if websocket is not None and self.agent_connection is not websocket:
             return
         self.agent_connection = None
+        self.connected_at = None
         self._fail_pending_acks()
         print("AI Agent disconnected")
 
@@ -401,6 +410,10 @@ async def _notify_pending_failures(message: str):
 
     The TTL sweep clears these on its own; `notified` stops it saying so twice.
     """
+    from app.services import jobs
+
+    await jobs.fail_open([rid for rid, info in agent_manager.pending_requests.items()
+                          if not info.get("notified")], "agent_lost")
     for request_id, info in list(agent_manager.pending_requests.items()):
         user_id = info.get("user_id")
         chat_id = info.get("chat_id")
@@ -422,6 +435,10 @@ async def _sweep_once():
         rid for rid, info in agent_manager.pending_requests.items()
         if now - info.get("created_at", now) > PENDING_REQUESTS_TTL_SEC
     ]
+    if stale:
+        from app.services import jobs
+
+        await jobs.fail_open(stale, "timeout")
     for rid in stale:
         info = agent_manager.pending_requests.pop(rid, None)
         await _refund_quietly(rid)

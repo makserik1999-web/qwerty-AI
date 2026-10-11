@@ -5,6 +5,45 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### Generation tasks, system health, metrics; no more 524 on lesson plans
+
+**Added**
+
+- Every generation is a task in `generation_jobs`: queued, running, done or
+  failed, with the render time (the agent's own measure for videos), the
+  error type, and for videos the length, whether it has sound and the Azure
+  characters spent. A task left open by a backend restart is closed at
+  start-up and its plan unit given back.
+- The admin «Задачи» tab (admin and support): the queue, failures, a silent
+  filter, and a restart for a failed video or lesson plan - once, on the
+  teacher's own plan, written to the audit log.
+- «Система» (admin and support): the agent's connection and its heartbeat
+  (busy or idle, how much is waiting), the work in flight, the oldest
+  request, free disk, the database, and warnings when any of them is wrong.
+- «Метрики» (admin only): the funnel from sign-up to payment, active
+  teachers, revenue by month, renders per day, failures by type, and Azure
+  TTS characters this month against the free 500k, with a projection.
+- The agent reports `error_type`, `elapsed_sec` and `tts_chars` with every
+  answer and sends a heartbeat every 30 seconds (feature `heartbeat`).
+
+**Changed**
+
+- Lesson plans and quiz drafts are made in the background: the page sends
+  `Prefer: respond-async`, gets a job id at once and polls `/api/jobs/{id}`.
+  Cloudflare's 100-second limit no longer cuts off a slow plan, and a plan
+  is saved even if the tab was closed. Without the header the endpoints
+  answer as before.
+- A task keeps the question only while it may be restarted: dropped on
+  success, and two weeks after a failure. Deleting an account strips its
+  tasks of the question and the owner.
+- The admin tab strip and filters scroll sideways on a phone instead of
+  widening the page.
+
+**Fixed**
+
+- The lesson plan page showed a plan refusal (no plan, plan used up) as the
+  server's English sentence: its client dropped the error code.
+
 ### Referrals
 
 **Added**

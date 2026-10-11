@@ -20,7 +20,7 @@ import re
 import uuid
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Response
 
 from app.api.plan import refusal
 from app.config import (
@@ -39,7 +39,7 @@ from app.repositories import lesson_plans as repo
 from app.security.ratelimit import LoginLimiter
 from app.security.roles import require_teacher
 from app.security.verified import require_may_generate
-from app.services import plans, usage_log
+from app.services import jobs, plans, usage_log
 from app.ws.manager import agent_manager
 
 router = APIRouter()
@@ -204,7 +204,14 @@ async def _ask_agent(spec: Dict[str, Any]) -> Dict[str, Any]:
 
 
 @router.post("/api/lesson-plans", status_code=201)
-async def generate(body: LessonPlanRequest, request: Request):
+async def generate(body: LessonPlanRequest, request: Request, response: Response):
+    """Write a plan. With `Prefer: respond-async`, answer at once with a job to poll.
+
+    A plan can take two minutes and Cloudflare gives up on a response after
+    one hundred seconds, so the page asks in the background: everything that
+    can refuse - the checks, the hourly limit, the plan's allowance - still
+    answers here, before the job exists, and only the writing moves out.
+    """
     user = await require_teacher(request)
     require_may_generate(user)
     user_id = str(user["_id"])
@@ -221,6 +228,17 @@ async def generate(body: LessonPlanRequest, request: Request):
         await plans.reserve(user, "lesson_plans", ref)
     except plans.PlanRefusal as exc:
         raise refusal(exc) from None
+    job_id = await jobs.start("lesson_plan", user_id, ref, spec=spec)
+    if job_id and jobs.wants_background(request):
+        jobs.spawn(produce(user_id, spec, ref))
+        response.status_code = 202
+        return {"job_id": job_id, "status": "queued"}
+    return await produce(user_id, spec, ref)
+
+
+async def produce(user_id: str, spec: Dict[str, Any], ref: str) -> Dict[str, Any]:
+    """Write the plan and keep it; settle the plan's unit and the task either way."""
+    await jobs.running(ref)
     try:
         result = await _ask_agent(spec)
         created = await repo.create_lesson_plan(
@@ -229,11 +247,13 @@ async def generate(body: LessonPlanRequest, request: Request):
             _with_ids(result["plan"]),
             int(result.get("minutes_planned") or 0),
         )
-    except BaseException:
+    except BaseException as exc:
         await plans.release(ref)
+        await jobs.failed(ref, exc)
         raise
     await plans.commit(ref)
     await usage_log.log(user_id, "lesson_plan")
+    await jobs.finish(ref, ok=True, output_id=created["id"])
     return created
 
 

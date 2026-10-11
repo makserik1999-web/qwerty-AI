@@ -7,19 +7,21 @@
  * quietly hand back a different one.
  */
 import { ApiError } from './api'
+import { BACKGROUND, waitForJob } from './jobs'
 import type { LessonPlan, LessonPlanDocument } from './types'
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   let response: Response
   try {
+    // `init` first: its own headers are merged below, not left to replace these.
     response = await fetch(`/api${path}`, {
+      ...init,
       credentials: 'include',
       headers: {
         Accept: 'application/json',
         ...(init.body ? { 'Content-Type': 'application/json' } : {}),
         ...init.headers,
       },
-      ...init,
     })
   } catch {
     throw new ApiError(0, '')
@@ -27,13 +29,18 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   if (!response.ok) {
     let detail = ''
+    let reason = ''
+    let data: Record<string, unknown> = {}
     try {
       const body = await response.json()
       if (body && typeof body.detail === 'string') detail = body.detail
+      // The code is what turns a plan's refusal into the reader's language.
+      if (body && typeof body.code === 'string') reason = body.code
+      if (body && typeof body === 'object') data = body
     } catch {
       /* nothing useful in the body; the status carries it */
     }
-    throw new ApiError(response.status, detail)
+    throw new ApiError(response.status, detail, reason, data)
   }
   return (await response.json()) as T
 }
@@ -47,11 +54,18 @@ export interface PlanInput {
   section: string
 }
 
+/** Written in the background and polled for: a plan can outlast Cloudflare's
+ *  100 seconds. An older server answers with the plan itself, which is fine. */
 export async function generateLessonPlan(input: PlanInput): Promise<LessonPlan> {
-  return request<LessonPlan>('/lesson-plans', {
+  const answer = await request<LessonPlan | { job_id: string }>('/lesson-plans', {
     method: 'POST',
     body: JSON.stringify(input),
+    headers: BACKGROUND,
   })
+  if ('job_id' in answer) {
+    return waitForJob(answer.job_id, (job) => job.lesson_plan as LessonPlan | undefined)
+  }
+  return answer
 }
 
 export async function listLessonPlans(): Promise<LessonPlan[]> {

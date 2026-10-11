@@ -34,6 +34,7 @@ ADMIN_ONLY = {
     "/api/admin/payments/{payment_id}/confirm",
     "/api/admin/payments/{payment_id}/reject",
     "/api/admin/payments/{payment_id}/refund",
+    "/api/admin/metrics",
 }
 
 # Let through: anything but the guard's own answers. A POST sent here with no

@@ -27,7 +27,7 @@ from app.repositories.messages import save_message
 from app.security.origins import _is_allowed_origin
 from app.security.sessions import _user_from_token
 from app.security.verified import EMAIL_UNVERIFIED, may_generate
-from app.services import cache_service, plans, quota, topic_cache, usage_log
+from app.services import cache_service, jobs, plans, quota, topic_cache, usage_log
 from app.validators import (
     _validate_chat_id,
     _validate_prompt,
@@ -315,7 +315,7 @@ async def _handle_ui_frame(websocket: WebSocket, user_id: str, data: dict) -> No
             })
             return
 
-        await save_message(chat_id, "user", prompt, screenshots)
+        user_message = await save_message(chat_id, "user", prompt, screenshots)
         await websocket.send_json({"type": "message_received"})
 
         agent_manager.pending_requests[request_id] = {
@@ -336,6 +336,14 @@ async def _handle_ui_frame(websocket: WebSocket, user_id: str, data: dict) -> No
             "classification": classification,
         }
         await quota.record(user_id, request_id)
+        # The task the admin panel sees. What was asked is kept so a failure
+        # can be made again; the screenshots stay in the chat message.
+        await jobs.start("video", user_id, request_id, narration=narration, spec={
+            "prompt": prompt, "chat_id": chat_id, "user_message_id": user_message["id"],
+            "screenshots": len(screenshots or []), "narration": narration,
+            "voice": voice, "video_length": video_length, "effort": effort,
+            "variant": variant, "classification": classification,
+        })
         try:
             await agent_manager.send_to_agent(
                 request_id=request_id,
@@ -354,6 +362,7 @@ async def _handle_ui_frame(websocket: WebSocket, user_id: str, data: dict) -> No
             # Nothing was rendered, so nothing is owed.
             await quota.refund(request_id)
             await plans.release(request_id)
+            await jobs.finish(request_id, ok=False, error_type="delivery")
             # A request the agent never confirmed is not a failure the person
             # has to understand - it is one they can simply retry, and saying
             # so beats handing them the mechanism. Every other send failure
