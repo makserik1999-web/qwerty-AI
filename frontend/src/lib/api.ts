@@ -24,18 +24,37 @@ export interface ApiUser {
   /** Present only for staff. */
   staff_role?: StaffRole
   created_at: string | null
+  email_verified: boolean
+  /** 77071234567, or null. */
+  phone: string | null
+  phone_verified: boolean
+  /** False for an account made with Google that never set a password. */
+  has_password: boolean
 }
 
 export class ApiError extends Error {
   readonly status: number
   readonly detail: string
+  /** The server's machine-readable reason, when it gave one. */
+  readonly reason: string
+  /** Anything else in the error body: retry_after, attempts_left. */
+  readonly data: Record<string, unknown>
 
-  constructor(status: number, detail: string) {
+  constructor(status: number, detail: string, reason = '', data: Record<string, unknown> = {}) {
     super(detail || `Request failed (${status})`)
     this.name = 'ApiError'
     this.status = status
     this.detail = detail
+    this.reason = reason
+    this.data = data
   }
+}
+
+/** Codes any generating request can come back with, said in the reader's language. */
+export function generationRefusal(error: unknown): 'auth.verifyFirst' | null {
+  if (!(error instanceof ApiError)) return null
+  const code = error.reason || (error as { code?: string }).code
+  return code === 'email_unverified' ? 'auth.verifyFirst' : null
 }
 
 /** Status 0 means the request never arrived - offline, or the server is down. */
@@ -59,13 +78,17 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   if (!response.ok) {
     let detail = ''
+    let reason = ''
+    let data: Record<string, unknown> = {}
     try {
       const body = await response.json()
       if (body && typeof body.detail === 'string') detail = body.detail
+      if (body && typeof body.code === 'string') reason = body.code
+      if (body && typeof body === 'object') data = body
     } catch {
       /* a non-JSON error body tells us nothing useful; the status carries it */
     }
-    throw new ApiError(response.status, detail)
+    throw new ApiError(response.status, detail, reason, data)
   }
 
   if (response.status === 204) return undefined as T
@@ -144,4 +167,48 @@ export interface Quota {
 
 export async function getQuota(): Promise<Quota> {
   return request<Quota>('/quota')
+}
+
+/** Which sign-in and confirmation methods the server has set up. */
+export async function getProviders(): Promise<{ google: boolean; phone: boolean }> {
+  return request('/auth/providers')
+}
+
+/** Where the "Continue with Google" button sends the browser. */
+export function googleStartUrl(role?: Role): string {
+  return role ? `/api/auth/google/start?role=${encodeURIComponent(role)}` : '/api/auth/google/start'
+}
+
+export async function resendVerification(): Promise<{ ok: boolean; already?: boolean }> {
+  return request('/auth/email/resend', { method: 'POST' })
+}
+
+export async function verifyEmail(token: string): Promise<{ ok: boolean; email: string }> {
+  return request('/auth/email/verify', { method: 'POST', body: JSON.stringify({ token }) })
+}
+
+export async function forgotPassword(email: string): Promise<void> {
+  await request('/auth/password/forgot', { method: 'POST', body: JSON.stringify({ email }) })
+}
+
+export async function resetPassword(token: string, password: string): Promise<ApiUser> {
+  const { user } = await request<{ user: ApiUser }>('/auth/password/reset', {
+    method: 'POST',
+    body: JSON.stringify({ token, password }),
+  })
+  return user
+}
+
+export async function startPhone(
+  phone: string,
+): Promise<{ ok: boolean; already?: boolean; phone?: string; retry_after?: number }> {
+  return request('/auth/phone/start', { method: 'POST', body: JSON.stringify({ phone }) })
+}
+
+export async function verifyPhone(phone: string, code: string): Promise<ApiUser> {
+  const { user } = await request<{ user: ApiUser }>('/auth/phone/verify', {
+    method: 'POST',
+    body: JSON.stringify({ phone, code }),
+  })
+  return user
 }

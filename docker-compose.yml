@@ -105,6 +105,27 @@ services:
       - GENERATION_QUEUE_MAX=${GENERATION_QUEUE_MAX:-20}
       - SIGNUP_MAX_PER_HOUR=${SIGNUP_MAX_PER_HOUR:-100}
       - LOGIN_IP_MAX_FAILURES=${LOGIN_IP_MAX_FAILURES:-50}
+      # Accounts. Links in emails and the Google redirect are built from
+      # PUBLIC_BASE_URL; production sets it from SITE_DOMAIN. Mail goes to
+      # the log until MAIL_TRANSPORT=smtp, SMS until SMS_PROVIDER is a real
+      # provider; REQUIRE_VERIFIED_EMAIL stays 0 until mail really leaves.
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-http://localhost:3000}
+      - MAIL_TRANSPORT=${MAIL_TRANSPORT:-log}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_SECURITY=${SMTP_SECURITY:-starttls}
+      - SMTP_FROM=${SMTP_FROM:-Akron <no-reply@localhost>}
+      - REQUIRE_VERIFIED_EMAIL=${REQUIRE_VERIFIED_EMAIL:-0}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - SMS_PROVIDER=${SMS_PROVIDER:-log}
+      - SMSC_LOGIN=${SMSC_LOGIN:-}
+      - SMSC_PASSWORD=${SMSC_PASSWORD:-}
+      - MOBIZON_API_KEY=${MOBIZON_API_KEY:-}
+      - SMS_SENDER=${SMS_SENDER:-}
+      - SMS_DAILY_MAX=${SMS_DAILY_MAX:-200}
       # Part of every cache key, so raising it retires stored answers the
       # current pipeline would no longer produce. config.py says to bump it
       # when the prompts, the model or the renderer change - and it was read

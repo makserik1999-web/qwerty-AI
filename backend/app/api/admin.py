@@ -95,6 +95,10 @@ def _user_row(user: Dict[str, Any], usage: Dict[str, int]) -> Dict[str, Any]:
         "role": user.get("role") or USER_ROLE_DEFAULT,
         "staff_role": staff_role_of(user),
         "created_at": _iso(user.get("created_at")),
+        "email_verified": bool(user.get("email") and user.get("email_verified_at")),
+        "phone": user.get("phone") or None,
+        "phone_verified": bool(user.get("phone") and user.get("phone_verified_at")),
+        "google": bool(user.get("google_sub")),
         "usage": usage,
     }
 
@@ -109,6 +113,13 @@ def _search_filter(q: str) -> Dict[str, Any]:
     ]
     if _OBJECT_ID_RE.fullmatch(q):
         conditions.append({"_id": ObjectId(q)})
+    # A phone typed any way: "+7 707 123", "8707123", "707 12 34". Stored as
+    # 77071234567, so a leading 8 is the same as a 7.
+    digits = re.sub(r"\D", "", q)
+    if len(digits) >= 4 and len(digits) >= len(q.replace(" ", "")) - 3:
+        if len(digits) == 11 and digits.startswith("8"):
+            digits = "7" + digits[1:]
+        conditions.append({"phone": re.compile(re.escape(digits))})
     return {"$or": conditions}
 
 

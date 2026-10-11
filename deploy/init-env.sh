@@ -79,6 +79,9 @@ cat <<EOF
     GEMINI_API_KEY=         необязательно: скриншоты и без него идут через OpenRouter
     TELEGRAM_BOT_TOKEN=     куда слать тревоги мониторинга (необязательно)
     TELEGRAM_CHAT_ID=
+    SMTP_*, MAIL_TRANSPORT  почта для подтверждения и сброса пароля (см. docs/DEPLOY.md)
+    GOOGLE_CLIENT_ID/SECRET вход через Google (необязательно)
+    SMS_PROVIDER и ключи    SMS-коды для телефона (см. docs/DEPLOY.md)
 
     nano .env
 

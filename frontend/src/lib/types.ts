@@ -165,4 +165,10 @@ export interface User {
   role: Role
   /** Only decides whether the admin link is shown; the server checks every request. */
   staffRole: StaffRole | null
+  emailVerified: boolean
+  /** 77071234567 once confirmed by SMS, otherwise null. */
+  phone: string | null
+  phoneVerified: boolean
+  /** False for an account made with Google that never set a password. */
+  hasPassword: boolean
 }

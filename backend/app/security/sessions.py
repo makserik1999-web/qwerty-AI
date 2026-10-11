@@ -36,6 +36,14 @@ def _user_payload(user: Dict[str, Any]) -> Dict[str, Any]:
         "created_at": user.get("created_at").isoformat()
         if isinstance(user.get("created_at"), datetime)
         else None,
+        # The account's own contact details and whether each is confirmed,
+        # so the interface can ask for what is missing.
+        "email_verified": bool(user.get("email") and user.get("email_verified_at")),
+        "phone": user.get("phone") or None,
+        "phone_verified": bool(user.get("phone") and user.get("phone_verified_at")),
+        # False for an account made with Google that never set a password:
+        # "forgot password" is how it gets one.
+        "has_password": bool(user.get("password_hash")),
     }
     # Only for staff, and only so the interface can show the admin link. It
     # grants nothing: every /api/admin route reads the role from the account.

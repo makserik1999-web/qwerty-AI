@@ -1,9 +1,11 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { GoogleButton } from '../components/auth/GoogleButton'
 import { Logo } from '../components/layout/Logo'
 import { Alert, Button, Card, Field, Input } from '../components/ui'
-import { describeAuthError } from '../lib/authErrors'
+import { describeAuthError, googleErrorKey } from '../lib/authErrors'
 import { useI18n } from '../lib/i18n'
+import { useProviders } from '../lib/providers'
 import { useStore } from '../lib/store'
 import { isValidEmail } from '../lib/utils'
 
@@ -11,11 +13,14 @@ export function SignIn() {
   const { t } = useI18n()
   const { signIn } = useStore()
   const navigate = useNavigate()
+  const providers = useProviders()
+  const [params] = useSearchParams()
+  const googleError = googleErrorKey(params.get('auth_error'))
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({})
-  const [formError, setFormError] = useState<string | null>(null)
+  const [formError, setFormError] = useState<string | null>(googleError ? t(googleError) : null)
   const [submitting, setSubmitting] = useState(false)
 
   async function onSubmit(event: React.FormEvent) {
@@ -79,9 +84,9 @@ export function SignIn() {
             </Field>
 
             <div className="row row-between">
-              <a href="#reset" className="text-sm">
+              <Link to="/forgot-password" className="text-sm">
                 {t('auth.signin.forgot')}
-              </a>
+              </Link>
             </div>
 
             {formError ? <Alert tone="error">{formError}</Alert> : null}
@@ -91,6 +96,14 @@ export function SignIn() {
             </Button>
           </form>
 
+          {providers.google ? (
+            <>
+              <div className="auth__or" role="separator">
+                <span>{t('auth.or')}</span>
+              </div>
+              <GoogleButton />
+            </>
+          ) : null}
 
           <p className="text-sm text-secondary auth__foot">
             {t('auth.signin.noAccount')} <Link to="/signup">{t('common.signUp')}</Link>

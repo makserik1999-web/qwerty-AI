@@ -24,6 +24,7 @@ from app.errors import HTTPExceptionJson
 from app.models import QuizDraftRequest
 from app.security.ratelimit import LoginLimiter
 from app.security.roles import require_teacher
+from app.security.verified import require_may_generate
 from app.services import usage_log
 from app.ws.manager import agent_manager
 
@@ -41,6 +42,7 @@ _FAILURES = {
 @router.post("/api/quiz-drafts")
 async def draft(body: QuizDraftRequest, request: Request):
     user = await require_teacher(request)
+    require_may_generate(user)
 
     topic = (body.topic or "").strip()
     if not topic:

@@ -143,6 +143,8 @@ export function Explain() {
             ? t('explain.timedOut')
             : error instanceof AgentError && error.code === 'teacher_only'
               ? t('explain.teacherOnly')
+              : error instanceof AgentError && error.code === 'email_unverified'
+                ? t('auth.verifyFirst')
               : error instanceof AgentError
                 ? error.message
                 : null,

@@ -12,9 +12,11 @@ import {
   SegmentedControl,
   useToast,
 } from '../components/ui'
+import { PhoneSection } from '../components/settings/PhoneSection'
 import { ApiError } from '../lib/api'
 import { describeAuthError } from '../lib/authErrors'
 import { useI18n } from '../lib/i18n'
+import { useProviders } from '../lib/providers'
 import { useStore, type ThemePreference } from '../lib/store'
 import { UI_LANGUAGES } from '../lib/languages'
 import type { Lang, UiLang } from '../lib/types'
@@ -66,6 +68,7 @@ export function Settings() {
   const { t } = useI18n()
   const { toast } = useToast()
   const navigate = useNavigate()
+  const providers = useProviders()
   const {
     user,
     uiLang,
@@ -186,7 +189,17 @@ export function Settings() {
             )}
           </Field>
 
-          <Field label={t('auth.field.email')} error={emailError}>
+          <Field
+            label={t('auth.field.email')}
+            error={emailError}
+            hint={
+              user?.email
+                ? user.emailVerified
+                  ? t('settings.emailVerified')
+                  : t('settings.emailUnverified')
+                : undefined
+            }
+          >
             {(props) => (
               <Input
                 {...props}
@@ -202,6 +215,9 @@ export function Settings() {
           </Field>
         </Section>
       </form>
+
+      {/* Phone - offered once the server can send codes. */}
+      {providers.phone ? <PhoneSection /> : null}
 
       {/* Language ------------------------------------------------------------ */}
       <Section title={t('settings.language')} description={t('settings.languageDesc')}>

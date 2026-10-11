@@ -27,6 +27,10 @@ export interface AdminUser {
   role: Role
   staff_role: StaffRole | null
   created_at: string | null
+  email_verified: boolean
+  phone: string | null
+  phone_verified: boolean
+  google: boolean
   usage: Usage
 }
 

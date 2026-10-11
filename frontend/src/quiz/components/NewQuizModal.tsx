@@ -19,6 +19,7 @@ import {
 import { useI18n } from '../../lib/i18n'
 import { GRADES, SUBJECTS } from '../../lib/mockData'
 import type { Lang, SubjectId } from '../../lib/types'
+import { generationRefusal } from '../../lib/api'
 import { QuizError, createQuiz, draftQuestions } from '../api'
 import { blankChoice } from '../edit'
 import type { DraftInput, Quiz } from '../types'
@@ -48,6 +49,8 @@ export function NewQuizModal({
   const [error, setError] = useState('')
 
   function describe(failure: unknown): string {
+    const refusal = generationRefusal(failure)
+    if (refusal) return t(refusal)
     if (failure instanceof QuizError) {
       if (failure.status === 503) return t('quiz.new.errUnavailable')
       if (failure.status === 504) return t('quiz.new.errTimeout')

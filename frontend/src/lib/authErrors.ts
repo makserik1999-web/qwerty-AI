@@ -41,3 +41,15 @@ export function describeAuthError(error: unknown, invalidKey: StringKey): AuthFa
       return { key: 'auth.error.unknown' }
   }
 }
+
+const GOOGLE_ERRORS = ['cancelled', 'failed', 'state', 'choose_role', 'too_many'] as const
+
+/**
+ * The message for `?auth_error=google_<reason>`, which the Google callback
+ * redirects with when it cannot sign someone in.
+ */
+export function googleErrorKey(param: string | null): StringKey | null {
+  if (!param?.startsWith('google_')) return null
+  const reason = param.slice('google_'.length) as (typeof GOOGLE_ERRORS)[number]
+  return GOOGLE_ERRORS.includes(reason) ? (`auth.googleError.${reason}` as StringKey) : null
+}

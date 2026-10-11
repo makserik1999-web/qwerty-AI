@@ -19,7 +19,7 @@ import {
   useToast,
 } from '../components/ui'
 import { MarkdownMessage } from '../components/MarkdownMessage'
-import { ApiError } from '../lib/api'
+import { ApiError, generationRefusal } from '../lib/api'
 import {
   generateAssessment,
   regenerateQuestion,
@@ -85,7 +85,11 @@ export function Generate() {
       // shorten the topic, or that the hour's papers are spent.
       const described = describeAuthError(error, 'auth.error.unknown')
       setFailure(
-        error instanceof ApiError && error.detail ? error.detail : t(described.key),
+        generationRefusal(error)
+          ? t(generationRefusal(error)!)
+          : error instanceof ApiError && error.detail
+            ? error.detail
+            : t(described.key),
       )
       setStatus('error')
     }
@@ -101,9 +105,11 @@ export function Generate() {
       toast(t('generate.questionUpdated'))
     } catch (error) {
       setFailure(
-        error instanceof ApiError && error.detail
-          ? error.detail
-          : t('auth.error.unknown'),
+        generationRefusal(error)
+          ? t(generationRefusal(error)!)
+          : error instanceof ApiError && error.detail
+            ? error.detail
+            : t('auth.error.unknown'),
       )
     } finally {
       setBusyQuestion(null)

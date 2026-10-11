@@ -37,6 +37,7 @@ from app.models import LessonPlanRequest, PlanUpdate
 from app.repositories import lesson_plans as repo
 from app.security.ratelimit import LoginLimiter
 from app.security.roles import require_teacher
+from app.security.verified import require_may_generate
 from app.services import usage_log
 from app.ws.manager import agent_manager
 
@@ -204,6 +205,7 @@ async def _ask_agent(spec: Dict[str, Any]) -> Dict[str, Any]:
 @router.post("/api/lesson-plans", status_code=201)
 async def generate(body: LessonPlanRequest, request: Request):
     user = await require_teacher(request)
+    require_may_generate(user)
     user_id = str(user["_id"])
 
     if not plan_limiter.allow(f"plan:{user_id}"):

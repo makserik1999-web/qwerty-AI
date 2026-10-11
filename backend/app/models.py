@@ -129,3 +129,27 @@ class SaveRequest(BaseModel):
 
 class RenameRequest(BaseModel):
     question: str
+
+
+class TokenRequest(BaseModel):
+    """A one-time token from an emailed link."""
+
+    token: str
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    password: str
+
+
+class PhoneStartRequest(BaseModel):
+    phone: str
+
+
+class PhoneVerifyRequest(BaseModel):
+    phone: str
+    code: str

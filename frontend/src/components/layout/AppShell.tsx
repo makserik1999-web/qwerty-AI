@@ -7,6 +7,7 @@ import { Avatar, Icon, type IconName } from '../ui'
 import { LanguageMenu } from './LanguageMenu'
 import { Logo } from './Logo'
 import { ThemeToggle } from './ThemeToggle'
+import { VerifyBanner } from './VerifyBanner'
 
 interface TabDef {
   to: string
@@ -163,6 +164,7 @@ export function AppShell() {
       </header>
 
       <main className="shell__main" id="main">
+        <VerifyBanner />
         <Outlet />
       </main>
     </div>

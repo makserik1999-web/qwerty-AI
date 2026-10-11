@@ -5,6 +5,45 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### Real accounts: a confirmed email, password reset, Google, a phone
+
+**Added**
+
+- Email confirmation. Signup mails a link (Kazakh and Russian); the link
+  opens `/verify-email`, which POSTs the token, so a mail scanner opening the
+  link spends nothing. Tokens are stored as sha256, single use, 48 hours.
+  Changing the address unconfirms it and mails the new one; a link for the
+  old address cannot confirm the new one. Until confirmed, the app shows a
+  banner with "send it again".
+- `REQUIRE_VERIFIED_EMAIL=1` (off by default): generating anything - a
+  video, a paper, a lesson plan, a quiz draft - needs a confirmed address.
+  The refusal carries `code: email_unverified`, said in the reader's
+  language. `deploy.sh` refuses to turn it on without SMTP.
+- Password reset by email: `/forgot-password` answers the same whether or
+  not the address has an account; the link (one hour, single use) sets a new
+  password, ends every other session and signs in. "Forgot password?" on the
+  sign-in page used to be a dead `#reset` link.
+- Sign in with Google: OpenID Connect code flow with PKCE, state and nonce;
+  the id_token is read from Google's token endpoint and its issuer, audience,
+  expiry and nonce are checked. Matching an existing account by email clears
+  its password and sessions when that account had never confirmed the
+  address (someone may have registered it first). A new account needs a
+  role, so sign-in sends an unknown person to sign-up.
+- Phone confirmation by SMS code (smsc.kz or mobizon.kz; `log` prints the
+  code). Kazakhstan mobile numbers only; one number per account; six digits,
+  ten minutes, five tries, salted hash stored. Sending is rationed in the
+  database: one a minute and five a day per account, five a day per number,
+  ten an hour per address, and `SMS_DAILY_MAX` for the whole site.
+- Mail over SMTP with the standard library, so any provider works; `log`
+  prints messages instead. No new dependencies.
+- Admin: users are searchable by phone, and show whether email and phone are
+  confirmed and whether Google is linked.
+
+**Changed**
+
+- Error responses may carry a `code` next to `detail`, for the interface to
+  translate.
+
 ### Nothing on screen that is not true
 
 **Removed**

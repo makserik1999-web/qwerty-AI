@@ -59,6 +59,13 @@ const ACTION_LABEL: Record<string, string> = {
   'staff.revoke': 'снял роль',
 }
 
+function formatPhone(phone: string | null): string {
+  if (!phone) return '—'
+  return phone.length === 11
+    ? `+7 ${phone.slice(1, 4)} ${phone.slice(4, 7)} ${phone.slice(7, 9)} ${phone.slice(9)}`
+    : phone
+}
+
 function formatDate(iso: string | null, withTime = true): string {
   if (!iso) return '—'
   const date = new Date(iso)
@@ -312,7 +319,7 @@ function UsersSection() {
         <SearchInput
           id="admin-user-search"
           label="Поиск пользователей"
-          placeholder="Почта, имя или id"
+          placeholder="Почта, имя, телефон или id"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           className="admin__search"
@@ -329,6 +336,7 @@ function UsersSection() {
             <tr>
               <th>Почта</th>
               <th>Имя</th>
+              <th>Телефон</th>
               <th>Роль</th>
               <th>Создан</th>
               <th className="num">Видео</th>
@@ -345,8 +353,12 @@ function UsersSection() {
                   <button type="button" className="admin__link" onClick={() => setOpenId(row.id)}>
                     {row.email || row.username}
                   </button>
+                  {row.email && !row.email_verified ? (
+                    <span className="caption"> · не подтверждена</span>
+                  ) : null}
                 </td>
                 <td>{row.name}</td>
+                <td>{row.phone_verified ? formatPhone(row.phone) : '—'}</td>
                 <td>
                   <span className="admin__roles">
                     {ROLE_LABEL[row.role] ?? row.role}
@@ -426,6 +438,18 @@ function UserModal({ id, onClose }: { id: string | null; onClose: () => void }) 
               {ROLE_LABEL[detail.role] ?? detail.role}
               {detail.staff_role ? ` · ${detail.staff_role}` : ''}
             </dd>
+            <dt>Почта</dt>
+            <dd>
+              {detail.email || '—'}
+              {detail.email ? (detail.email_verified ? ' · подтверждена' : ' · не подтверждена') : ''}
+            </dd>
+            <dt>Телефон</dt>
+            <dd>
+              {formatPhone(detail.phone)}
+              {detail.phone ? (detail.phone_verified ? ' · подтверждён' : ' · не подтверждён') : ''}
+            </dd>
+            <dt>Вход через Google</dt>
+            <dd>{detail.google ? 'да' : 'нет'}</dd>
             <dt>Логин</dt>
             <dd>{detail.username}</dd>
             <dt>id</dt>

@@ -24,6 +24,7 @@ from app.repositories.chats import create_chat, delete_chat_by_id
 from app.repositories.messages import save_message
 from app.security.origins import _is_allowed_origin
 from app.security.sessions import _user_from_token
+from app.security.verified import EMAIL_UNVERIFIED, may_generate
 from app.services import cache_service, quota, usage_log
 from app.validators import (
     _validate_chat_id,
@@ -182,7 +183,9 @@ async def _handle_ui_frame(websocket: WebSocket, user_id: str, data: dict) -> No
         # generation is a paid model call. Read from the account, like every
         # other access decision, never from the frame. The code lets the
         # interface say it in the reader's language.
-        account = await db.db.users.find_one({"_id": ObjectId(user_id)}, {"role": 1})
+        account = await db.db.users.find_one(
+            {"_id": ObjectId(user_id)}, {"role": 1, "email": 1, "email_verified_at": 1}
+        )
         if ((account or {}).get("role") or USER_ROLE_DEFAULT) != "teacher":
             await websocket.send_json({
                 "type": "error",
@@ -191,6 +194,16 @@ async def _handle_ui_frame(websocket: WebSocket, user_id: str, data: dict) -> No
                                "Answers already in the library still work.",
                     "chat_id": chat_id,
                     "code": "teacher_only",
+                },
+            })
+            return
+        if not may_generate(account or {}):
+            await websocket.send_json({
+                "type": "error",
+                "data": {
+                    "message": "Confirm your email address first - we sent you a link.",
+                    "chat_id": chat_id,
+                    "code": EMAIL_UNVERIFIED,
                 },
             })
             return

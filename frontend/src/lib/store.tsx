@@ -50,6 +50,10 @@ interface AppActions {
   signOut: () => Promise<void>
   updateProfile: (input: { name: string; email: string }) => Promise<void>
   deleteAccount: () => Promise<void>
+  /** Take an account the server just returned (after a reset, a phone code). */
+  acceptUser: (found: ApiUser) => void
+  /** Ask the server again - after confirming an email in another tab, say. */
+  reloadUser: () => Promise<void>
   setUiLang: (lang: UiLang) => void
   setExplainLang: (lang: Lang) => void
   setTheme: (theme: ThemePreference) => void
@@ -84,6 +88,10 @@ function toUser(found: ApiUser): User {
     email: found.email ?? '',
     role: found.role,
     staffRole: found.staff_role ?? null,
+    emailVerified: found.email_verified === true,
+    phone: found.phone ?? null,
+    phoneVerified: found.phone_verified === true,
+    hasPassword: found.has_password !== false,
   }
 }
 
@@ -225,6 +233,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setUser(toUser(await api.updateProfile({ name, email })))
   }, [])
 
+  const acceptUser = useCallback<AppActions['acceptUser']>((found) => {
+    setUser(toUser(found))
+  }, [])
+
+  const reloadUser = useCallback<AppActions['reloadUser']>(async () => {
+    const found = await api.currentUser()
+    setUser(found ? toUser(found) : null)
+  }, [])
+
   const deleteAccount = useCallback(async () => {
     await api.deleteAccount()
     setUser(null)
@@ -314,6 +331,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       signOut,
       updateProfile,
       deleteAccount,
+      acceptUser,
+      reloadUser,
       setUiLang: setUiLangState,
       setExplainLang: setExplainLangState,
       setTheme: setThemeState,
@@ -341,6 +360,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       signOut,
       updateProfile,
       deleteAccount,
+      acceptUser,
+      reloadUser,
       toggleTheme,
       recordExplanation,
       saveToLibrary,

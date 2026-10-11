@@ -12,10 +12,13 @@ from app.api import (
     assessments,
     auth,
     chats,
+    email_auth,
     exports,
+    google_auth,
     health,
     lesson_plans,
     media,
+    phone,
     quiz_drafts,
     quota,
     saved,
@@ -40,6 +43,9 @@ app.add_exception_handler(HTTPExceptionJson, _http_exception_json_handler)
 
 app.include_router(health.router)
 app.include_router(auth.router)
+app.include_router(email_auth.router)
+app.include_router(google_auth.router)
+app.include_router(phone.router)
 app.include_router(chats.router)
 app.include_router(media.router)
 app.include_router(admin.router)

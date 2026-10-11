@@ -61,6 +61,18 @@ fi
 [ -n "$(env_get OPENROUTER_API_KEY)" ] || warn "OPENROUTER_API_KEY пуст - ИИ-функции будут выключены"
 [ -n "$(env_get AZURE_SPEECH_KEY)" ] || warn "AZURE_SPEECH_KEY пуст - видео без озвучки"
 [ -n "$(env_get TELEGRAM_BOT_TOKEN)" ] || warn "TELEGRAM_BOT_TOKEN пуст - тревоги мониторинга будут только в логе"
+mail="$(env_get MAIL_TRANSPORT)"
+if [ "$(env_get REQUIRE_VERIFIED_EMAIL)" = 1 ] && [ "$mail" != smtp ]; then
+    die "REQUIRE_VERIFIED_EMAIL=1, но MAIL_TRANSPORT не smtp - письма не уйдут, и никто не сможет подтвердить почту"
+fi
+[ "$mail" = smtp ] || warn "MAIL_TRANSPORT=${mail:-log} - письма (подтверждение, сброс пароля) пишутся только в лог бэкенда"
+if [ -n "$(env_get GOOGLE_CLIENT_ID)" ] && [ -z "$(env_get GOOGLE_CLIENT_SECRET)" ]; then
+    warn "GOOGLE_CLIENT_ID есть, а GOOGLE_CLIENT_SECRET пуст - вход через Google не появится"
+fi
+case "$(env_get SMS_PROVIDER)" in
+    smsc|mobizon) ;;
+    *) warn "SMS_PROVIDER=log - коды для телефона пишутся только в лог бэкенда" ;;
+esac
 grep -qw avx /proc/cpuinfo 2>/dev/null || warn "у процессора нет AVX - mongo 7 на нём не запустится"
 
 free_gb="$(df -Pk . | awk 'NR == 2 {print int($4 / 1048576)}')"

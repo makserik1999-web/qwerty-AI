@@ -38,6 +38,11 @@ services:
     logging: *logging
 
   backend:
+    environment:
+      # The address people use. Email links and the Google redirect are
+      # built from it, so it follows the domain rather than a second setting
+      # that could disagree with it.
+      - PUBLIC_BASE_URL=https://${SITE_DOMAIN:-localhost}
     logging: *logging
 
   quiz:

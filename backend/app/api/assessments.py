@@ -34,6 +34,7 @@ from app.models import AssessmentRequest, QuestionsUpdate
 from app.repositories import assessments as repo
 from app.security.ratelimit import LoginLimiter
 from app.security.roles import require_teacher
+from app.security.verified import require_may_generate
 from app.services import usage_log
 from app.ws.manager import agent_manager
 
@@ -126,6 +127,7 @@ async def _ask_agent(spec: Dict[str, Any]) -> List[Dict[str, Any]]:
 @router.post("/api/assessments", status_code=201)
 async def generate(body: AssessmentRequest, request: Request):
     user = await require_teacher(request)
+    require_may_generate(user)
     user_id = str(user["_id"])
 
     if not assessment_limiter.allow(f"assess:{user_id}"):
@@ -202,6 +204,7 @@ async def regenerate_question(assessment_id: str, question_id: str, request: Req
     again.
     """
     user = await require_teacher(request)
+    require_may_generate(user)
     user_id = str(user["_id"])
 
     if not assessment_limiter.allow(f"assess:{user_id}"):

@@ -1,9 +1,11 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { GoogleButton } from '../components/auth/GoogleButton'
 import { Logo } from '../components/layout/Logo'
 import { Alert, Button, Card, Field, Icon, Input, RadioCard } from '../components/ui'
-import { describeAuthError } from '../lib/authErrors'
+import { describeAuthError, googleErrorKey } from '../lib/authErrors'
 import { useI18n } from '../lib/i18n'
+import { useProviders } from '../lib/providers'
 import { useStore } from '../lib/store'
 import type { Role } from '../lib/types'
 import { isValidEmail } from '../lib/utils'
@@ -19,13 +21,16 @@ export function SignUp() {
   const { t } = useI18n()
   const { signUp } = useStore()
   const navigate = useNavigate()
+  const providers = useProviders()
+  const [params] = useSearchParams()
+  const googleError = googleErrorKey(params.get('auth_error'))
 
   const [role, setRole] = useState<Role | ''>('')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [errors, setErrors] = useState<Errors>({})
-  const [formError, setFormError] = useState<string | null>(null)
+  const [formError, setFormError] = useState<string | null>(googleError ? t(googleError) : null)
   const [submitting, setSubmitting] = useState(false)
 
   function validate(): Errors {
@@ -151,6 +156,23 @@ export function SignUp() {
               {t('auth.signup.submit')}
             </Button>
           </form>
+
+          {providers.google ? (
+            <>
+              <div className="auth__or" role="separator">
+                <span>{t('auth.or')}</span>
+              </div>
+              {/* A new account needs a role; Google does not know it. */}
+              <GoogleButton
+                role={role || undefined}
+                onBlocked={() => {
+                  if (role) return false
+                  setErrors((prev) => ({ ...prev, role: t('auth.googleNeedsRole') }))
+                  return true
+                }}
+              />
+            </>
+          ) : null}
 
           <p className="text-sm text-secondary auth__foot">
             {t('auth.signup.haveAccount')} <Link to="/signin">{t('common.signIn')}</Link>

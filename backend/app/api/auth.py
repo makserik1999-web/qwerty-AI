@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
+from app.api.email_auth import send_verification
 from app.config import (
     _EMAIL_RE,
     _USERNAME_RE,
@@ -158,6 +159,9 @@ async def signup(body: SignupRequest, request: Request):
     user_id = str(result.inserted_id)
     token = await _create_session(user_id)
     login_limiter.reset(f"user:{username}")
+    # The link goes out in the background: a slow mail server must not make
+    # signing up slow, and a failed send is fixed by "send it again".
+    await send_verification({**user, "_id": result.inserted_id})
 
     response = JSONResponse(
         {"user": _user_payload({**user, "_id": result.inserted_id})},
@@ -265,8 +269,15 @@ async def update_profile(body: ProfileRequest, request: Request):
             changes["email"] = email
 
     if changes:
-        await db.db.users.update_one({"_id": user["_id"]}, {"$set": changes})
+        update: dict = {"$set": changes}
+        if "email" in changes:
+            # A new address is an unconfirmed one, whatever the old one was.
+            update["$unset"] = {"email_verified_at": ""}
+        await db.db.users.update_one({"_id": user["_id"]}, update)
         user = {**user, **changes}
+        if "email" in changes:
+            user.pop("email_verified_at", None)
+            await send_verification(user)
 
     return {"user": _user_payload(user)}
 
@@ -314,6 +325,8 @@ async def delete_account(request: Request):
     await db.db.assessments.delete_many({"user_id": user_id})
     await db.db.lesson_plans.delete_many({"user_id": user_id})
     await db.db.saved_explanations.delete_many({"user_id": user_id})
+    await db.db.auth_tokens.delete_many({"user_id": user_id})
+    await db.db.phone_codes.delete_many({"user_id": user_id})
     await db.db.account_events.insert_one({
         "type": "account_deleted",
         "user_id": user_id,

@@ -13,7 +13,7 @@ import {
   Textarea,
   useToast,
 } from '../components/ui'
-import { ApiError } from '../lib/api'
+import { ApiError, generationRefusal } from '../lib/api'
 import { describeAuthError } from '../lib/authErrors'
 import { useI18n } from '../lib/i18n'
 import {
@@ -115,7 +115,11 @@ export function LessonPlan() {
       // shorten the topic, or that the hour's plans are spent.
       const described = describeAuthError(error, 'auth.error.unknown')
       setFailure(
-        error instanceof ApiError && error.detail ? error.detail : t(described.key),
+        generationRefusal(error)
+          ? t(generationRefusal(error)!)
+          : error instanceof ApiError && error.detail
+            ? error.detail
+            : t(described.key),
       )
       setStatus('error')
     }
@@ -143,7 +147,11 @@ export function LessonPlan() {
     } catch (error) {
       const described = describeAuthError(error, 'auth.error.unknown')
       setFailure(
-        error instanceof ApiError && error.detail ? error.detail : t(described.key),
+        generationRefusal(error)
+          ? t(generationRefusal(error)!)
+          : error instanceof ApiError && error.detail
+            ? error.detail
+            : t(described.key),
       )
       setStatus('error')
     }

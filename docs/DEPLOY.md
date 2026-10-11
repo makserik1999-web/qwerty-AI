@@ -215,6 +215,42 @@ docker compose exec backend python -m app.staff revoke почта@пример.k
 5. Способ входа: **One-time PIN** (код на почту).
 6. Проверка: откройте `https://akronustaz.com/admin` в приватном окне. Должна появиться страница Cloudflare с вводом почты. После входа статистика должна загрузиться.
 
+## Аккаунты: почта, Google, телефон
+
+Без настроек всё работает в режиме «лог»: письма и SMS-коды никуда не уходят, а пишутся в `docker compose logs backend`. Так удобно проверять, но учителям нужно настоящее. Ссылки в письмах и адрес возврата от Google строятся из `SITE_DOMAIN` (`PUBLIC_BASE_URL=https://akronustaz.com`), отдельно указывать не нужно.
+
+После любой правки `.env` в этом разделе: `docker compose up -d backend`.
+
+**Почта — нужна для запуска.**
+1. Заведите аккаунт у сервиса рассылки с SMTP: Brevo, Resend, Mailgun — подойдёт любой. Бесплатного тарифа на старт хватит.
+2. В сервисе добавьте домен `akronustaz.com`. Он покажет DNS-записи (SPF, DKIM, иногда DMARC). Добавьте их в Cloudflare → DNS с серым облаком (DNS only). Без них письма попадают в спам.
+3. Впишите в `.env` SMTP-данные из сервиса:
+   ```
+   MAIL_TRANSPORT=smtp
+   SMTP_HOST=...
+   SMTP_PORT=587
+   SMTP_USER=...
+   SMTP_PASSWORD=...
+   SMTP_FROM=Akron <no-reply@akronustaz.com>
+   ```
+4. Зарегистрируйтесь на сайте тестовой почтой: письмо должно прийти. Если нет — `docker compose logs backend | grep mail`.
+5. Когда письма доходят, включите `REQUIRE_VERIFIED_EMAIL=1`. С этого момента генерировать могут только те, кто подтвердил почту; остальные видят плашку с кнопкой «Отправить ещё раз». Раньше включать нельзя: письма с ссылкой никто не получит. `deploy.sh` откажется деплоить с `REQUIRE_VERIFIED_EMAIL=1` без SMTP.
+
+**Вход через Google — необязательно.**
+1. [console.cloud.google.com](https://console.cloud.google.com) → новый проект «Akron».
+2. APIs & Services → **OAuth consent screen**: тип External, название Akron, почта поддержки, домен `akronustaz.com`. Доступы: `openid`, `email`, `profile` — для них проверка Google не нужна. Нажмите **Publish app**, иначе войти смогут только тестовые пользователи.
+3. **Credentials** → Create credentials → **OAuth client ID** → Web application. Authorized redirect URI: `https://akronustaz.com/api/auth/google/callback`.
+4. Client ID и Client secret — в `.env` как `GOOGLE_CLIENT_ID` и `GOOGLE_CLIENT_SECRET`. Кнопка «Войти через Google» появится на входе и регистрации.
+
+Если Google-почта совпадает с уже существующим аккаунтом, они объединяются. Если тот аккаунт почту не подтверждал, его пароль сбрасывается и все его сеансы закрываются: адрес мог зарегистрировать кто-то чужой.
+
+**SMS для телефона — понадобится для пробного пакета.**
+- smsc.kz: `SMS_PROVIDER=smsc`, `SMSC_LOGIN`, `SMSC_PASSWORD`.
+- mobizon.kz: `SMS_PROVIDER=mobizon`, `MOBIZON_API_KEY`.
+- `SMS_SENDER` — имя отправителя (например, Akron), если провайдер его одобрил; обычно на это нужна заявка. Пусто — имя провайдера по умолчанию.
+- `SMS_DAILY_MAX=200` — потолок на весь сайт в сутки, защита от накрутки счёта. Коды уходят только на казахстанские мобильные (+7 7xx).
+- Первое настоящее SMS отправьте себе (Настройки → Телефон). Если не пришло: `docker compose logs backend | grep sms` — там будет ответ провайдера (баланс, имя отправителя).
+
 ## Безопасность: чек-лист
 
 - [ ] Старые ключи Azure и OpenRouter отозваны, в `.env` новые.
@@ -222,6 +258,7 @@ docker compose exec backend python -m app.staff revoke почта@пример.k
 - [ ] У `.env` права 600 (`deploy.sh` следит за этим сам).
 - [ ] Наружу ничего не опубликовано: `ss -tlnp` показывает только `127.0.0.1:8080` от Docker. ufw не менялся.
 - [ ] `deploy.sh` проверил, что `/ws/agent` отвечает 403 и на сервере, и через Cloudflare.
+- [ ] Пароль SMTP, `GOOGLE_CLIENT_SECRET` и ключ SMS-провайдера есть только в `.env`.
 - [ ] Сотрудников два-три (`python -m app.staff list`), Cloudflare Access на `/admin` и `/api/admin` включён.
 - [ ] Репозиторий **публичный**: код виден всем. Секретов в нём нет (`.env` не попадает в git). Если хотите закрыть код, сделайте репозиторий приватным: deploy key продолжит работать.
 

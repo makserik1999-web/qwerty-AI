@@ -125,6 +125,46 @@ STAFF_ROLES = ("admin", "support")
 # tzdata in the image.
 STATS_UTC_OFFSET_HOURS = int(os.getenv("STATS_UTC_OFFSET_HOURS", "5"))
 
+# ============== Accounts: email, Google, phone ==============
+# Where people reach the site. Links in emails and the Google redirect are
+# built from it, so it must be exactly what the browser sees.
+PUBLIC_BASE_URL = (os.getenv("PUBLIC_BASE_URL", "http://localhost:3000") or "").strip().rstrip("/")
+
+# How mail leaves: "log" prints it to the backend log (development, and a
+# server with no mail account yet), "smtp" sends it. Any provider with SMTP
+# works - the standard library speaks it, so no dependency is needed.
+MAIL_TRANSPORT = (os.getenv("MAIL_TRANSPORT", "log") or "log").strip().lower()
+SMTP_HOST = os.getenv("SMTP_HOST", "").strip()
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587") or "587")
+SMTP_USER = os.getenv("SMTP_USER", "").strip()
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+# starttls (587), ssl (465) or none.
+SMTP_SECURITY = (os.getenv("SMTP_SECURITY", "starttls") or "starttls").strip().lower()
+SMTP_FROM = os.getenv("SMTP_FROM", "Akron <no-reply@localhost>").strip()
+
+# Off until mail actually goes out: switched on before that, every account
+# would be locked out of generating with no way to get the link.
+REQUIRE_VERIFIED_EMAIL = os.getenv("REQUIRE_VERIFIED_EMAIL", "0") == "1"
+EMAIL_VERIFY_TTL_HOURS = int(os.getenv("EMAIL_VERIFY_TTL_HOURS", "48"))
+PASSWORD_RESET_TTL_MINUTES = int(os.getenv("PASSWORD_RESET_TTL_MINUTES", "60"))
+
+# Google sign-in. Both empty means the button is not offered.
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "").strip()
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "").strip()
+
+# Text messages for confirming a phone: "log" (prints the code), "smsc"
+# (smsc.kz) or "mobizon" (mobizon.kz).
+SMS_PROVIDER = (os.getenv("SMS_PROVIDER", "log") or "log").strip().lower()
+SMSC_LOGIN = os.getenv("SMSC_LOGIN", "").strip()
+SMSC_PASSWORD = os.getenv("SMSC_PASSWORD", "")
+MOBIZON_API_KEY = os.getenv("MOBIZON_API_KEY", "").strip()
+# Alphanumeric sender name, if the provider has approved one. Empty uses the
+# provider's default.
+SMS_SENDER = os.getenv("SMS_SENDER", "").strip()
+# Every message costs money, and an open "send me a code" button is a classic
+# way to run up a bill. Past this many in 24 hours, sending stops for everyone.
+SMS_DAILY_MAX = int(os.getenv("SMS_DAILY_MAX", "200"))
+
 
 # ============== Assessments ==============
 # Closed sets, because every one of these reaches a prompt. Free text there is

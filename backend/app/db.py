@@ -66,6 +66,23 @@ async def lifespan(app: FastAPI):
     await db.db.usage_log.create_index([("user_id", 1), ("at", -1)])
     await db.db.admin_audit.create_index([("at", -1)])
     await db.db.users.create_index("staff_role", sparse=True)
+    # One number per account, one Google identity per account.
+    await db.db.users.create_index("phone", unique=True, sparse=True)
+    await db.db.users.create_index("google_sub", unique=True, sparse=True)
+    # Emailed one-time links, the Google round trip, SMS codes and the SMS
+    # rationing log - all short-lived, all removed by their TTL index.
+    await db.db.auth_tokens.create_index("token_hash", unique=True)
+    await db.db.auth_tokens.create_index([("user_id", 1), ("kind", 1)])
+    await db.db.auth_tokens.create_index("expires_at", expireAfterSeconds=0)
+    await db.db.oauth_states.create_index("state_hash", unique=True)
+    await db.db.oauth_states.create_index("expires_at", expireAfterSeconds=0)
+    await db.db.phone_codes.create_index("user_id", unique=True)
+    await db.db.phone_codes.create_index("expires_at", expireAfterSeconds=0)
+    await db.db.sms_log.create_index([("user_id", 1), ("at", -1)])
+    await db.db.sms_log.create_index([("phone", 1), ("at", -1)])
+    await db.db.sms_log.create_index([("ip", 1), ("at", -1)])
+    await db.db.sms_log.create_index([("at", -1)])
+    await db.db.sms_log.create_index("expires_at", expireAfterSeconds=0)
 
     print(f"Connected to MongoDB at {MONGO_URL}")
     if not AGENT_SECRET:

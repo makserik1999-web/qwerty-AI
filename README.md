@@ -166,6 +166,11 @@ Run `make` with no arguments to list every target.
 - `POST /api/auth/login` - Sign in (sets the `anyq_session` cookie)
 - `POST /api/auth/logout` - Sign out (revokes the session)
 - `GET /api/auth/me` - Current user from the session cookie
+- `POST /api/auth/email/resend`, `POST /api/auth/email/verify` - Confirm the email address
+- `POST /api/auth/password/forgot`, `POST /api/auth/password/reset` - Reset a password by email
+- `GET /api/auth/google/start`, `GET /api/auth/google/callback` - Sign in with Google
+- `POST /api/auth/phone/start`, `POST /api/auth/phone/verify` - Confirm a phone by SMS code
+- `GET /api/auth/providers` - Which of Google and SMS are set up
 - `GET /api/chats` - List current user's chats
 - `GET /api/chats/{chat_id}` - Get chat with messages
 - `GET /media/{filename}` - Video file (authenticated)

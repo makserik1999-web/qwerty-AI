@@ -13,6 +13,9 @@ import { Library } from './pages/Library'
 import { Settings } from './pages/Settings'
 import { SignIn } from './pages/SignIn'
 import { SignUp } from './pages/SignUp'
+import { ForgotPassword } from './pages/ForgotPassword'
+import { ResetPassword } from './pages/ResetPassword'
+import { VerifyEmail } from './pages/VerifyEmail'
 
 /* Quizzes are a module of their own, loaded when first opened - like the
    service behind them, they could leave this app without untangling it. A
@@ -93,6 +96,10 @@ export function App() {
         <Route path="/" element={<Landing />} />
         <Route path="/signup" element={<SignUp />} />
         <Route path="/signin" element={<SignIn />} />
+        {/* Reached from emailed links, signed in or not. */}
+        <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route
           path="/join"
           element={

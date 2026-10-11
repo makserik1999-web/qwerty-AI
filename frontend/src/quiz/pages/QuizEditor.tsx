@@ -24,6 +24,7 @@ import { GRADES, SUBJECTS } from '../../lib/mockData'
 import { useStore } from '../../lib/store'
 import type { Lang, SubjectId } from '../../lib/types'
 import { cx, formatDateTime } from '../../lib/utils'
+import { generationRefusal } from '../../lib/api'
 import { QuizError, draftQuestions, loadQuiz, openRun, saveQuiz } from '../api'
 import { QuestionCard, type CardAction } from '../components/QuestionCard'
 import { RunPanel } from '../components/RunPanel'
@@ -228,6 +229,8 @@ export function QuizEditor() {
   }
 
   function draftFailure(error: unknown): string {
+    const refusal = generationRefusal(error)
+    if (refusal) return t(refusal)
     if (error instanceof QuizError && error.status === 429) return t('quiz.new.errLimit')
     if (error instanceof QuizError && error.status === 503) return t('quiz.new.errUnavailable')
     return t('quiz.edit.draftFailed')
