@@ -1,5 +1,8 @@
 export type Role = 'student' | 'teacher'
 
+/** Who runs the service. Set only by a command on the server, never by the site. */
+export type StaffRole = 'admin' | 'support'
+
 /**
  * Content language. Explanations and assessments are produced in Kazakh or
  * Russian; `auto` is only valid as a request option.
@@ -201,4 +204,6 @@ export interface User {
   name: string
   email: string
   role: Role
+  /** Only decides whether the admin link is shown; the server checks every request. */
+  staffRole: StaffRole | null
 }

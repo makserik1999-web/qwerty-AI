@@ -113,6 +113,18 @@ NAME_MAX_LEN = 80
 USER_ROLES = ("student", "teacher")
 USER_ROLE_DEFAULT = "student"
 
+# Who runs the service, as opposed to who uses it. A separate field from
+# `role`, because `role` is chosen by the person at signup and this must never
+# be: it is written only by `python -m app.staff` on the server.
+#   admin   - everything
+#   support - users, the library and generation jobs; no payments, no limits
+STAFF_ROLES = ("admin", "support")
+
+# Which calendar day an event belongs to in the admin statistics. Kazakhstan
+# has been on a single UTC+5 since March 2024; a fixed offset avoids needing
+# tzdata in the image.
+STATS_UTC_OFFSET_HOURS = int(os.getenv("STATS_UTC_OFFSET_HOURS", "5"))
+
 
 # ============== Assessments ==============
 # Closed sets, because every one of these reaches a prompt. Free text there is
@@ -240,12 +252,6 @@ CACHE_WARM_PROMOTION_HITS = int(os.getenv("CACHE_WARM_PROMOTION_HITS", "3"))
 
 # Master switch, so the cache can be turned off without a redeploy.
 CACHE_ENABLED = os.getenv("CACHE_ENABLED", "1") == "1"
-
-# Usernames allowed to read cache statistics. Empty (the default) means nobody:
-# the endpoint has to be opened deliberately, not left ajar.
-ADMIN_USERS = {
-    u.strip() for u in os.getenv("ADMIN_USERS", "").split(",") if u.strip()
-}
 
 # ============== Media retention ==============
 # Disk budget for rendered videos. Collection only starts above the high-water

@@ -5,6 +5,52 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### Staff roles and an admin panel
+
+**Added**
+
+- `staff_role` on the account: `admin` or `support`, separate from `role`
+  (student/teacher), which people pick themselves. It is written only by a
+  command on the server - `docker compose exec backend python -m app.staff
+  grant|revoke|list` - which shows the account and asks before changing it.
+  Signup, the profile and the panel itself cannot set it.
+- `/api/admin/*`: users with search and per-person usage, statistics by day,
+  the audit log and the cache statistics. Every route sits on one router that
+  requires a staff role; everyone else gets 404, support gets 403 on the
+  admin-only routes. The role is read from the database on every request, so
+  revoking it works immediately. A test calls every route under `/api/admin`
+  as a stranger, a student, a teacher, support and admin, so a route added
+  later is checked without anyone remembering to.
+- An audit log (`admin_audit`): who did what to whom, when and why. Grants and
+  revocations from the server command are recorded.
+- A usage log (`usage_log`): one small document per finished explanation
+  (with or without video, from the library, or failed), assessment, lesson
+  plan and AI quiz draft - never the question text. The quota counters could
+  not serve as statistics: they are refunded on failure and expire in two
+  days.
+- `/admin` in the interface, in Russian, loaded as its own chunk. Staff see an
+  «Админка» item in the account menu. `docs/DEPLOY.md` explains granting roles
+  and putting `/admin` behind Cloudflare Access.
+
+**Removed**
+
+- `ADMIN_USERS`. The cache statistics need the admin role instead. With
+  nobody granted, the endpoint is closed, as before.
+
+**Changed**
+
+- `/api/admin/cache/stats` answers 404 rather than 401 without a session.
+
+### The agent asks for the key of the provider it uses
+
+**Fixed**
+
+With `DEFAULT_LLM_PROVIDER=openrouter` and only `OPENROUTER_API_KEY` - the
+default, and what production runs - every text question was answered "add
+GEMINI_API_KEY", and every screenshot failed. The gate now checks
+`{PROVIDER}_API_KEY`, and screenshots go through OpenRouter when there is no
+Google key (Google is still used when there is).
+
 ### The product is called Akron
 
 **Changed**

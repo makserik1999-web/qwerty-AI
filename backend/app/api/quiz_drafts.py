@@ -24,6 +24,7 @@ from app.errors import HTTPExceptionJson
 from app.models import QuizDraftRequest
 from app.security.ratelimit import LoginLimiter
 from app.security.roles import require_teacher
+from app.services import usage_log
 from app.ws.manager import agent_manager
 
 router = APIRouter()
@@ -87,4 +88,5 @@ async def draft(body: QuizDraftRequest, request: Request):
     questions = result.get("questions")
     if not isinstance(questions, list) or not questions:
         raise HTTPExceptionJson(502, "Could not write the questions.")
+    await usage_log.log(str(user["_id"]), "quiz_draft")
     return {"questions": questions, "requested": int(result.get("requested") or body.count)}

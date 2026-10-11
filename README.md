@@ -169,6 +169,9 @@ Run `make` with no arguments to list every target.
 - `GET /api/chats` - List current user's chats
 - `GET /api/chats/{chat_id}` - Get chat with messages
 - `GET /media/{filename}` - Video file (authenticated)
+- `GET /api/admin/*` - Admin panel data. Staff only (`staff_role` admin or
+  support, granted on the server with `python -m app.staff`); everyone else
+  gets 404. See [docs/DEPLOY.md](docs/DEPLOY.md#админка)
 
 ### WebSocket
 - `WS /ws` - UI client connection (authenticated via the session cookie)

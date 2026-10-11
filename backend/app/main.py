@@ -8,13 +8,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import (
+    admin,
     assessments,
     auth,
     chats,
     exports,
     health,
     lesson_plans,
-    library,
     media,
     quiz_drafts,
     quota,
@@ -42,7 +42,7 @@ app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(chats.router)
 app.include_router(media.router)
-app.include_router(library.router)
+app.include_router(admin.router)
 app.include_router(exports.router)
 app.include_router(quota.router)
 app.include_router(assessments.router)

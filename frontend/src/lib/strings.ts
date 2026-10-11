@@ -106,6 +106,7 @@ export const kk = {
   'nav.check': 'Тексеру',
   'nav.billing': 'Баланс',
   'nav.settings': 'Баптаулар',
+  'nav.admin': 'Әкімші панелі',
 
   // Landing -----------------------------------------------------------------
   'landing.nav.how': 'Қалай жұмыс істейді',
@@ -828,6 +829,7 @@ export const ru: Record<StringKey, string> = {
   'nav.check': 'Проверка',
   'nav.billing': 'Баланс',
   'nav.settings': 'Настройки',
+  'nav.admin': 'Админка',
 
   'landing.nav.how': 'Как это работает',
   'landing.nav.examples': 'Примеры',
@@ -1536,6 +1538,7 @@ export const en: Record<StringKey, string> = {
   'nav.check': 'Check',
   'nav.billing': 'Billing',
   'nav.settings': 'Settings',
+  'nav.admin': 'Admin',
 
   'landing.nav.how': 'How it works',
   'landing.nav.examples': 'Examples',

@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 
 from bson import ObjectId
 
-from app.config import SESSION_TTL, USER_ROLE_DEFAULT
+from app.config import SESSION_TTL, STAFF_ROLES, USER_ROLE_DEFAULT
 from app.db import db
 
 
@@ -27,7 +27,7 @@ def _user_payload(user: Dict[str, Any]) -> Dict[str, Any]:
     roles existed have no field, and they read as students - the same fallback
     the signup path uses, and the safe direction to be wrong in.
     """
-    return {
+    payload = {
         "id": str(user["_id"]),
         "username": user.get("username", ""),
         "email": user.get("email"),
@@ -37,6 +37,11 @@ def _user_payload(user: Dict[str, Any]) -> Dict[str, Any]:
         if isinstance(user.get("created_at"), datetime)
         else None,
     }
+    # Only for staff, and only so the interface can show the admin link. It
+    # grants nothing: every /api/admin route reads the role from the account.
+    if user.get("staff_role") in STAFF_ROLES:
+        payload["staff_role"] = user["staff_role"]
+    return payload
 
 
 async def _create_session(user_id: str) -> str:

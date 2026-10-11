@@ -37,6 +37,7 @@ from app.models import LessonPlanRequest, PlanUpdate
 from app.repositories import lesson_plans as repo
 from app.security.ratelimit import LoginLimiter
 from app.security.roles import require_teacher
+from app.services import usage_log
 from app.ws.manager import agent_manager
 
 router = APIRouter()
@@ -213,12 +214,14 @@ async def generate(body: LessonPlanRequest, request: Request):
 
     spec = _validated_spec(body)
     result = await _ask_agent(spec)
-    return await repo.create_lesson_plan(
+    created = await repo.create_lesson_plan(
         user_id,
         spec,
         _with_ids(result["plan"]),
         int(result.get("minutes_planned") or 0),
     )
+    await usage_log.log(user_id, "lesson_plan")
+    return created
 
 
 @router.get("/api/lesson-plans")

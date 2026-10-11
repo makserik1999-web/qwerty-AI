@@ -34,6 +34,7 @@ from app.models import AssessmentRequest, QuestionsUpdate
 from app.repositories import assessments as repo
 from app.security.ratelimit import LoginLimiter
 from app.security.roles import require_teacher
+from app.services import usage_log
 from app.ws.manager import agent_manager
 
 router = APIRouter()
@@ -135,7 +136,9 @@ async def generate(body: AssessmentRequest, request: Request):
 
     spec = _validated_spec(body)
     questions = await _ask_agent(spec)
-    return await repo.create_assessment(user_id, spec, _with_ids(questions))
+    created = await repo.create_assessment(user_id, spec, _with_ids(questions))
+    await usage_log.log(user_id, "assessment")
+    return created
 
 
 @router.get("/api/assessments")

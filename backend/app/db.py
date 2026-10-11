@@ -60,6 +60,12 @@ async def lifespan(app: FastAPI):
     await db.db.generation_events.create_index([("user_id", 1), ("created_at", -1)])
     await db.db.generation_events.create_index("request_id")
     await db.db.generation_events.create_index("expires_at", expireAfterSeconds=0)
+    # Admin statistics: per day across everyone, and per person. No TTL -
+    # the point of this log is that it outlives the quota counters.
+    await db.db.usage_log.create_index([("at", -1)])
+    await db.db.usage_log.create_index([("user_id", 1), ("at", -1)])
+    await db.db.admin_audit.create_index([("at", -1)])
+    await db.db.users.create_index("staff_role", sparse=True)
 
     print(f"Connected to MongoDB at {MONGO_URL}")
     if not AGENT_SECRET:

@@ -101,6 +101,7 @@ function toUser(found: ApiUser): User {
     name: found.name || found.username,
     email: found.email ?? '',
     role: found.role,
+    staffRole: found.staff_role ?? null,
   }
 }
 

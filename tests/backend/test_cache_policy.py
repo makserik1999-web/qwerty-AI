@@ -230,25 +230,27 @@ def test_cache_stats_are_not_readable_by_an_ordinary_user(client, new_user):
     assert client.get("/api/admin/cache/stats").status_code == 404
 
 
-def test_cache_stats_require_authentication(anon_client):
-    assert anon_client.get("/api/admin/cache/stats").status_code == 401
+def test_cache_stats_do_not_admit_to_existing_without_a_session(anon_client):
+    """Admin routes answer 404 to everyone outside the staff, signed in or not."""
+    assert anon_client.get("/api/admin/cache/stats").status_code == 404
 
 
 @pytest.mark.asyncio
 async def test_cache_stats_report_tiers_and_top_questions(
     backend, client, new_user, cache, monkeypatch
 ):
+    from bson import ObjectId
+
     user = new_user()
-    monkeypatch.setattr(backend.config, "ADMIN_USERS", {user["username"]})
+    await backend.db.db.users.update_one(
+        {"_id": ObjectId(user["id"])}, {"$set": {"staff_role": "admin"}}
+    )
     monkeypatch.setattr(cache, "_media_present", lambda url: True)
 
     await cache.remember("Explain gravity", [], "text", "/media/a.mp4")
     await cache.lookup("Explain gravity", [])
     await cache.lookup("Explain gravity", [])
 
-    import app.api.library as library_api
-
-    monkeypatch.setattr(library_api, "ADMIN_USERS", {user["username"]})
     stats = client.get("/api/admin/cache/stats").json()
 
     assert stats["entries_total"] >= 1

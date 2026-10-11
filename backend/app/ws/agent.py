@@ -14,7 +14,7 @@ from app.config import (
     CACHE_ENABLED,
 )
 from app.repositories.messages import save_message
-from app.services import cache_service, quota
+from app.services import cache_service, quota, usage_log
 from app.ws.manager import _notify_pending_failures, agent_manager, ui_manager
 
 router = APIRouter()
@@ -158,6 +158,7 @@ async def websocket_agent_endpoint(websocket: WebSocket):
                     await quota.refund(request_id)
                 except Exception as e:
                     print(f"quota refund failed: {type(e).__name__}: {e}")
+                await usage_log.log(user_id, "explanation", ok=False)
                 await ui_manager.send_to_user(user_id, {
                     "type": "error",
                     "data": {
@@ -192,6 +193,7 @@ async def websocket_agent_endpoint(websocket: WebSocket):
                         "subject": subject,
                     },
                 })
+                await usage_log.log(user_id, "explanation", video=bool(video_url))
 
                 # File the answer under the question that produced it. Done
                 # after the user already has their reply, and never allowed to

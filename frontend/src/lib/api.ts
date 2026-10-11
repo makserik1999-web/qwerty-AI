@@ -12,7 +12,7 @@
  * which the server does not know. `detail` is kept for the cases nothing has
  * been translated for yet.
  */
-import type { Role } from './types'
+import type { Role, StaffRole } from './types'
 
 /** What /api/auth/* returns. `username` is derived server-side from the email. */
 export interface ApiUser {
@@ -21,6 +21,8 @@ export interface ApiUser {
   email: string | null
   name: string
   role: Role
+  /** Present only for staff. */
+  staff_role?: StaffRole
   created_at: string | null
 }
 

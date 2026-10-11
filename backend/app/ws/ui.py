@@ -23,7 +23,7 @@ from app.repositories.chats import create_chat, delete_chat_by_id
 from app.repositories.messages import save_message
 from app.security.origins import _is_allowed_origin
 from app.security.sessions import _user_from_token
-from app.services import cache_service, quota
+from app.services import cache_service, quota, usage_log
 from app.validators import (
     _validate_chat_id,
     _validate_prompt,
@@ -172,6 +172,8 @@ async def _handle_ui_frame(websocket: WebSocket, user_id: str, data: dict) -> No
                     "matched_question": cached.get("matched_question", ""),
                 },
             })
+            await usage_log.log(user_id, "explanation", cached=True,
+                                video=bool(cached.get("video_url")))
             return
 
         # Only a real generation is charged for, and only once the cache has

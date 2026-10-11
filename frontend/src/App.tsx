@@ -28,6 +28,9 @@ const QuizResults = lazy(() =>
 )
 const QuizHost = lazy(() => import('./quiz/pages/QuizHost').then((m) => ({ default: m.QuizHost })))
 const Join = lazy(() => import('./quiz/pages/Join').then((m) => ({ default: m.Join })))
+// Its own chunk: only staff ever open it. The server checks the role on
+// every /api/admin request regardless of what this bundle contains.
+const Admin = lazy(() => import('./pages/Admin').then((m) => ({ default: m.Admin })))
 
 /**
  * Sends signed-out visitors to the sign-in page.
@@ -115,6 +118,16 @@ export function App() {
                 <QuizHost />
               </Lazy>
             </RequireTeacher>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <RequireAuth>
+              <Lazy>
+                <Admin />
+              </Lazy>
+            </RequireAuth>
           }
         />
         <Route

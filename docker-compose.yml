@@ -105,11 +105,6 @@ services:
       - GENERATION_QUEUE_MAX=${GENERATION_QUEUE_MAX:-20}
       - SIGNUP_MAX_PER_HOUR=${SIGNUP_MAX_PER_HOUR:-100}
       - LOGIN_IP_MAX_FAILURES=${LOGIN_IP_MAX_FAILURES:-50}
-      # Usernames allowed to read cache statistics - which are other people's
-      # questions, so this is a deliberate grant and empty by default. It was
-      # read from the environment but never forwarded here, so the allowlist
-      # could not be filled at all.
-      - ADMIN_USERS=${ADMIN_USERS:-}
       # Part of every cache key, so raising it retires stored answers the
       # current pipeline would no longer produce. config.py says to bump it
       # when the prompts, the model or the renderer change - and it was read

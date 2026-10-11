@@ -129,6 +129,22 @@ export function AppShell() {
                 <Icon name="settings" size={18} />
                 {t('nav.settings')}
               </button>
+              {/* Shown to staff only. Showing it is all this decides: the
+                  server refuses every admin request from anyone else. */}
+              {user.staffRole ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="shell__menu-item"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    navigate('/admin')
+                  }}
+                >
+                  <Icon name="sliders" size={18} />
+                  {t('nav.admin')}
+                </button>
+              ) : null}
               <button
                 type="button"
                 role="menuitem"
