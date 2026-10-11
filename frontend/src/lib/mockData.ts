@@ -3,9 +3,6 @@ import type {
   Lang,
   SceneId,
   SubjectId,
-  Submission,
-  Transaction,
-  UiLang,
 } from './types'
 
 export const SUBJECTS: SubjectId[] = [
@@ -18,23 +15,6 @@ export const SUBJECTS: SubjectId[] = [
 ]
 
 export const GRADES = [5, 6, 7, 8, 9, 10, 11]
-
-/** Price list, in tenge. Shown to the user verbatim on the Billing page. */
-export const PRICES = {
-  explanation: 120,
-  assessment: 400,
-  grading: 60,
-}
-
-const DAY = 24 * 60 * 60 * 1000
-const ANCHOR = new Date('2026-09-04T10:00:00Z').getTime()
-
-/** Deterministic date helper so mock data never drifts between renders. */
-function daysAgo(days: number, hour = 10): string {
-  const d = new Date(ANCHOR - days * DAY)
-  d.setHours(hour, (days * 7) % 60, 0, 0)
-  return d.toISOString()
-}
 
 interface Seed {
   question: string
@@ -430,112 +410,4 @@ export const QUESTION_TEMPLATES: Record<SubjectId, Record<Lang, string[]>> = {
       'Сравните два решения по теме «{topic}».',
     ],
   },
-}
-
-const NOTES: Record<UiLang, string[]> = {
-  en: [
-    'Fully correct solution.',
-    'Correct answer, but no working shown.',
-    'Right formula, arithmetic slip in the calculation.',
-    'No unit given.',
-    'The last step was left unfinished.',
-    'Only the answer is written, with no explanation.',
-  ],
-  kk: [
-    'Толық дұрыс шешім.',
-    'Жауап дұрыс, бірақ шешім барысы жазылмаған.',
-    'Формула дұрыс таңдалған, есептеуде арифметикалық қате.',
-    'Өлшем бірлігі көрсетілмеген.',
-    'Соңғы қадам аяқталмай қалған.',
-    'Түсінік берілмеген, тек жауап жазылған.',
-  ],
-  ru: [
-    'Решение полностью верное.',
-    'Ответ верный, но ход решения не записан.',
-    'Формула выбрана верно, ошибка в вычислении.',
-    'Не указана единица измерения.',
-    'Последний шаг не завершён.',
-    'Пояснение отсутствует, записан только ответ.',
-  ],
-}
-
-const STUDENT_NAMES = [
-  'Айсұлу Қайрат',
-  'Дінмұхаммед Оспан',
-  'Мадина Серікова',
-  'Ерасыл Тұрсын',
-  'Алишер Жақсылық',
-  'Камила Нұрлан',
-]
-
-export function buildSubmissions(lang: UiLang): Submission[] {
-  const notes = NOTES[lang]
-  return STUDENT_NAMES.map((student, index) => {
-    const max = 20
-    const breakdown = Array.from({ length: 5 }, (_, q) => {
-      const perMax = 4
-      const awarded = [4, 3, 4, 2, 4, 1][(index + q) % 6]
-      return {
-        number: q + 1,
-        awarded: Math.min(awarded, perMax),
-        max: perMax,
-        note: notes[(index + q) % notes.length],
-      }
-    })
-    const score = breakdown.reduce((sum, q) => sum + q.awarded, 0)
-    return {
-      id: `sub-${index + 1}`,
-      student,
-      fileName: `${student.split(' ')[0].toLowerCase()}-sor3.pdf`,
-      score,
-      max,
-      gradedAt: daysAgo(index === 0 ? 0 : 1, 12 + index),
-      status: 'graded' as const,
-      breakdown,
-    }
-  })
-}
-
-export function buildTransactions(): Transaction[] {
-  const rows: Array<[number, Transaction['action'], number, number]> = [
-    [0, 'explanation', 4, -480],
-    [0, 'grading', 6, -360],
-    [1, 'assessment', 1, -400],
-    [2, 'explanation', 7, -840],
-    [3, 'topup', 1, 20000],
-    [4, 'grading', 12, -720],
-    [5, 'assessment', 2, -800],
-    [6, 'explanation', 3, -360],
-    [9, 'grading', 24, -1440],
-    [12, 'assessment', 1, -400],
-    [15, 'explanation', 9, -1080],
-    [20, 'topup', 1, 15000],
-  ]
-  const detail: Record<Transaction['action'], string> = {
-    explanation: '9 «А» сынып',
-    assessment: 'Математика · 8 сынып',
-    grading: 'СОР №3',
-    topup: 'Kaspi',
-  }
-  return rows.map(([days, action, quantity, amount], index) => ({
-    id: `tx-${index + 1}`,
-    date: daysAgo(days, 9 + (index % 8)),
-    action,
-    detail: detail[action],
-    quantity,
-    amount,
-  }))
-}
-
-/** Daily spend for the usage chart, per period. */
-export const USAGE_SERIES: Record<'month' | 'quarter' | 'year', number[]> = {
-  month: [0, 120, 360, 240, 0, 0, 480, 720, 400, 240, 120, 0, 0, 600, 840, 360],
-  quarter: [3200, 4100, 2600, 5200, 4800, 3900, 6100, 5400, 4200, 3100, 5900, 4600],
-  year: [12000, 9800, 14200, 11500, 16800, 13200, 4200, 5100, 15400],
-}
-
-export const USAGE_BREAKDOWN = {
-  explanations: 23,
-  assessments: 4,
-  gradings: 42,
 }

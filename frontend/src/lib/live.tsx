@@ -114,9 +114,13 @@ interface Pending {
 
 /** Failed because the server said so, rather than because the wire broke. */
 export class AgentError extends Error {
-  constructor(message: string) {
+  /** A machine-readable reason, when the server gave one (e.g. teacher_only). */
+  readonly code: string
+
+  constructor(message: string, code = '') {
     super(message)
     this.name = 'AgentError'
+    this.code = code
   }
 }
 
@@ -212,7 +216,7 @@ export function LiveProvider({
         if (!pending) return
         const chatId = str(data.chat_id)
         if (pending.chatId && chatId && chatId !== pending.chatId) return
-        settle((p) => p.reject(new AgentError(str(data.message) || 'agent error')))
+        settle((p) => p.reject(new AgentError(str(data.message) || 'agent error', str(data.code))))
       }
     },
     [settle],

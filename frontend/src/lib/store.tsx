@@ -9,28 +9,17 @@ import {
 import * as api from './api'
 import * as saved from './saved'
 import type { ApiUser } from './api'
-import { buildSubmissions, buildTransactions, PRICES } from './mockData'
 import type {
   Conversation,
   Explanation,
   Lang,
   Role,
-  Submission,
-  Transaction,
-  TransactionAction,
   UiLang,
   User,
 } from './types'
 import { uid } from './utils'
 
 export type ThemePreference = 'light' | 'dark' | 'system'
-export type BalanceState = 'healthy' | 'low' | 'zero'
-
-const BALANCE_PRESETS: Record<BalanceState, number> = {
-  healthy: 18400,
-  low: 640,
-  zero: 0,
-}
 
 interface AppState {
   user: User | null
@@ -46,9 +35,6 @@ interface AppState {
   libraryLoading: boolean
   conversations: Conversation[]
   explanations: Record<string, Explanation>
-  balance: number
-  transactions: Transaction[]
-  submissions: Submission[]
 }
 
 interface AppActions {
@@ -77,10 +63,6 @@ interface AppActions {
   /** Re-read from the server; also the first load. */
   reloadLibrary: () => Promise<void>
   startConversation: (explanation: Explanation) => void
-  setBalanceState: (state: BalanceState) => void
-  charge: (action: TransactionAction, quantity: number, detail: string) => void
-  topUp: (amount: number) => void
-  setSubmissions: (next: Submission[] | ((prev: Submission[]) => Submission[])) => void
 }
 
 type Store = AppState & AppActions
@@ -159,11 +141,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [libraryLoading, setLibraryLoading] = useState(true)
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [explanations, setExplanations] = useState<Record<string, Explanation>>({})
-  const [balance, setBalance] = useState(BALANCE_PRESETS.healthy)
-  const [transactions, setTransactions] = useState<Transaction[]>(() =>
-    buildTransactions(),
-  )
-  const [submissions, setSubmissionsState] = useState<Submission[]>([])
 
   useEffect(() => {
     writePersisted({ uiLang, explainLang, theme })
@@ -320,52 +297,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [],
   )
 
-  const setBalanceState = useCallback<AppActions['setBalanceState']>((state) => {
-    setBalance(BALANCE_PRESETS[state])
-    setTransactions(state === 'zero' ? [] : buildTransactions())
-  }, [])
-
-  const charge = useCallback<AppActions['charge']>((action, quantity, detail) => {
-    const unit =
-      action === 'explanation'
-        ? PRICES.explanation
-        : action === 'assessment'
-          ? PRICES.assessment
-          : PRICES.grading
-    const amount = -unit * quantity
-    setBalance((prev) => Math.max(0, prev + amount))
-    setTransactions((prev) => [
-      {
-        id: uid('tx'),
-        date: new Date().toISOString(),
-        action,
-        detail,
-        quantity,
-        amount,
-      },
-      ...prev,
-    ])
-  }, [])
-
-  const topUp = useCallback<AppActions['topUp']>((amount) => {
-    setBalance((prev) => prev + amount)
-    setTransactions((prev) => [
-      {
-        id: uid('tx'),
-        date: new Date().toISOString(),
-        action: 'topup',
-        detail: 'Kaspi',
-        quantity: 1,
-        amount,
-      },
-      ...prev,
-    ])
-  }, [])
-
-  const setSubmissions = useCallback<AppActions['setSubmissions']>((next) => {
-    setSubmissionsState((prev) => (typeof next === 'function' ? next(prev) : next))
-  }, [])
-
   const value = useMemo<Store>(
     () => ({
       user,
@@ -378,9 +309,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       libraryLoading,
       conversations,
       explanations,
-      balance,
-      transactions,
-      submissions,
       signUp,
       signIn,
       signOut,
@@ -396,10 +324,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       renameExplanation,
       reloadLibrary,
       startConversation,
-      setBalanceState,
-      charge,
-      topUp,
-      setSubmissions,
     }),
     [
       user,
@@ -412,9 +336,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       libraryLoading,
       conversations,
       explanations,
-      balance,
-      transactions,
-      submissions,
       signUp,
       signIn,
       signOut,
@@ -427,10 +348,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       renameExplanation,
       reloadLibrary,
       startConversation,
-      setBalanceState,
-      charge,
-      topUp,
-      setSubmissions,
     ],
   )
 
@@ -443,4 +360,3 @@ export function useStore(): Store {
   return ctx
 }
 
-export { buildSubmissions, PRICES }

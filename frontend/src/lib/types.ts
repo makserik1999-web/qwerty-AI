@@ -156,47 +156,6 @@ export interface LessonPlan {
   updatedAt: string
 }
 
-export type UploadStatus = 'queued' | 'uploading' | 'processing' | 'done' | 'failed'
-
-export interface UploadFile {
-  id: string
-  name: string
-  sizeKb: number
-  status: UploadStatus
-  progress: number
-  error?: string
-}
-
-export interface GradedQuestion {
-  number: number
-  awarded: number
-  max: number
-  note: string
-}
-
-export interface Submission {
-  id: string
-  student: string
-  fileName: string
-  score: number
-  max: number
-  gradedAt: string
-  status: 'graded' | 'overridden' | 'failed'
-  breakdown: GradedQuestion[]
-}
-
-export type TransactionAction = 'explanation' | 'assessment' | 'grading' | 'topup'
-
-export interface Transaction {
-  id: string
-  date: string
-  action: TransactionAction
-  detail: string
-  quantity: number
-  /** Negative for spending, positive for a top-up. In tenge. */
-  amount: number
-}
-
 export interface User {
   id: string
   /** Derived from the email at signup; the account's stable handle. */

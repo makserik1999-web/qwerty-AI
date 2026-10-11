@@ -34,10 +34,10 @@ import {
   type Effort,
   type VideoLength,
 } from '../lib/live'
-import { EXAMPLE_QUESTIONS, PRICES } from '../lib/mockData'
+import { EXAMPLE_QUESTIONS } from '../lib/mockData'
 import { useStore } from '../lib/store'
 import type { Conversation, Explanation, Lang, LangChoice } from '../lib/types'
-import { formatDateTime, formatMoney } from '../lib/utils'
+import { formatDateTime } from '../lib/utils'
 
 type ViewState = 'idle' | 'generating' | 'result' | 'error'
 
@@ -46,7 +46,7 @@ const STAGE_ORDER: AskStage[] = ['understand', 'write', 'render']
 export function Explain() {
   const { t, lang } = useI18n()
   const { toast } = useToast()
-  const { user, explainLang, saveToLibrary, charge } = useStore()
+  const { user, explainLang, saveToLibrary } = useStore()
   const { ask, stage, isConnected } = useLive()
 
   const [question, setQuestion] = useState('')
@@ -128,12 +128,6 @@ export function Explain() {
           },
           ...prev.filter((c) => c.id !== explanation.chatId),
         ])
-        // A cached answer costs a couple of database reads, so it is not
-        // billed - charging for it would penalise exactly what keeps the
-        // service affordable.
-        if (user?.role === 'teacher' && !explanation.fromCache) {
-          charge('explanation', 1, asked.slice(0, 40))
-        }
       } catch (error) {
         // Only the server's own words are worth showing: they say what to do
         // next - the agent is down, the quota is spent. A dropped socket
@@ -142,17 +136,21 @@ export function Explain() {
         // The render is not cancelled by a timeout - it finishes and is
         // saved - so the message points at the history rather than implying
         // the work was lost.
+        // A refusal with a code is said in the reader's language; the
+        // server's sentence is English.
         setFailure(
           error instanceof AnswerTimeout
             ? t('explain.timedOut')
-            : error instanceof AgentError
-              ? error.message
-              : null,
+            : error instanceof AgentError && error.code === 'teacher_only'
+              ? t('explain.teacherOnly')
+              : error instanceof AgentError
+                ? error.message
+                : null,
         )
         setState('error')
       }
     },
-    [ask, charge, effort, narration, t, user?.role, voice, videoLength],
+    [ask, effort, narration, t, voice, videoLength],
   )
 
   function onSubmit(event: React.FormEvent) {
@@ -250,9 +248,7 @@ export function Explain() {
         <div className="page__heading">
           <h1 className="page__title">{t('explain.title')}</h1>
           <p className="page__subtitle">
-            {user?.role === 'teacher'
-              ? t('explain.costNote', { cost: formatMoney(PRICES.explanation, lang) })
-              : defaultLangLabel}
+            {user?.role === 'teacher' ? defaultLangLabel : t('explain.studentNote')}
           </p>
         </div>
         <Button icon="plus" onClick={newConversation}>
@@ -346,23 +342,30 @@ export function Explain() {
                       { value: 'ru', label: t('common.russian') },
                     ]}
                   />
-                  <NarrationToggle
-                    enabled={narration}
-                    voice={voice}
-                    onEnabledChange={setNarration}
-                    onVoiceChange={setVoice}
-                    disabled={busy}
-                  />
-                  <VideoLengthPicker
-                    value={videoLength}
-                    onChange={setVideoLength}
-                    disabled={busy}
-                  />
-                  <EffortPicker
-                    value={effort}
-                    onChange={setEffort}
-                    disabled={busy}
-                  />
+                  {/* How a new video is made. A student does not make one -
+                      the server refuses - so offering these to them would be
+                      a control that does nothing. */}
+                  {user?.role === 'teacher' ? (
+                    <>
+                      <NarrationToggle
+                        enabled={narration}
+                        voice={voice}
+                        onEnabledChange={setNarration}
+                        onVoiceChange={setVoice}
+                        disabled={busy}
+                      />
+                      <VideoLengthPicker
+                        value={videoLength}
+                        onChange={setVideoLength}
+                        disabled={busy}
+                      />
+                      <EffortPicker
+                        value={effort}
+                        onChange={setEffort}
+                        disabled={busy}
+                      />
+                    </>
+                  ) : null}
                 </div>
                 <Button
                   type="submit"

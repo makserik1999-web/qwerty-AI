@@ -131,3 +131,17 @@ export async function updateProfile(input: {
 export async function deleteAccount(): Promise<void> {
   await request('/auth/account', { method: 'DELETE' })
 }
+
+/** What is left of the generation budget - the real limits, from the server. */
+export interface Quota {
+  used_hour: number
+  used_day: number
+  limit_hour: number
+  limit_day: number
+  remaining_hour: number
+  remaining_day: number
+}
+
+export async function getQuota(): Promise<Quota> {
+  return request<Quota>('/quota')
+}

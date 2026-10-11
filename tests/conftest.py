@@ -123,12 +123,16 @@ def new_user(client):
 
     Each test gets its own account, so tests stay independent and can run in
     any order (the in-memory Mongo is shared for the whole session).
+
+    A teacher by default: only teachers may start a generation, and most of
+    the suite is about what happens once one has started.
     """
 
-    def _make(password: str = "password123"):
+    def _make(password: str = "password123", role: str = "teacher"):
         username = f"u_{uuid.uuid4().hex[:12]}"
         response = client.post(
-            "/api/auth/signup", json={"username": username, "password": password}
+            "/api/auth/signup",
+            json={"username": username, "password": password, "role": role},
         )
         assert response.status_code == 201, response.text
         return {

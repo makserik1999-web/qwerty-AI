@@ -15,6 +15,7 @@ from app.config import (
     NARRATION_DEFAULT,
     NARRATION_VOICE_DEFAULT,
     NARRATION_VOICES,
+    USER_ROLE_DEFAULT,
     VIDEO_LENGTH_DEFAULT,
     VIDEO_LENGTHS,
 )
@@ -174,6 +175,24 @@ async def _handle_ui_frame(websocket: WebSocket, user_id: str, data: dict) -> No
             })
             await usage_log.log(user_id, "explanation", cached=True,
                                 video=bool(cached.get("video_url")))
+            return
+
+        # Making a new answer is for teachers. A student still gets whatever
+        # the library already holds - that costs a couple of reads - but a
+        # generation is a paid model call. Read from the account, like every
+        # other access decision, never from the frame. The code lets the
+        # interface say it in the reader's language.
+        account = await db.db.users.find_one({"_id": ObjectId(user_id)}, {"role": 1})
+        if ((account or {}).get("role") or USER_ROLE_DEFAULT) != "teacher":
+            await websocket.send_json({
+                "type": "error",
+                "data": {
+                    "message": "New videos are made by teacher accounts. "
+                               "Answers already in the library still work.",
+                    "chat_id": chat_id,
+                    "code": "teacher_only",
+                },
+            })
             return
 
         # Only a real generation is charged for, and only once the cache has

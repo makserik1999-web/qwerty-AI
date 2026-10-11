@@ -5,7 +5,6 @@ import { Spinner } from './components/ui'
 import { useI18n } from './lib/i18n'
 import { useStore } from './lib/store'
 import { Billing } from './pages/Billing'
-import { Check } from './pages/Check'
 import { Explain } from './pages/Explain'
 import { Generate } from './pages/Generate'
 import { LessonPlan } from './pages/LessonPlan'
@@ -184,14 +183,6 @@ export function App() {
                 <Lazy>
                   <QuizResults />
                 </Lazy>
-              </RequireTeacher>
-            }
-          />
-          <Route
-            path="check"
-            element={
-              <RequireTeacher>
-                <Check />
               </RequireTeacher>
             }
           />

@@ -5,6 +5,30 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### Nothing on screen that is not true
+
+**Removed**
+
+- The wallet: a balance of 18 400 ₸ every new account started with, a top-up
+  button, invented transactions, spending charts and a demo-state switcher.
+  None of it ever reached a server.
+- Per-action prices and the "charges" after each explanation and paper - a
+  number taken off that same balance in the browser.
+- «Проверка работ»: the page was a static stub with made-up students and
+  marks. It returns when marking exists.
+
+**Changed**
+
+- «Баланс» is now «Тариф»: it says the pilot is free and shows the one real
+  limit, the video quota from `/api/quota`.
+- Only teachers start a new generation. A student still gets any answer the
+  library already holds; otherwise the server refuses with
+  `code: teacher_only`, which the interface says in the reader's language.
+  The voice, length and quality controls are hidden from students, since
+  they only shape a video the student cannot make.
+- Role, plan and settings texts in all three languages no longer promise
+  marking, a balance or unlimited explanations.
+
 ### Staff roles and an admin panel
 
 **Added**

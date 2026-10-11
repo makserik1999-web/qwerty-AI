@@ -29,7 +29,6 @@ import {
 import { describeAuthError } from '../lib/authErrors'
 import { useI18n } from '../lib/i18n'
 import { GRADES, SUBJECTS } from '../lib/mockData'
-import { useStore } from '../lib/store'
 import type {
   Assessment,
   AssessmentType,
@@ -45,7 +44,6 @@ type PreviewTab = 'document' | 'key'
 export function Generate() {
   const { t, lang } = useI18n()
   const { toast } = useToast()
-  const { charge } = useStore()
 
   const [subject, setSubject] = useState<SubjectId>('math')
   const [grade, setGrade] = useState(8)
@@ -81,7 +79,6 @@ export function Generate() {
       const result = await generateAssessment(currentInput())
       setAssessment(result)
       setStatus('ready')
-      charge('assessment', 1, `${t(`subject.${subject}`)} · ${grade}`)
       toast(t('generate.saved'))
     } catch (error) {
       // The server's sentence when it has one: it says whether to wait, to
