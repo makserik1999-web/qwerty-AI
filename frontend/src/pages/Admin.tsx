@@ -40,10 +40,11 @@ import { useStore } from '../lib/store'
 import type { StaffRole } from '../lib/types'
 import '../styles/admin.css'
 import { PaymentsSection } from './AdminPayments'
+import { ReferralsSection } from './AdminReferrals'
 import { VideosSection } from './AdminVideos'
 import { PLAN_LABEL, PlansSection, UserPlanPanel } from './AdminPlans'
 
-type Section = 'stats' | 'users' | 'videos' | 'payments' | 'plans' | 'audit'
+type Section = 'stats' | 'users' | 'videos' | 'referrals' | 'payments' | 'plans' | 'audit'
 
 const PAGE = 50
 
@@ -102,6 +103,7 @@ export function Admin() {
     { value: 'stats', label: 'Статистика' },
     { value: 'users', label: 'Пользователи' },
     { value: 'videos', label: 'Библиотека' },
+    { value: 'referrals', label: 'Рефералы' },
     ...(isAdmin
       ? [
           { value: 'payments' as const, label: 'Платежи' },
@@ -128,6 +130,7 @@ export function Admin() {
           {section === 'stats' ? <StatsSection isAdmin={isAdmin} /> : null}
           {section === 'users' ? <UsersSection isAdmin={isAdmin} /> : null}
           {section === 'videos' ? <VideosSection /> : null}
+          {section === 'referrals' ? <ReferralsSection /> : null}
           {section === 'payments' && isAdmin ? <PaymentsSection /> : null}
           {section === 'plans' && isAdmin ? <PlansSection /> : null}
           {section === 'audit' && isAdmin ? <AuditSection /> : null}

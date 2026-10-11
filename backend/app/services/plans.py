@@ -196,7 +196,9 @@ async def ensure_trial(user: Dict[str, Any]) -> Dict[str, Any]:
             await db.db.trial_claims.insert_one({"phone_hash": phone_hash, "user_id": user_id, "at": now})
         except Exception:  # noqa: BLE001 - lost a race for the same number
             return user
-    trial = {"activated_at": now, "used": {}, "bonus": {}}
+    # Invited by a colleague: two more videos on the trial.
+    bonus = {"videos": 2} if user.get("referred_by") else {}
+    trial = {"activated_at": now, "used": {}, "bonus": bonus}
     result = await db.db.users.update_one(
         {"_id": user["_id"], "trial": {"$exists": False}}, {"$set": {"trial": trial}})
     if result.modified_count:
@@ -439,6 +441,21 @@ async def grant(user: Dict[str, Any], plan_id: str, *, months: Optional[int] = N
     period = {"key": now.isoformat(), "start": now, "end": add_months(now, 1), "used": {}, "carryover": 0}
     await db.db.users.update_one({"_id": user["_id"]}, {"$set": {"subscription": subscription, "period": period}})
     return await db.db.users.find_one({"_id": user["_id"]})
+
+
+async def extend_by_months(user: Dict[str, Any], months: int, now: Optional[datetime] = None) -> Dict[str, Any]:
+    """Add months to whatever Ұстаз is running, or start a month if none is.
+
+    Unlike grant(), this never switches plans: a school-year subscriber who
+    earns a month keeps the school-year plan, a month longer.
+    """
+    now = now or _now()
+    sub = user.get("subscription") or {}
+    if _sub_active(sub, now):
+        new_expires = add_months(_aware(sub["expires_at"]), months)
+        await db.db.users.update_one({"_id": user["_id"]}, {"$set": {"subscription.expires_at": new_expires}})
+        return await db.db.users.find_one({"_id": user["_id"]})
+    return await grant(user, USTAZ_MONTH, months=months, now=now)
 
 
 async def end_subscription(user: Dict[str, Any]) -> None:

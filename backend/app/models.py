@@ -25,6 +25,9 @@ class SignupRequest(BaseModel):
     password: str
     name: Optional[str] = None
     role: Optional[str] = None
+    # A colleague's invite code from the link, and the browser's random id.
+    ref: Optional[str] = None
+    device: Optional[str] = None
 
 
 class LoginRequest(BaseModel):
@@ -33,6 +36,7 @@ class LoginRequest(BaseModel):
     username: Optional[str] = None
     email: Optional[str] = None
     password: str
+    device: Optional[str] = None
 
 
 class ProfileRequest(BaseModel):

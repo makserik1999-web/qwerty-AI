@@ -12,6 +12,7 @@
  * which the server does not know. `detail` is kept for the cases nothing has
  * been translated for yet.
  */
+import { deviceId, inviteRef } from './device'
 import type { StringKey } from './strings'
 import type { Role, StaffRole } from './types'
 
@@ -120,9 +121,11 @@ export interface SignUpInput {
 }
 
 export async function signUp(input: SignUpInput): Promise<ApiUser> {
+  // The invite code a colleague's link brought, and this browser's id - both
+  // for the referral, and the second for spotting many accounts in one place.
   const { user } = await request<{ user: ApiUser }>('/auth/signup', {
     method: 'POST',
-    body: JSON.stringify(input),
+    body: JSON.stringify({ ...input, ref: inviteRef() || undefined, device: deviceId() || undefined }),
   })
   return user
 }
@@ -130,7 +133,7 @@ export async function signUp(input: SignUpInput): Promise<ApiUser> {
 export async function signIn(input: { email: string; password: string }): Promise<ApiUser> {
   const { user } = await request<{ user: ApiUser }>('/auth/login', {
     method: 'POST',
-    body: JSON.stringify(input),
+    body: JSON.stringify({ ...input, device: deviceId() || undefined }),
   })
   return user
 }
@@ -193,7 +196,30 @@ export async function getProviders(): Promise<{ google: boolean; phone: boolean 
 
 /** Where the "Continue with Google" button sends the browser. */
 export function googleStartUrl(role?: Role): string {
-  return role ? `/api/auth/google/start?role=${encodeURIComponent(role)}` : '/api/auth/google/start'
+  const params = new URLSearchParams()
+  if (role) params.set('role', role)
+  const ref = inviteRef()
+  if (ref) params.set('ref', ref)
+  const device = deviceId()
+  if (device) params.set('device', device)
+  const query = params.toString()
+  return query ? `/api/auth/google/start?${query}` : '/api/auth/google/start'
+}
+
+/* Referrals ----------------------------------------------------------------- */
+
+export interface ReferralSummary {
+  code: string
+  link: string
+  invited: number
+  paid: number
+  months_this_year: number
+  cap: number
+  invitee_bonus_videos: number
+}
+
+export async function getReferrals(): Promise<ReferralSummary> {
+  return request('/referrals')
 }
 
 export async function resendVerification(): Promise<{ ok: boolean; already?: boolean }> {

@@ -4,6 +4,7 @@ import { GoogleButton } from '../components/auth/GoogleButton'
 import { Logo } from '../components/layout/Logo'
 import { Alert, Button, Card, Field, Icon, Input, RadioCard } from '../components/ui'
 import { describeAuthError, googleErrorKey } from '../lib/authErrors'
+import { inviteRef, rememberRef } from '../lib/device'
 import { useI18n } from '../lib/i18n'
 import { useProviders } from '../lib/providers'
 import { useStore } from '../lib/store'
@@ -24,6 +25,12 @@ export function SignUp() {
   const providers = useProviders()
   const [params] = useSearchParams()
   const googleError = googleErrorKey(params.get('auth_error'))
+  // An invite link carries ?ref=; kept until the account exists, so a detour
+  // through Google or a reload does not lose it.
+  const [invited] = useState(() => {
+    rememberRef(params.get('ref'))
+    return Boolean(inviteRef())
+  })
 
   const [role, setRole] = useState<Role | ''>('')
   const [name, setName] = useState('')
@@ -79,6 +86,8 @@ export function SignUp() {
             <h1 className="page__title">{t('auth.signup.title')}</h1>
             <p className="text-secondary text-sm">{t('auth.signup.subtitle')}</p>
           </div>
+
+          {invited ? <Alert tone="success">{t('ref.invitedNote')}</Alert> : null}
 
           <form className="stack stack-md" onSubmit={onSubmit} noValidate>
             <fieldset className="fieldset">

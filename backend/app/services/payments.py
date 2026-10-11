@@ -232,6 +232,14 @@ async def confirm(payment_id: str, actor: Dict[str, Any]) -> Dict[str, Any]:
         raise
     await db.db.payments.update_one({"_id": claimed["_id"]},
                                     {"$set": {"status": CONFIRMED, "applied": applied}})
+    # The invited teacher's first paid plan earns the inviter a month. Never
+    # allowed to undo a confirmation that already happened.
+    from app.services import referrals
+
+    try:
+        await referrals.on_payment_confirmed(claimed)
+    except Exception as e:  # noqa: BLE001
+        print(f"referral reward failed for {claimed.get('code')}: {type(e).__name__}: {e}")
     return {**claimed, "status": CONFIRMED, "applied": applied}
 
 

@@ -5,6 +5,22 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### Referrals
+
+**Added**
+
+- An invite code per teacher, with a link, "copy" and "share on WhatsApp" on
+  the plan page. Signing up through the link (or through Google from it)
+  records who invited the account, once.
+- The invited teacher's trial gets +2 videos. The inviter gets +1 month of
+  Ұстаз when the invited teacher's first subscription payment is confirmed
+  - extending whatever plan is running, never switching it - at most six
+  months in any 365 days; a capped reward is still recorded.
+- Sign-up and sign-in keep keyed hashes of the IP and of a random browser id
+  (never the values). The admin «Рефералы» tab shows who invited whom,
+  whether it paid, invitees on the inviter's own device or network, and
+  devices or networks shared by three or more accounts.
+
 ### Topics: one video per topic, served to everyone who asks
 
 **Added**

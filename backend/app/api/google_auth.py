@@ -41,6 +41,7 @@ from app.config import COOKIE_SECURE, SESSION_TTL_HOURS
 from app.db import db
 from app.errors import HTTPExceptionJson
 from app.security.cookies import _session_cookie
+from app.security.fingerprint import trace_update
 from app.security.ratelimit import _client_ip, signup_limiter
 from app.security.sessions import _create_session
 
@@ -98,7 +99,7 @@ async def providers():
 
 
 @router.get("/api/auth/google/start")
-async def google_start(role: str = "", next: str = ""):
+async def google_start(role: str = "", next: str = "", ref: str = "", device: str = ""):
     if not google_configured():
         raise HTTPExceptionJson(404, "Google sign-in is not set up")
     state = secrets.token_urlsafe(24)
@@ -113,6 +114,8 @@ async def google_start(role: str = "", next: str = ""):
         # keeps the role it has.
         "role": role.strip().lower(),
         "next": _safe_next(next) if next else "/app/explain",
+        "ref": ref.strip()[:12],
+        "device": device.strip()[:200],
         "created_at": now,
         "expires_at": now + STATE_TTL,
     })
@@ -240,6 +243,11 @@ async def google_callback(request: Request, code: str = "", state: str = "", err
                 "email_verified_at": now,
                 "created_at": now,
             }
+            from app.services.referrals import inviter_for
+
+            inviter = await inviter_for(flow.get("ref"))
+            if inviter:
+                doc["referred_by"] = str(inviter["_id"])
             try:
                 result = await db.db.users.insert_one(doc)
             except Exception:
@@ -248,6 +256,9 @@ async def google_callback(request: Request, code: str = "", state: str = "", err
 
     if user.get("blocked_at"):
         return _fail("/signin", "blocked")
+    trace = trace_update(_client_ip(request), flow.get("device"))
+    if trace:
+        await db.db.users.update_one({"_id": user["_id"]}, trace)
     token = await _create_session(str(user["_id"]))
     response = RedirectResponse(flow.get("next") or "/app/explain", status_code=302)
     response.headers.append("Set-Cookie", _state_cookie("", 0))

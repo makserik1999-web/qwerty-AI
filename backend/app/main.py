@@ -25,6 +25,7 @@ from app.api import (
     plan,
     quiz_drafts,
     quota,
+    referrals,
     saved,
     videos,
 )
@@ -53,6 +54,8 @@ app.include_router(google_auth.router)
 app.include_router(phone.router)
 app.include_router(plan.router)
 app.include_router(payments.router)
+app.include_router(referrals.router)
+app.include_router(referrals.admin_router)
 app.include_router(chats.router)
 app.include_router(media.router)
 app.include_router(admin.router)

@@ -101,6 +101,11 @@ async def lifespan(app: FastAPI):
     await db.db.video_cache.create_index([("status", 1), ("created_at", -1)])
     await db.db.video_cache.create_index([("status", 1), ("subject", 1), ("grade", 1)])
     await db.db.video_ratings.create_index([("video_id", 1), ("user_id", 1)], unique=True)
+    # Referrals: a code per teacher, who invited whom, one reward per invitee.
+    await db.db.users.create_index("referral_code", unique=True, sparse=True)
+    await db.db.users.create_index("referred_by", sparse=True)
+    await db.db.referral_rewards.create_index("invitee_id", unique=True)
+    await db.db.referral_rewards.create_index([("inviter_id", 1), ("at", -1)])
 
     print(f"Connected to MongoDB at {MONGO_URL}")
     if not AGENT_SECRET:

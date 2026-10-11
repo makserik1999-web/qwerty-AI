@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { PaymentPanel } from '../components/billing/PaymentPanel'
+import { ReferralCard } from '../components/billing/ReferralCard'
 import { PhoneSection } from '../components/settings/PhoneSection'
 import { Alert, Badge, Button, Card, ProgressBar, Skeleton } from '../components/ui'
 import {
@@ -299,6 +300,8 @@ export function Billing() {
           </ul>
         </Card>
       ) : null}
+
+      {user?.role === 'teacher' ? <ReferralCard /> : null}
 
       <Card as="section" elevation="flat" className="stack stack-sm">
         <h2 className="card__title">{t('plan.quotaTitle')}</h2>

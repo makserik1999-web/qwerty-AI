@@ -20,6 +20,7 @@ from app.db import db
 from app.errors import HTTPExceptionJson
 from app.models import LoginRequest, ProfileRequest, SignupRequest
 from app.security.cookies import _cookie_token, _expired_session_cookie, _session_cookie
+from app.security.fingerprint import trace_update
 from app.security.passwords import _hash_password, _verify_password
 from app.security.ratelimit import _client_ip, login_ip_limiter, login_limiter, signup_limiter
 from app.security.sessions import _create_session, _hash_token, _user_from_token, _user_payload
@@ -132,6 +133,11 @@ async def signup(body: SignupRequest, request: Request):
             raise HTTPExceptionJson(409, "Username already taken")
         raise HTTPExceptionJson(409, "Email already registered")
 
+    # Invited by a colleague: remembered once, here. Only teachers invite.
+    from app.services.referrals import inviter_for
+
+    inviter = await inviter_for(body.ref)
+
     try:
         user = {
             "username": username,
@@ -144,6 +150,8 @@ async def signup(body: SignupRequest, request: Request):
             # the account, never the client's word for what it is.
             "role": _clean_role(body.role),
         }
+        if inviter:
+            user["referred_by"] = str(inviter["_id"])
         # Only store email when provided. The sparse unique index on email
         # treats explicit null as a VALUE (not "missing"), so writing
         # email=None here would make every subsequent signup without an email
@@ -157,6 +165,9 @@ async def signup(body: SignupRequest, request: Request):
         raise HTTPExceptionJson(409, "Username or email already registered") from None
 
     user_id = str(result.inserted_id)
+    trace = trace_update(_client_ip(request), body.device)
+    if trace:
+        await db.db.users.update_one({"_id": result.inserted_id}, trace)
     token = await _create_session(user_id)
     login_limiter.reset(f"user:{username}")
     # The link goes out in the background: a slow mail server must not make
@@ -204,6 +215,9 @@ async def login(body: LoginRequest, request: Request):
         # Said only to someone who knew the password.
         raise HTTPExceptionJson(403, "This account is blocked", code="account_blocked")
 
+    trace = trace_update(ip, body.device)
+    if trace:
+        await db.db.users.update_one({"_id": user["_id"]}, trace)
     token = await _create_session(str(user["_id"]))
     # The account's budget only, never the address's: clearing that one on
     # success let anybody with an account wipe it between guesses at others.

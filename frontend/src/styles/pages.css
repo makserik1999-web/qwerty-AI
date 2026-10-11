@@ -1240,3 +1240,12 @@
 .showcase__card {
   height: 100%;
 }
+
+.ref-card__link {
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: var(--fs-body-sm);
+  word-break: break-all;
+  user-select: all;
+}
