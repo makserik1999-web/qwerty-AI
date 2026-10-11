@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import (
     admin,
+    admin_payments,
     assessments,
     auth,
     chats,
@@ -18,6 +19,7 @@ from app.api import (
     health,
     lesson_plans,
     media,
+    payments,
     phone,
     plan,
     quiz_drafts,
@@ -48,9 +50,11 @@ app.include_router(email_auth.router)
 app.include_router(google_auth.router)
 app.include_router(phone.router)
 app.include_router(plan.router)
+app.include_router(payments.router)
 app.include_router(chats.router)
 app.include_router(media.router)
 app.include_router(admin.router)
+app.include_router(admin_payments.router)
 app.include_router(exports.router)
 app.include_router(quota.router)
 app.include_router(assessments.router)

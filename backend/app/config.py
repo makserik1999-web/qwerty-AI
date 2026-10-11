@@ -176,6 +176,22 @@ PHONE_HASH_SECRET = os.getenv("PHONE_HASH_SECRET", "").strip()
 # Days before a subscription ends that its owner is emailed.
 PLAN_REMINDER_DAYS = int(os.getenv("PLAN_REMINDER_DAYS", "3"))
 
+# ============== Payments (Kaspi, confirmed by hand) ==============
+# Where a teacher sends the money. Payment is offered only when at least the
+# phone or the link is set; until then the plan page shows the team's contact.
+KASPI_PAY_PHONE = os.getenv("KASPI_PAY_PHONE", "").strip()
+KASPI_PAY_NAME = os.getenv("KASPI_PAY_NAME", "").strip()
+# A Kaspi Pay link or the page with the shop's Kaspi QR, if there is one.
+KASPI_PAY_LINK = os.getenv("KASPI_PAY_LINK", "").strip()
+# Free text shown under the details (e.g. "ИП Иса Ә., БИН ...").
+KASPI_PAY_NOTE = os.getenv("KASPI_PAY_NOTE", "").strip()
+# Who is emailed when a teacher says they have paid. Comma separated.
+PAYMENT_NOTIFY_EMAILS = [
+    e.strip() for e in os.getenv("PAYMENT_NOTIFY_EMAILS", "").split(",") if e.strip()
+]
+# An order nobody paid for is closed after this many days.
+PAYMENT_REQUEST_TTL_DAYS = int(os.getenv("PAYMENT_REQUEST_TTL_DAYS", "3"))
+
 
 # ============== Assessments ==============
 # Closed sets, because every one of these reaches a prompt. Free text there is

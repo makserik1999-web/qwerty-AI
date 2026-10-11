@@ -90,6 +90,11 @@ async def lifespan(app: FastAPI):
     await db.db.plan_reservations.create_index("ref", unique=True)
     await db.db.plan_reservations.create_index("expires_at", expireAfterSeconds=0)
     await db.db.users.create_index("subscription.expires_at", sparse=True)
+    # Payments: looked up by the code a teacher reads out, listed per account
+    # and per status for the admin panel. Kept for good - it is the money log.
+    await db.db.payments.create_index("code", unique=True)
+    await db.db.payments.create_index([("user_id", 1), ("created_at", -1)])
+    await db.db.payments.create_index([("status", 1), ("created_at", -1)])
 
     print(f"Connected to MongoDB at {MONGO_URL}")
     if not AGENT_SECRET:

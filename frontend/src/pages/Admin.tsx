@@ -39,9 +39,10 @@ import { ApiError } from '../lib/api'
 import { useStore } from '../lib/store'
 import type { StaffRole } from '../lib/types'
 import '../styles/admin.css'
+import { PaymentsSection } from './AdminPayments'
 import { PLAN_LABEL, PlansSection, UserPlanPanel } from './AdminPlans'
 
-type Section = 'stats' | 'users' | 'plans' | 'audit'
+type Section = 'stats' | 'users' | 'payments' | 'plans' | 'audit'
 
 const PAGE = 50
 
@@ -101,6 +102,7 @@ export function Admin() {
     { value: 'users', label: 'Пользователи' },
     ...(isAdmin
       ? [
+          { value: 'payments' as const, label: 'Платежи' },
           { value: 'plans' as const, label: 'Тарифы' },
           { value: 'audit' as const, label: 'Журнал' },
         ]
@@ -123,6 +125,7 @@ export function Admin() {
         <Tabs label="Разделы админки" value={section} items={sections} onChange={setSection}>
           {section === 'stats' ? <StatsSection isAdmin={isAdmin} /> : null}
           {section === 'users' ? <UsersSection isAdmin={isAdmin} /> : null}
+          {section === 'payments' && isAdmin ? <PaymentsSection /> : null}
           {section === 'plans' && isAdmin ? <PlansSection /> : null}
           {section === 'audit' && isAdmin ? <AuditSection /> : null}
         </Tabs>

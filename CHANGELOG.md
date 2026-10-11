@@ -5,6 +5,24 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### Paying through Kaspi, confirmed by a person
+
+**Added**
+
+- Orders (`payments`): a teacher picks a plan and gets the amount, the Kaspi
+  number and a code for the transfer comment (`AK-` + five unambiguous
+  characters), then presses "I have paid". Nothing is applied on that word:
+  an admin checks Kaspi and confirms in the panel, which applies the plan
+  (a month, the school year, or +10 videos on a running Ұстаз). Rejections
+  carry a reason the teacher sees; refunds are recorded and can take the
+  plan back. Every decision is in the audit log; money is admin only.
+- The order keeps the price it was made at; unpaid orders close after three
+  days; at most three open orders per account.
+- Staff are emailed when a teacher reports a payment
+  (`PAYMENT_NOTIFY_EMAILS`); revenue by month on the payments tab.
+- Payment is offered only once `KASPI_PAY_PHONE` or `KASPI_PAY_LINK` is
+  set; until then the plan page shows the team's contact, as before.
+
 ### Plans: Сынақ and Ұстаз, counted
 
 **Added**

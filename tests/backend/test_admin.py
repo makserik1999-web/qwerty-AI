@@ -30,6 +30,10 @@ ADMIN_ONLY = {
     "/api/admin/users/{user_id}/extra-videos",
     "/api/admin/plans",
     "/api/admin/plans/{plan_id}",
+    "/api/admin/payments",
+    "/api/admin/payments/{payment_id}/confirm",
+    "/api/admin/payments/{payment_id}/reject",
+    "/api/admin/payments/{payment_id}/refund",
 }
 
 # Let through: anything but the guard's own answers. A POST sent here with no
@@ -92,7 +96,8 @@ def admin_routes(backend):
 
 
 def call(client, method, template, user_id):
-    path = template.replace("{user_id}", user_id).replace("{plan_id}", "trial")
+    path = (template.replace("{user_id}", user_id).replace("{plan_id}", "trial")
+            .replace("{payment_id}", "0" * 24))
     return client.request(method, path)
 
 

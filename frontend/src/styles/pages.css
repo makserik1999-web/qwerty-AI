@@ -1157,3 +1157,37 @@
   margin-left: auto;
   white-space: nowrap;
 }
+
+/* Payment ------------------------------------------------------------------- */
+
+.pay-panel {
+  border: 1px solid var(--primary);
+}
+
+.pay-panel__code {
+  align-self: flex-start;
+  padding: var(--space-xs) var(--space-md);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: var(--fs-h3);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.08em;
+  user-select: all;
+}
+
+.pay-history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.pay-history li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--fs-body-sm);
+}

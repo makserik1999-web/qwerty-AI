@@ -215,3 +215,40 @@ export function listPlans() {
 export function editPlan(id: string, changes: Partial<AdminPlan> & { reason: string }) {
   return send<AdminPlan>(`/plans/${encodeURIComponent(id)}`, 'PUT', changes)
 }
+
+/* Payments ------------------------------------------------------------------ */
+
+export interface AdminPayment {
+  id: string
+  code: string
+  plan_id: string
+  title: string
+  amount: number
+  status: string
+  created_at: string | null
+  submitted_at: string | null
+  decided_at: string | null
+  reason: string
+  email: string
+  user_id: string
+  decided_by: string
+  refund: { at: string | null; by: string } | null
+}
+
+export function listPayments(status: string) {
+  return request<{ items: AdminPayment[]; revenue: Array<{ month: string; amount: number }> }>(
+    `/payments?status=${encodeURIComponent(status)}`,
+  )
+}
+
+export function confirmPayment(id: string, reason: string) {
+  return send<unknown>(`/payments/${encodeURIComponent(id)}/confirm`, 'POST', { reason })
+}
+
+export function rejectPayment(id: string, reason: string) {
+  return send<unknown>(`/payments/${encodeURIComponent(id)}/reject`, 'POST', { reason })
+}
+
+export function refundPayment(id: string, reason: string, takeBack: boolean) {
+  return send<unknown>(`/payments/${encodeURIComponent(id)}/refund`, 'POST', { reason, take_back: takeBack })
+}

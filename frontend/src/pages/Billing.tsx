@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useState } from 'react'
+import { PaymentPanel } from '../components/billing/PaymentPanel'
 import { PhoneSection } from '../components/settings/PhoneSection'
 import { Alert, Badge, Button, Card, ProgressBar, Skeleton } from '../components/ui'
 import {
+  ApiError,
+  getPayments,
   getPlan,
   getQuota,
+  orderPlan,
   pausePlan,
   resumePlan,
+  type KaspiDetails,
+  type Payment,
   type PlanOffer,
   type PlanResource,
   type PlanSummary,
@@ -36,6 +42,9 @@ export function Billing() {
   const [quota, setQuota] = useState<Quota | null>(null)
   const [failed, setFailed] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [kaspi, setKaspi] = useState<KaspiDetails | null>(null)
+  const [orders, setOrders] = useState<Payment[]>([])
+  const [orderError, setOrderError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -48,7 +57,34 @@ export function Billing() {
       setFailed(true)
     }
     getQuota().then(setQuota).catch(() => undefined)
+    getPayments()
+      .then((found) => {
+        setKaspi(found.enabled ? found.details : null)
+        setOrders(found.items)
+      })
+      .catch(() => undefined)
   }, [])
+
+  async function buy(planId: string) {
+    setOrderError(null)
+    try {
+      const made = await orderPlan(planId)
+      setOrders((prev) => [made, ...prev.filter((o) => o.id !== made.id)])
+    } catch (error) {
+      const code = error instanceof ApiError ? error.reason : ''
+      setOrderError(
+        code === 'addon_needs_ustaz' || code === 'too_many_open'
+          ? t(`pay.error.${code}` as StringKey)
+          : t('pay.error.generic'),
+      )
+    }
+  }
+
+  function changed(next: Payment) {
+    setOrders((prev) => prev.map((o) => (o.id === next.id ? next : o)))
+  }
+
+  const open = orders.filter((o) => o.status === 'awaiting' || o.status === 'submitted')
 
   // The phone section confirms a number, which is what starts the trial.
   useEffect(() => {
@@ -188,6 +224,12 @@ export function Billing() {
         </Card>
       ) : null}
 
+      {kaspi
+        ? open.map((payment) => (
+            <PaymentPanel key={payment.id} payment={payment} details={kaspi} onChanged={changed} />
+          ))
+        : null}
+
       {/* A free teacher's next step is the phone: confirming it starts the trial. */}
       {plan?.kind === 'free' && plan.trial_unavailable === 'phone_required' ? <PhoneSection /> : null}
 
@@ -216,13 +258,45 @@ export function Billing() {
                     })}
                   </span>
                 ) : null}
+                {kaspi && (offer.kind !== 'addon' || plan?.kind === 'ustaz') ? (
+                  <div>
+                    <Button
+                      variant={offer.period === 'school_year' ? 'primary' : 'secondary'}
+                      onClick={() => void buy(offer._id)}
+                    >
+                      {t('pay.buy')}
+                    </Button>
+                  </div>
+                ) : null}
               </li>
             ))}
           </ul>
-          <p className="text-sm text-secondary">
-            {t('plan.buySoon')} <a href={CONTACT.phoneHref}>{CONTACT.phone}</a>,{' '}
-            <a href={CONTACT.emailHref}>{CONTACT.email}</a>
-          </p>
+          {orderError ? <Alert tone="error">{orderError}</Alert> : null}
+          {kaspi ? null : (
+            <p className="text-sm text-secondary">
+              {t('plan.buySoon')} <a href={CONTACT.phoneHref}>{CONTACT.phone}</a>,{' '}
+              <a href={CONTACT.emailHref}>{CONTACT.email}</a>
+            </p>
+          )}
+        </Card>
+      ) : null}
+
+      {orders.length ? (
+        <Card as="section" elevation="flat" className="stack stack-sm">
+          <h2 className="card__title">{t('pay.history')}</h2>
+          <ul className="pay-history">
+            {orders.map((o) => (
+              <li key={o.id}>
+                <span>
+                  {o.title} · {o.amount.toLocaleString('ru-RU')} ₸ · <code>{o.code}</code>
+                </span>
+                <Badge tone={o.status === 'confirmed' ? 'success' : o.status === 'rejected' ? 'error' : 'neutral'}>
+                  {t(`pay.status.${o.status}` as StringKey)}
+                </Badge>
+                {o.reason ? <span className="caption">{o.reason}</span> : null}
+              </li>
+            ))}
+          </ul>
         </Card>
       ) : null}
 

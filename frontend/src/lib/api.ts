@@ -293,3 +293,45 @@ export async function resumePlan(): Promise<{ plan: PlanSummary }> {
 export function assessmentDocxUrl(id: string): string {
   return `/api/assessments/${encodeURIComponent(id)}/docx`
 }
+
+/* Payments ------------------------------------------------------------------ */
+
+export interface Payment {
+  id: string
+  code: string
+  plan_id: string
+  title: string
+  amount: number
+  status: 'awaiting' | 'submitted' | 'confirmed' | 'rejected' | 'refunded' | 'expired' | 'cancelled'
+  created_at: string | null
+  submitted_at: string | null
+  decided_at: string | null
+  reason: string
+}
+
+export interface KaspiDetails {
+  phone: string
+  name: string
+  link: string
+  note: string
+}
+
+export async function getPayments(): Promise<{
+  enabled: boolean
+  details: KaspiDetails | null
+  items: Payment[]
+}> {
+  return request('/payments')
+}
+
+export async function orderPlan(planId: string): Promise<Payment> {
+  return request('/payments', { method: 'POST', body: JSON.stringify({ plan_id: planId }) })
+}
+
+export async function reportPaid(id: string): Promise<Payment> {
+  return request(`/payments/${encodeURIComponent(id)}/submitted`, { method: 'POST' })
+}
+
+export async function cancelOrder(id: string): Promise<Payment> {
+  return request(`/payments/${encodeURIComponent(id)}/cancel`, { method: 'POST' })
+}
