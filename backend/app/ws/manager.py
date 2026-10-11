@@ -88,6 +88,7 @@ class AgentConnectionManager:
         # pending_requests: those are user-visible generations with a quota
         # and a chat behind them, these are a sub-second internal lookup.
         self.pending_embeddings: Dict[str, asyncio.Future] = {}
+        self.pending_classifications: Dict[str, asyncio.Future] = {}
         # Documents a teacher asked for - assessment papers and lesson plans.
         # One map: the request id says which kind it was, and a second map
         # would only be a second place for a reply to miss its future.
@@ -127,6 +128,36 @@ class AgentConnectionManager:
             return None
         finally:
             self.pending_embeddings.pop(request_id, None)
+
+    async def request_classification(self, text: str, timeout: float) -> Optional[dict]:
+        """General or specific, and which topic - or None if that cannot be known.
+
+        Like an embedding, an optimisation: no agent, an older agent, a
+        timeout or an error all mean "render it", never "no answer".
+        """
+        if not self.agent_connection or "classify" not in self.agent_features:
+            return None
+        request_id = f"classify-{uuid.uuid4().hex[:16]}"
+        future: asyncio.Future = asyncio.get_running_loop().create_future()
+        self.pending_classifications[request_id] = future
+        try:
+            await self.agent_connection.send_json(
+                {"type": "classify", "request_id": request_id, "text": text}
+            )
+            return await asyncio.wait_for(future, timeout=timeout)
+        except (asyncio.TimeoutError, Exception) as e:  # noqa: BLE001
+            if not isinstance(e, asyncio.TimeoutError):
+                print(f"classify request failed: {type(e).__name__}: {e}")
+            return None
+        finally:
+            self.pending_classifications.pop(request_id, None)
+
+    def resolve_classification(self, request_id: str, payload: Optional[dict]) -> bool:
+        future = self.pending_classifications.pop(request_id, None)
+        if future is None or future.done():
+            return False
+        future.set_result(payload)
+        return True
 
     async def _request_document(self, kind: str, prefix: str, spec: dict,
                                 timeout: float) -> dict:

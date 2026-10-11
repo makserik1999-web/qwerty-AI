@@ -335,3 +335,40 @@ export async function reportPaid(id: string): Promise<Payment> {
 export async function cancelOrder(id: string): Promise<Payment> {
   return request(`/payments/${encodeURIComponent(id)}/cancel`, { method: 'POST' })
 }
+
+/* Topic videos ------------------------------------------------------------- */
+
+export interface Rating {
+  up: number
+  down: number
+  mine: number
+}
+
+export async function rateVideo(id: string, value: 'up' | 'down' | 'none'): Promise<Rating> {
+  return request(`/videos/${encodeURIComponent(id)}/rate`, {
+    method: 'POST',
+    body: JSON.stringify({ value }),
+  })
+}
+
+export interface ShowcaseVideo {
+  id: string
+  topic_id: string
+  subject: string
+  grade: number
+  lang: string
+  title: string
+  video_url: string
+  text: string
+  duration: number | null
+  has_audio: boolean | null
+  rating_up: number
+  rating_down: number
+}
+
+export async function getShowcase(subject = '', grade = 0): Promise<{ items: ShowcaseVideo[] }> {
+  const params = new URLSearchParams()
+  if (subject) params.set('subject', subject)
+  if (grade) params.set('grade', String(grade))
+  return request(`/showcase?${params}`)
+}

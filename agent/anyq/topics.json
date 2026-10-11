@@ -1,0 +1,2484 @@
+{
+ "version": 1,
+ "about": "The fixed list of school topics a question is filed under. The intent classifier picks an id from here (never invents one), so 'the Pythagorean theorem' and its converse stay two topics. Drafted from the Kazakhstan school programme; have a subject teacher review it. Edit agent/anyq/topics.json and backend/app/data/topics.json together - a test fails if they differ. Never reuse or rename an id: cached videos are filed under it.",
+ "topics": [
+  {
+   "id": "math-5-natural-numbers",
+   "subject": "math",
+   "grade": 5,
+   "kk": "Натурал сандар",
+   "ru": "Натуральные числа"
+  },
+  {
+   "id": "math-5-divisibility",
+   "subject": "math",
+   "grade": 5,
+   "kk": "Бөлінгіштік белгілері",
+   "ru": "Признаки делимости"
+  },
+  {
+   "id": "math-5-prime-numbers",
+   "subject": "math",
+   "grade": 5,
+   "kk": "Жай және құрама сандар",
+   "ru": "Простые и составные числа"
+  },
+  {
+   "id": "math-5-gcd-lcm",
+   "subject": "math",
+   "grade": 5,
+   "kk": "ЕҮОБ және ЕКОЕ",
+   "ru": "НОД и НОК"
+  },
+  {
+   "id": "math-5-fractions",
+   "subject": "math",
+   "grade": 5,
+   "kk": "Жай бөлшектер",
+   "ru": "Обыкновенные дроби"
+  },
+  {
+   "id": "math-5-fraction-operations",
+   "subject": "math",
+   "grade": 5,
+   "kk": "Жай бөлшектерге амалдар",
+   "ru": "Действия с обыкновенными дробями"
+  },
+  {
+   "id": "math-5-mixed-numbers",
+   "subject": "math",
+   "grade": 5,
+   "kk": "Аралас сандар",
+   "ru": "Смешанные числа"
+  },
+  {
+   "id": "math-5-decimals",
+   "subject": "math",
+   "grade": 5,
+   "kk": "Ондық бөлшектер",
+   "ru": "Десятичные дроби"
+  },
+  {
+   "id": "math-5-decimal-operations",
+   "subject": "math",
+   "grade": 5,
+   "kk": "Ондық бөлшектерге амалдар",
+   "ru": "Действия с десятичными дробями"
+  },
+  {
+   "id": "math-5-percent",
+   "subject": "math",
+   "grade": 5,
+   "kk": "Пайыздар",
+   "ru": "Проценты"
+  },
+  {
+   "id": "math-5-angles",
+   "subject": "math",
+   "grade": 5,
+   "kk": "Бұрыштар және оларды өлшеу",
+   "ru": "Углы и их измерение"
+  },
+  {
+   "id": "math-5-perimeter-area",
+   "subject": "math",
+   "grade": 5,
+   "kk": "Периметр және аудан",
+   "ru": "Периметр и площадь"
+  },
+  {
+   "id": "math-5-cuboid-volume",
+   "subject": "math",
+   "grade": 5,
+   "kk": "Тікбұрышты параллелепипедтің көлемі",
+   "ru": "Объём прямоугольного параллелепипеда"
+  },
+  {
+   "id": "math-5-simple-equations",
+   "subject": "math",
+   "grade": 5,
+   "kk": "Қарапайым теңдеулер",
+   "ru": "Простейшие уравнения"
+  },
+  {
+   "id": "math-5-mean",
+   "subject": "math",
+   "grade": 5,
+   "kk": "Арифметикалық орта",
+   "ru": "Среднее арифметическое"
+  },
+  {
+   "id": "math-6-ratio",
+   "subject": "math",
+   "grade": 6,
+   "kk": "Қатынас",
+   "ru": "Отношения"
+  },
+  {
+   "id": "math-6-proportion",
+   "subject": "math",
+   "grade": 6,
+   "kk": "Пропорция",
+   "ru": "Пропорция"
+  },
+  {
+   "id": "math-6-direct-inverse-proportion",
+   "subject": "math",
+   "grade": 6,
+   "kk": "Тура және кері пропорционалдық",
+   "ru": "Прямая и обратная пропорциональность"
+  },
+  {
+   "id": "math-6-scale",
+   "subject": "math",
+   "grade": 6,
+   "kk": "Масштаб",
+   "ru": "Масштаб"
+  },
+  {
+   "id": "math-6-circle-length-area",
+   "subject": "math",
+   "grade": 6,
+   "kk": "Шеңбер ұзындығы және дөңгелек ауданы",
+   "ru": "Длина окружности и площадь круга"
+  },
+  {
+   "id": "math-6-integers",
+   "subject": "math",
+   "grade": 6,
+   "kk": "Бүтін сандар",
+   "ru": "Целые числа"
+  },
+  {
+   "id": "math-6-rational-numbers",
+   "subject": "math",
+   "grade": 6,
+   "kk": "Рационал сандар",
+   "ru": "Рациональные числа"
+  },
+  {
+   "id": "math-6-modulus",
+   "subject": "math",
+   "grade": 6,
+   "kk": "Санның модулі",
+   "ru": "Модуль числа"
+  },
+  {
+   "id": "math-6-coordinate-line",
+   "subject": "math",
+   "grade": 6,
+   "kk": "Координаталық түзу",
+   "ru": "Координатная прямая"
+  },
+  {
+   "id": "math-6-rational-operations",
+   "subject": "math",
+   "grade": 6,
+   "kk": "Рационал сандарға амалдар",
+   "ru": "Действия с рациональными числами"
+  },
+  {
+   "id": "math-6-linear-equation",
+   "subject": "math",
+   "grade": 6,
+   "kk": "Бір айнымалысы бар сызықтық теңдеу",
+   "ru": "Линейное уравнение с одной переменной"
+  },
+  {
+   "id": "math-6-linear-inequalities",
+   "subject": "math",
+   "grade": 6,
+   "kk": "Сызықтық теңсіздіктер",
+   "ru": "Линейные неравенства"
+  },
+  {
+   "id": "math-6-coordinate-plane",
+   "subject": "math",
+   "grade": 6,
+   "kk": "Координаталық жазықтық",
+   "ru": "Координатная плоскость"
+  },
+  {
+   "id": "math-6-linear-systems",
+   "subject": "math",
+   "grade": 6,
+   "kk": "Екі айнымалысы бар сызықтық теңдеулер жүйесі",
+   "ru": "Системы линейных уравнений с двумя переменными"
+  },
+  {
+   "id": "math-6-charts",
+   "subject": "math",
+   "grade": 6,
+   "kk": "Диаграммалар және статистика",
+   "ru": "Диаграммы и статистика"
+  },
+  {
+   "id": "math-7-powers",
+   "subject": "math",
+   "grade": 7,
+   "kk": "Натурал көрсеткішті дәреже",
+   "ru": "Степень с натуральным показателем"
+  },
+  {
+   "id": "math-7-monomials",
+   "subject": "math",
+   "grade": 7,
+   "kk": "Бірмүшелер",
+   "ru": "Одночлены"
+  },
+  {
+   "id": "math-7-polynomials",
+   "subject": "math",
+   "grade": 7,
+   "kk": "Көпмүшелер",
+   "ru": "Многочлены"
+  },
+  {
+   "id": "math-7-short-multiplication",
+   "subject": "math",
+   "grade": 7,
+   "kk": "Қысқаша көбейту формулалары",
+   "ru": "Формулы сокращённого умножения"
+  },
+  {
+   "id": "math-7-factorization",
+   "subject": "math",
+   "grade": 7,
+   "kk": "Көпмүшені көбейткіштерге жіктеу",
+   "ru": "Разложение многочлена на множители"
+  },
+  {
+   "id": "math-7-algebraic-fractions",
+   "subject": "math",
+   "grade": 7,
+   "kk": "Алгебралық бөлшектер",
+   "ru": "Алгебраические дроби"
+  },
+  {
+   "id": "math-7-function-concept",
+   "subject": "math",
+   "grade": 7,
+   "kk": "Функция ұғымы",
+   "ru": "Понятие функции"
+  },
+  {
+   "id": "math-7-linear-function",
+   "subject": "math",
+   "grade": 7,
+   "kk": "Сызықтық функция және оның графигі",
+   "ru": "Линейная функция и её график"
+  },
+  {
+   "id": "math-7-standard-form",
+   "subject": "math",
+   "grade": 7,
+   "kk": "Санның стандарт түрі",
+   "ru": "Стандартный вид числа"
+  },
+  {
+   "id": "math-7-integer-powers",
+   "subject": "math",
+   "grade": 7,
+   "kk": "Бүтін көрсеткішті дәреже",
+   "ru": "Степень с целым показателем"
+  },
+  {
+   "id": "math-7-probability-intro",
+   "subject": "math",
+   "grade": 7,
+   "kk": "Кездейсоқ оқиғалар және ықтималдық",
+   "ru": "Случайные события и вероятность"
+  },
+  {
+   "id": "math-7-statistics",
+   "subject": "math",
+   "grade": 7,
+   "kk": "Статистикалық деректер",
+   "ru": "Статистические данные"
+  },
+  {
+   "id": "math-8-square-root",
+   "subject": "math",
+   "grade": 8,
+   "kk": "Квадрат түбір",
+   "ru": "Квадратный корень"
+  },
+  {
+   "id": "math-8-irrational-numbers",
+   "subject": "math",
+   "grade": 8,
+   "kk": "Иррационал сандар",
+   "ru": "Иррациональные числа"
+  },
+  {
+   "id": "math-8-quadratic-equations",
+   "subject": "math",
+   "grade": 8,
+   "kk": "Квадрат теңдеулер",
+   "ru": "Квадратные уравнения"
+  },
+  {
+   "id": "math-8-discriminant",
+   "subject": "math",
+   "grade": 8,
+   "kk": "Дискриминант және түбірлер формуласы",
+   "ru": "Дискриминант и формула корней"
+  },
+  {
+   "id": "math-8-vieta",
+   "subject": "math",
+   "grade": 8,
+   "kk": "Виет теоремасы",
+   "ru": "Теорема Виета"
+  },
+  {
+   "id": "math-8-quadratic-function",
+   "subject": "math",
+   "grade": 8,
+   "kk": "Квадраттық функция",
+   "ru": "Квадратичная функция"
+  },
+  {
+   "id": "math-8-parabola-graph",
+   "subject": "math",
+   "grade": 8,
+   "kk": "Парабола графигін салу",
+   "ru": "Построение графика параболы"
+  },
+  {
+   "id": "math-8-quadratic-inequalities",
+   "subject": "math",
+   "grade": 8,
+   "kk": "Квадрат теңсіздіктер",
+   "ru": "Квадратные неравенства"
+  },
+  {
+   "id": "math-8-rational-equations",
+   "subject": "math",
+   "grade": 8,
+   "kk": "Рационал теңдеулер",
+   "ru": "Рациональные уравнения"
+  },
+  {
+   "id": "math-8-dispersion",
+   "subject": "math",
+   "grade": 8,
+   "kk": "Дисперсия және стандарт ауытқу",
+   "ru": "Дисперсия и стандартное отклонение"
+  },
+  {
+   "id": "math-9-nonlinear-systems",
+   "subject": "math",
+   "grade": 9,
+   "kk": "Екінші дәрежелі теңдеулер жүйесі",
+   "ru": "Системы уравнений второй степени"
+  },
+  {
+   "id": "math-9-inequality-systems",
+   "subject": "math",
+   "grade": 9,
+   "kk": "Теңсіздіктер жүйесі",
+   "ru": "Системы неравенств"
+  },
+  {
+   "id": "math-9-sequences",
+   "subject": "math",
+   "grade": 9,
+   "kk": "Сандар тізбегі",
+   "ru": "Числовые последовательности"
+  },
+  {
+   "id": "math-9-arithmetic-progression",
+   "subject": "math",
+   "grade": 9,
+   "kk": "Арифметикалық прогрессия",
+   "ru": "Арифметическая прогрессия"
+  },
+  {
+   "id": "math-9-geometric-progression",
+   "subject": "math",
+   "grade": 9,
+   "kk": "Геометриялық прогрессия",
+   "ru": "Геометрическая прогрессия"
+  },
+  {
+   "id": "math-9-infinite-geometric",
+   "subject": "math",
+   "grade": 9,
+   "kk": "Шексіз кемімелі геометриялық прогрессия",
+   "ru": "Бесконечно убывающая геометрическая прогрессия"
+  },
+  {
+   "id": "math-9-trig-any-angle",
+   "subject": "math",
+   "grade": 9,
+   "kk": "Кез келген бұрыштың тригонометриялық функциялары",
+   "ru": "Тригонометрические функции произвольного угла"
+  },
+  {
+   "id": "math-9-trig-identities",
+   "subject": "math",
+   "grade": 9,
+   "kk": "Тригонометриялық тепе-теңдіктер",
+   "ru": "Тригонометрические тождества"
+  },
+  {
+   "id": "math-9-reduction-formulas",
+   "subject": "math",
+   "grade": 9,
+   "kk": "Келтіру формулалары",
+   "ru": "Формулы приведения"
+  },
+  {
+   "id": "math-9-combinatorics",
+   "subject": "math",
+   "grade": 9,
+   "kk": "Комбинаторика: орналастыру, алмастыру, теру",
+   "ru": "Комбинаторика: размещения, перестановки, сочетания"
+  },
+  {
+   "id": "math-9-probability",
+   "subject": "math",
+   "grade": 9,
+   "kk": "Ықтималдықтар теориясының элементтері",
+   "ru": "Элементы теории вероятностей"
+  },
+  {
+   "id": "math-10-function-properties",
+   "subject": "math",
+   "grade": 10,
+   "kk": "Функция және оның қасиеттері",
+   "ru": "Функция и её свойства"
+  },
+  {
+   "id": "math-10-inverse-function",
+   "subject": "math",
+   "grade": 10,
+   "kk": "Кері функция",
+   "ru": "Обратная функция"
+  },
+  {
+   "id": "math-10-trig-graphs",
+   "subject": "math",
+   "grade": 10,
+   "kk": "Тригонометриялық функциялар және графиктері",
+   "ru": "Тригонометрические функции и их графики"
+  },
+  {
+   "id": "math-10-trig-equations",
+   "subject": "math",
+   "grade": 10,
+   "kk": "Тригонометриялық теңдеулер",
+   "ru": "Тригонометрические уравнения"
+  },
+  {
+   "id": "math-10-trig-inequalities",
+   "subject": "math",
+   "grade": 10,
+   "kk": "Тригонометриялық теңсіздіктер",
+   "ru": "Тригонометрические неравенства"
+  },
+  {
+   "id": "math-10-limit",
+   "subject": "math",
+   "grade": 10,
+   "kk": "Функцияның шегі",
+   "ru": "Предел функции"
+  },
+  {
+   "id": "math-10-derivative",
+   "subject": "math",
+   "grade": 10,
+   "kk": "Туынды",
+   "ru": "Производная"
+  },
+  {
+   "id": "math-10-derivative-rules",
+   "subject": "math",
+   "grade": 10,
+   "kk": "Дифференциалдау ережелері",
+   "ru": "Правила дифференцирования"
+  },
+  {
+   "id": "math-10-tangent-line",
+   "subject": "math",
+   "grade": 10,
+   "kk": "Жанама теңдеуі",
+   "ru": "Уравнение касательной"
+  },
+  {
+   "id": "math-10-function-study",
+   "subject": "math",
+   "grade": 10,
+   "kk": "Туындының көмегімен функцияны зерттеу",
+   "ru": "Исследование функции с помощью производной"
+  },
+  {
+   "id": "math-10-extrema",
+   "subject": "math",
+   "grade": 10,
+   "kk": "Функцияның экстремумдары, ең үлкен және ең кіші мәндері",
+   "ru": "Экстремумы, наибольшее и наименьшее значения функции"
+  },
+  {
+   "id": "math-10-random-variables",
+   "subject": "math",
+   "grade": 10,
+   "kk": "Кездейсоқ шамалар",
+   "ru": "Случайные величины"
+  },
+  {
+   "id": "math-11-antiderivative",
+   "subject": "math",
+   "grade": 11,
+   "kk": "Алғашқы функция",
+   "ru": "Первообразная"
+  },
+  {
+   "id": "math-11-definite-integral",
+   "subject": "math",
+   "grade": 11,
+   "kk": "Анықталған интеграл",
+   "ru": "Определённый интеграл"
+  },
+  {
+   "id": "math-11-integral-area",
+   "subject": "math",
+   "grade": 11,
+   "kk": "Интеграл арқылы аудан табу",
+   "ru": "Площадь с помощью интеграла"
+  },
+  {
+   "id": "math-11-nth-root",
+   "subject": "math",
+   "grade": 11,
+   "kk": "n-ші дәрежелі түбір",
+   "ru": "Корень n-й степени"
+  },
+  {
+   "id": "math-11-rational-exponent",
+   "subject": "math",
+   "grade": 11,
+   "kk": "Рационал көрсеткішті дәреже",
+   "ru": "Степень с рациональным показателем"
+  },
+  {
+   "id": "math-11-irrational-equations",
+   "subject": "math",
+   "grade": 11,
+   "kk": "Иррационал теңдеулер",
+   "ru": "Иррациональные уравнения"
+  },
+  {
+   "id": "math-11-exponential-function",
+   "subject": "math",
+   "grade": 11,
+   "kk": "Көрсеткіштік функция",
+   "ru": "Показательная функция"
+  },
+  {
+   "id": "math-11-exponential-equations",
+   "subject": "math",
+   "grade": 11,
+   "kk": "Көрсеткіштік теңдеулер мен теңсіздіктер",
+   "ru": "Показательные уравнения и неравенства"
+  },
+  {
+   "id": "math-11-logarithm",
+   "subject": "math",
+   "grade": 11,
+   "kk": "Логарифм және оның қасиеттері",
+   "ru": "Логарифм и его свойства"
+  },
+  {
+   "id": "math-11-logarithmic-function",
+   "subject": "math",
+   "grade": 11,
+   "kk": "Логарифмдік функция",
+   "ru": "Логарифмическая функция"
+  },
+  {
+   "id": "math-11-logarithmic-equations",
+   "subject": "math",
+   "grade": 11,
+   "kk": "Логарифмдік теңдеулер мен теңсіздіктер",
+   "ru": "Логарифмические уравнения и неравенства"
+  },
+  {
+   "id": "math-11-complex-numbers",
+   "subject": "math",
+   "grade": 11,
+   "kk": "Комплекс сандар",
+   "ru": "Комплексные числа"
+  },
+  {
+   "id": "math-11-differential-equations",
+   "subject": "math",
+   "grade": 11,
+   "kk": "Дифференциалдық теңдеулер",
+   "ru": "Дифференциальные уравнения"
+  },
+  {
+   "id": "geom-7-basic-notions",
+   "subject": "geometry",
+   "grade": 7,
+   "kk": "Геометрияның негізгі ұғымдары",
+   "ru": "Основные понятия геометрии"
+  },
+  {
+   "id": "geom-7-adjacent-vertical-angles",
+   "subject": "geometry",
+   "grade": 7,
+   "kk": "Сыбайлас және вертикаль бұрыштар",
+   "ru": "Смежные и вертикальные углы"
+  },
+  {
+   "id": "geom-7-perpendicular-lines",
+   "subject": "geometry",
+   "grade": 7,
+   "kk": "Перпендикуляр түзулер",
+   "ru": "Перпендикулярные прямые"
+  },
+  {
+   "id": "geom-7-triangle-congruence",
+   "subject": "geometry",
+   "grade": 7,
+   "kk": "Үшбұрыштар теңдігінің белгілері",
+   "ru": "Признаки равенства треугольников"
+  },
+  {
+   "id": "geom-7-isosceles-triangle",
+   "subject": "geometry",
+   "grade": 7,
+   "kk": "Теңбүйірлі үшбұрыш",
+   "ru": "Равнобедренный треугольник"
+  },
+  {
+   "id": "geom-7-parallel-lines",
+   "subject": "geometry",
+   "grade": 7,
+   "kk": "Параллель түзулер және олардың белгілері",
+   "ru": "Параллельные прямые и их признаки"
+  },
+  {
+   "id": "geom-7-triangle-angle-sum",
+   "subject": "geometry",
+   "grade": 7,
+   "kk": "Үшбұрыш бұрыштарының қосындысы",
+   "ru": "Сумма углов треугольника"
+  },
+  {
+   "id": "geom-7-right-triangle",
+   "subject": "geometry",
+   "grade": 7,
+   "kk": "Тікбұрышты үшбұрыш",
+   "ru": "Прямоугольный треугольник"
+  },
+  {
+   "id": "geom-7-triangle-inequality",
+   "subject": "geometry",
+   "grade": 7,
+   "kk": "Үшбұрыш теңсіздігі",
+   "ru": "Неравенство треугольника"
+  },
+  {
+   "id": "geom-7-circle",
+   "subject": "geometry",
+   "grade": 7,
+   "kk": "Шеңбер және дөңгелек",
+   "ru": "Окружность и круг"
+  },
+  {
+   "id": "geom-7-constructions",
+   "subject": "geometry",
+   "grade": 7,
+   "kk": "Циркуль мен сызғыштың көмегімен салу",
+   "ru": "Построения циркулем и линейкой"
+  },
+  {
+   "id": "geom-8-polygons",
+   "subject": "geometry",
+   "grade": 8,
+   "kk": "Көпбұрыштар",
+   "ru": "Многоугольники"
+  },
+  {
+   "id": "geom-8-parallelogram",
+   "subject": "geometry",
+   "grade": 8,
+   "kk": "Параллелограмм",
+   "ru": "Параллелограмм"
+  },
+  {
+   "id": "geom-8-rectangle-rhombus-square",
+   "subject": "geometry",
+   "grade": 8,
+   "kk": "Тіктөртбұрыш, ромб, шаршы",
+   "ru": "Прямоугольник, ромб, квадрат"
+  },
+  {
+   "id": "geom-8-trapezoid",
+   "subject": "geometry",
+   "grade": 8,
+   "kk": "Трапеция",
+   "ru": "Трапеция"
+  },
+  {
+   "id": "geom-8-thales",
+   "subject": "geometry",
+   "grade": 8,
+   "kk": "Фалес теоремасы",
+   "ru": "Теорема Фалеса"
+  },
+  {
+   "id": "geom-8-midline",
+   "subject": "geometry",
+   "grade": 8,
+   "kk": "Үшбұрыш пен трапецияның орта сызығы",
+   "ru": "Средняя линия треугольника и трапеции"
+  },
+  {
+   "id": "geom-8-pythagoras",
+   "subject": "geometry",
+   "grade": 8,
+   "kk": "Пифагор теоремасы",
+   "ru": "Теорема Пифагора"
+  },
+  {
+   "id": "geom-8-pythagoras-converse",
+   "subject": "geometry",
+   "grade": 8,
+   "kk": "Пифагор теоремасына кері теорема",
+   "ru": "Теорема, обратная теореме Пифагора"
+  },
+  {
+   "id": "geom-8-right-triangle-trig",
+   "subject": "geometry",
+   "grade": 8,
+   "kk": "Тікбұрышты үшбұрыштың тригонометриясы",
+   "ru": "Тригонометрия прямоугольного треугольника"
+  },
+  {
+   "id": "geom-8-polygon-areas",
+   "subject": "geometry",
+   "grade": 8,
+   "kk": "Көпбұрыштардың аудандары",
+   "ru": "Площади многоугольников"
+  },
+  {
+   "id": "geom-8-cartesian-coordinates",
+   "subject": "geometry",
+   "grade": 8,
+   "kk": "Жазықтықтағы декарттық координаталар",
+   "ru": "Декартовы координаты на плоскости"
+  },
+  {
+   "id": "geom-9-vectors",
+   "subject": "geometry",
+   "grade": 9,
+   "kk": "Векторлар",
+   "ru": "Векторы"
+  },
+  {
+   "id": "geom-9-vector-operations",
+   "subject": "geometry",
+   "grade": 9,
+   "kk": "Векторларға амалдар",
+   "ru": "Действия с векторами"
+  },
+  {
+   "id": "geom-9-dot-product",
+   "subject": "geometry",
+   "grade": 9,
+   "kk": "Векторлардың скаляр көбейтіндісі",
+   "ru": "Скалярное произведение векторов"
+  },
+  {
+   "id": "geom-9-similar-triangles",
+   "subject": "geometry",
+   "grade": 9,
+   "kk": "Ұқсас үшбұрыштар",
+   "ru": "Подобные треугольники"
+  },
+  {
+   "id": "geom-9-similarity-criteria",
+   "subject": "geometry",
+   "grade": 9,
+   "kk": "Үшбұрыштар ұқсастығының белгілері",
+   "ru": "Признаки подобия треугольников"
+  },
+  {
+   "id": "geom-9-law-of-sines",
+   "subject": "geometry",
+   "grade": 9,
+   "kk": "Синустар теоремасы",
+   "ru": "Теорема синусов"
+  },
+  {
+   "id": "geom-9-law-of-cosines",
+   "subject": "geometry",
+   "grade": 9,
+   "kk": "Косинустар теоремасы",
+   "ru": "Теорема косинусов"
+  },
+  {
+   "id": "geom-9-solving-triangles",
+   "subject": "geometry",
+   "grade": 9,
+   "kk": "Үшбұрыштарды шешу",
+   "ru": "Решение треугольников"
+  },
+  {
+   "id": "geom-9-inscribed-angles",
+   "subject": "geometry",
+   "grade": 9,
+   "kk": "Іштей сызылған бұрыштар",
+   "ru": "Вписанные углы"
+  },
+  {
+   "id": "geom-9-inscribed-circumscribed",
+   "subject": "geometry",
+   "grade": 9,
+   "kk": "Іштей және сырттай сызылған шеңберлер",
+   "ru": "Вписанная и описанная окружности"
+  },
+  {
+   "id": "geom-9-regular-polygons",
+   "subject": "geometry",
+   "grade": 9,
+   "kk": "Дұрыс көпбұрыштар",
+   "ru": "Правильные многоугольники"
+  },
+  {
+   "id": "geom-9-transformations",
+   "subject": "geometry",
+   "grade": 9,
+   "kk": "Жазықтықтағы түрлендірулер",
+   "ru": "Преобразования плоскости"
+  },
+  {
+   "id": "geom-10-stereometry-axioms",
+   "subject": "geometry",
+   "grade": 10,
+   "kk": "Стереометрия аксиомалары",
+   "ru": "Аксиомы стереометрии"
+  },
+  {
+   "id": "geom-10-parallel-lines-space",
+   "subject": "geometry",
+   "grade": 10,
+   "kk": "Кеңістіктегі түзулердің параллельдігі",
+   "ru": "Параллельность прямых в пространстве"
+  },
+  {
+   "id": "geom-10-parallel-planes",
+   "subject": "geometry",
+   "grade": 10,
+   "kk": "Жазықтықтардың параллельдігі",
+   "ru": "Параллельность плоскостей"
+  },
+  {
+   "id": "geom-10-line-plane-perpendicular",
+   "subject": "geometry",
+   "grade": 10,
+   "kk": "Түзу мен жазықтықтың перпендикулярлығы",
+   "ru": "Перпендикулярность прямой и плоскости"
+  },
+  {
+   "id": "geom-10-three-perpendiculars",
+   "subject": "geometry",
+   "grade": 10,
+   "kk": "Үш перпендикуляр туралы теорема",
+   "ru": "Теорема о трёх перпендикулярах"
+  },
+  {
+   "id": "geom-10-dihedral-angle",
+   "subject": "geometry",
+   "grade": 10,
+   "kk": "Екіжақты бұрыш",
+   "ru": "Двугранный угол"
+  },
+  {
+   "id": "geom-10-space-coordinates",
+   "subject": "geometry",
+   "grade": 10,
+   "kk": "Кеңістіктегі координаталар",
+   "ru": "Координаты в пространстве"
+  },
+  {
+   "id": "geom-10-space-vectors",
+   "subject": "geometry",
+   "grade": 10,
+   "kk": "Кеңістіктегі векторлар",
+   "ru": "Векторы в пространстве"
+  },
+  {
+   "id": "geom-11-prism",
+   "subject": "geometry",
+   "grade": 11,
+   "kk": "Призма",
+   "ru": "Призма"
+  },
+  {
+   "id": "geom-11-pyramid",
+   "subject": "geometry",
+   "grade": 11,
+   "kk": "Пирамида",
+   "ru": "Пирамида"
+  },
+  {
+   "id": "geom-11-cylinder",
+   "subject": "geometry",
+   "grade": 11,
+   "kk": "Цилиндр",
+   "ru": "Цилиндр"
+  },
+  {
+   "id": "geom-11-cone",
+   "subject": "geometry",
+   "grade": 11,
+   "kk": "Конус",
+   "ru": "Конус"
+  },
+  {
+   "id": "geom-11-sphere",
+   "subject": "geometry",
+   "grade": 11,
+   "kk": "Сфера және шар",
+   "ru": "Сфера и шар"
+  },
+  {
+   "id": "geom-11-volumes",
+   "subject": "geometry",
+   "grade": 11,
+   "kk": "Көпжақтар мен айналу денелерінің көлемдері",
+   "ru": "Объёмы многогранников и тел вращения"
+  },
+  {
+   "id": "geom-11-surface-areas",
+   "subject": "geometry",
+   "grade": 11,
+   "kk": "Денелердің бет аудандары",
+   "ru": "Площади поверхностей тел"
+  },
+  {
+   "id": "geom-11-space-symmetry",
+   "subject": "geometry",
+   "grade": 11,
+   "kk": "Кеңістіктегі симметрия",
+   "ru": "Симметрия в пространстве"
+  },
+  {
+   "id": "phys-7-measurements",
+   "subject": "physics",
+   "grade": 7,
+   "kk": "Физикалық шамалар және өлшеу",
+   "ru": "Физические величины и измерения"
+  },
+  {
+   "id": "phys-7-mechanical-motion",
+   "subject": "physics",
+   "grade": 7,
+   "kk": "Механикалық қозғалыс",
+   "ru": "Механическое движение"
+  },
+  {
+   "id": "phys-7-speed",
+   "subject": "physics",
+   "grade": 7,
+   "kk": "Жылдамдық",
+   "ru": "Скорость"
+  },
+  {
+   "id": "phys-7-mass-density",
+   "subject": "physics",
+   "grade": 7,
+   "kk": "Масса және тығыздық",
+   "ru": "Масса и плотность"
+  },
+  {
+   "id": "phys-7-gravity-force",
+   "subject": "physics",
+   "grade": 7,
+   "kk": "Күш. Ауырлық күші",
+   "ru": "Сила. Сила тяжести"
+  },
+  {
+   "id": "phys-7-hooke-law",
+   "subject": "physics",
+   "grade": 7,
+   "kk": "Серпімділік күші. Гук заңы",
+   "ru": "Сила упругости. Закон Гука"
+  },
+  {
+   "id": "phys-7-friction",
+   "subject": "physics",
+   "grade": 7,
+   "kk": "Үйкеліс күші",
+   "ru": "Сила трения"
+  },
+  {
+   "id": "phys-7-pressure",
+   "subject": "physics",
+   "grade": 7,
+   "kk": "Қысым",
+   "ru": "Давление"
+  },
+  {
+   "id": "phys-7-pascal-law",
+   "subject": "physics",
+   "grade": 7,
+   "kk": "Паскаль заңы",
+   "ru": "Закон Паскаля"
+  },
+  {
+   "id": "phys-7-atmospheric-pressure",
+   "subject": "physics",
+   "grade": 7,
+   "kk": "Атмосфералық қысым",
+   "ru": "Атмосферное давление"
+  },
+  {
+   "id": "phys-7-archimedes",
+   "subject": "physics",
+   "grade": 7,
+   "kk": "Архимед күші",
+   "ru": "Сила Архимеда"
+  },
+  {
+   "id": "phys-7-work-power",
+   "subject": "physics",
+   "grade": 7,
+   "kk": "Механикалық жұмыс және қуат",
+   "ru": "Механическая работа и мощность"
+  },
+  {
+   "id": "phys-7-lever",
+   "subject": "physics",
+   "grade": 7,
+   "kk": "Қарапайым механизмдер. Рычаг",
+   "ru": "Простые механизмы. Рычаг"
+  },
+  {
+   "id": "phys-7-energy-kinds",
+   "subject": "physics",
+   "grade": 7,
+   "kk": "Кинетикалық және потенциалдық энергия",
+   "ru": "Кинетическая и потенциальная энергия"
+  },
+  {
+   "id": "phys-8-temperature",
+   "subject": "physics",
+   "grade": 8,
+   "kk": "Жылулық қозғалыс. Температура",
+   "ru": "Тепловое движение. Температура"
+  },
+  {
+   "id": "phys-8-internal-energy",
+   "subject": "physics",
+   "grade": 8,
+   "kk": "Ішкі энергия",
+   "ru": "Внутренняя энергия"
+  },
+  {
+   "id": "phys-8-heat-transfer",
+   "subject": "physics",
+   "grade": 8,
+   "kk": "Жылу берілу түрлері",
+   "ru": "Виды теплопередачи"
+  },
+  {
+   "id": "phys-8-specific-heat",
+   "subject": "physics",
+   "grade": 8,
+   "kk": "Меншікті жылусыйымдылық",
+   "ru": "Удельная теплоёмкость"
+  },
+  {
+   "id": "phys-8-melting",
+   "subject": "physics",
+   "grade": 8,
+   "kk": "Балқу және қатаю",
+   "ru": "Плавление и отвердевание"
+  },
+  {
+   "id": "phys-8-boiling",
+   "subject": "physics",
+   "grade": 8,
+   "kk": "Булану және қайнау",
+   "ru": "Испарение и кипение"
+  },
+  {
+   "id": "phys-8-heat-engines",
+   "subject": "physics",
+   "grade": 8,
+   "kk": "Жылу қозғалтқыштары",
+   "ru": "Тепловые двигатели"
+  },
+  {
+   "id": "phys-8-electric-charge",
+   "subject": "physics",
+   "grade": 8,
+   "kk": "Электр заряды",
+   "ru": "Электрический заряд"
+  },
+  {
+   "id": "phys-8-coulomb-law",
+   "subject": "physics",
+   "grade": 8,
+   "kk": "Кулон заңы",
+   "ru": "Закон Кулона"
+  },
+  {
+   "id": "phys-8-electric-current",
+   "subject": "physics",
+   "grade": 8,
+   "kk": "Электр тогы",
+   "ru": "Электрический ток"
+  },
+  {
+   "id": "phys-8-ohm-law",
+   "subject": "physics",
+   "grade": 8,
+   "kk": "Тізбек бөлігі үшін Ом заңы",
+   "ru": "Закон Ома для участка цепи"
+  },
+  {
+   "id": "phys-8-series-parallel",
+   "subject": "physics",
+   "grade": 8,
+   "kk": "Өткізгіштерді тізбектей және параллель жалғау",
+   "ru": "Последовательное и параллельное соединение"
+  },
+  {
+   "id": "phys-8-joule-lenz",
+   "subject": "physics",
+   "grade": 8,
+   "kk": "Джоуль–Ленц заңы",
+   "ru": "Закон Джоуля–Ленца"
+  },
+  {
+   "id": "phys-8-magnetic-field",
+   "subject": "physics",
+   "grade": 8,
+   "kk": "Магнит өрісі",
+   "ru": "Магнитное поле"
+  },
+  {
+   "id": "phys-8-light-reflection",
+   "subject": "physics",
+   "grade": 8,
+   "kk": "Жарықтың шағылуы",
+   "ru": "Отражение света"
+  },
+  {
+   "id": "phys-8-light-refraction",
+   "subject": "physics",
+   "grade": 8,
+   "kk": "Жарықтың сынуы",
+   "ru": "Преломление света"
+  },
+  {
+   "id": "phys-8-lenses",
+   "subject": "physics",
+   "grade": 8,
+   "kk": "Линзалар",
+   "ru": "Линзы"
+  },
+  {
+   "id": "phys-9-uniform-motion",
+   "subject": "physics",
+   "grade": 9,
+   "kk": "Бірқалыпты түзусызықты қозғалыс",
+   "ru": "Равномерное прямолинейное движение"
+  },
+  {
+   "id": "phys-9-acceleration",
+   "subject": "physics",
+   "grade": 9,
+   "kk": "Үдеу. Бірқалыпты үдемелі қозғалыс",
+   "ru": "Ускорение. Равноускоренное движение"
+  },
+  {
+   "id": "phys-9-free-fall",
+   "subject": "physics",
+   "grade": 9,
+   "kk": "Еркін түсу",
+   "ru": "Свободное падение"
+  },
+  {
+   "id": "phys-9-circular-motion",
+   "subject": "physics",
+   "grade": 9,
+   "kk": "Шеңбер бойымен қозғалыс",
+   "ru": "Движение по окружности"
+  },
+  {
+   "id": "phys-9-newton-first",
+   "subject": "physics",
+   "grade": 9,
+   "kk": "Ньютонның бірінші заңы",
+   "ru": "Первый закон Ньютона"
+  },
+  {
+   "id": "phys-9-newton-second",
+   "subject": "physics",
+   "grade": 9,
+   "kk": "Ньютонның екінші заңы",
+   "ru": "Второй закон Ньютона"
+  },
+  {
+   "id": "phys-9-newton-third",
+   "subject": "physics",
+   "grade": 9,
+   "kk": "Ньютонның үшінші заңы",
+   "ru": "Третий закон Ньютона"
+  },
+  {
+   "id": "phys-9-gravitation",
+   "subject": "physics",
+   "grade": 9,
+   "kk": "Бүкіләлемдік тартылыс заңы",
+   "ru": "Закон всемирного тяготения"
+  },
+  {
+   "id": "phys-9-momentum",
+   "subject": "physics",
+   "grade": 9,
+   "kk": "Импульс. Импульстің сақталу заңы",
+   "ru": "Импульс. Закон сохранения импульса"
+  },
+  {
+   "id": "phys-9-energy-conservation",
+   "subject": "physics",
+   "grade": 9,
+   "kk": "Механикалық энергияның сақталу заңы",
+   "ru": "Закон сохранения механической энергии"
+  },
+  {
+   "id": "phys-9-oscillations",
+   "subject": "physics",
+   "grade": 9,
+   "kk": "Механикалық тербелістер",
+   "ru": "Механические колебания"
+  },
+  {
+   "id": "phys-9-waves-sound",
+   "subject": "physics",
+   "grade": 9,
+   "kk": "Механикалық толқындар. Дыбыс",
+   "ru": "Механические волны. Звук"
+  },
+  {
+   "id": "phys-9-atom-structure",
+   "subject": "physics",
+   "grade": 9,
+   "kk": "Атом құрылысы",
+   "ru": "Строение атома"
+  },
+  {
+   "id": "phys-9-radioactivity",
+   "subject": "physics",
+   "grade": 9,
+   "kk": "Радиоактивтілік",
+   "ru": "Радиоактивность"
+  },
+  {
+   "id": "phys-9-nuclear-reactions",
+   "subject": "physics",
+   "grade": 9,
+   "kk": "Ядролық реакциялар",
+   "ru": "Ядерные реакции"
+  },
+  {
+   "id": "phys-10-kinematics",
+   "subject": "physics",
+   "grade": 10,
+   "kk": "Кинематика",
+   "ru": "Кинематика"
+  },
+  {
+   "id": "phys-10-projectile",
+   "subject": "physics",
+   "grade": 10,
+   "kk": "Көкжиекке бұрыш жасай лақтырылған дененің қозғалысы",
+   "ru": "Движение тела, брошенного под углом к горизонту"
+  },
+  {
+   "id": "phys-10-dynamics",
+   "subject": "physics",
+   "grade": 10,
+   "kk": "Динамика. Ньютон заңдары",
+   "ru": "Динамика. Законы Ньютона"
+  },
+  {
+   "id": "phys-10-statics",
+   "subject": "physics",
+   "grade": 10,
+   "kk": "Статика. Тепе-теңдік шарттары",
+   "ru": "Статика. Условия равновесия"
+  },
+  {
+   "id": "phys-10-conservation-laws",
+   "subject": "physics",
+   "grade": 10,
+   "kk": "Механикадағы сақталу заңдары",
+   "ru": "Законы сохранения в механике"
+  },
+  {
+   "id": "phys-10-molecular-kinetic",
+   "subject": "physics",
+   "grade": 10,
+   "kk": "Молекулалық-кинетикалық теория",
+   "ru": "Молекулярно-кинетическая теория"
+  },
+  {
+   "id": "phys-10-ideal-gas",
+   "subject": "physics",
+   "grade": 10,
+   "kk": "Идеал газ күйінің теңдеуі",
+   "ru": "Уравнение состояния идеального газа"
+  },
+  {
+   "id": "phys-10-gas-laws",
+   "subject": "physics",
+   "grade": 10,
+   "kk": "Газ заңдары",
+   "ru": "Газовые законы"
+  },
+  {
+   "id": "phys-10-first-law-thermo",
+   "subject": "physics",
+   "grade": 10,
+   "kk": "Термодинамиканың бірінші заңы",
+   "ru": "Первый закон термодинамики"
+  },
+  {
+   "id": "phys-10-engine-efficiency",
+   "subject": "physics",
+   "grade": 10,
+   "kk": "Жылу машинасының ПӘК-і",
+   "ru": "КПД тепловой машины"
+  },
+  {
+   "id": "phys-10-electric-field",
+   "subject": "physics",
+   "grade": 10,
+   "kk": "Электр өрісі. Кернеулік",
+   "ru": "Электрическое поле. Напряжённость"
+  },
+  {
+   "id": "phys-10-potential",
+   "subject": "physics",
+   "grade": 10,
+   "kk": "Потенциал және потенциалдар айырымы",
+   "ru": "Потенциал и разность потенциалов"
+  },
+  {
+   "id": "phys-10-capacitors",
+   "subject": "physics",
+   "grade": 10,
+   "kk": "Конденсаторлар",
+   "ru": "Конденсаторы"
+  },
+  {
+   "id": "phys-10-ohm-full-circuit",
+   "subject": "physics",
+   "grade": 10,
+   "kk": "Толық тізбек үшін Ом заңы",
+   "ru": "Закон Ома для полной цепи"
+  },
+  {
+   "id": "phys-10-current-in-media",
+   "subject": "physics",
+   "grade": 10,
+   "kk": "Әртүрлі ортадағы электр тогы",
+   "ru": "Электрический ток в различных средах"
+  },
+  {
+   "id": "phys-11-ampere-force",
+   "subject": "physics",
+   "grade": 11,
+   "kk": "Магнит өрісі. Ампер күші",
+   "ru": "Магнитное поле. Сила Ампера"
+  },
+  {
+   "id": "phys-11-lorentz-force",
+   "subject": "physics",
+   "grade": 11,
+   "kk": "Лоренц күші",
+   "ru": "Сила Лоренца"
+  },
+  {
+   "id": "phys-11-em-induction",
+   "subject": "physics",
+   "grade": 11,
+   "kk": "Электромагниттік индукция",
+   "ru": "Электромагнитная индукция"
+  },
+  {
+   "id": "phys-11-self-induction",
+   "subject": "physics",
+   "grade": 11,
+   "kk": "Өздік индукция",
+   "ru": "Самоиндукция"
+  },
+  {
+   "id": "phys-11-em-oscillations",
+   "subject": "physics",
+   "grade": 11,
+   "kk": "Электромагниттік тербелістер",
+   "ru": "Электромагнитные колебания"
+  },
+  {
+   "id": "phys-11-alternating-current",
+   "subject": "physics",
+   "grade": 11,
+   "kk": "Айнымалы ток",
+   "ru": "Переменный ток"
+  },
+  {
+   "id": "phys-11-transformer",
+   "subject": "physics",
+   "grade": 11,
+   "kk": "Трансформатор",
+   "ru": "Трансформатор"
+  },
+  {
+   "id": "phys-11-em-waves",
+   "subject": "physics",
+   "grade": 11,
+   "kk": "Электромагниттік толқындар",
+   "ru": "Электромагнитные волны"
+  },
+  {
+   "id": "phys-11-wave-optics",
+   "subject": "physics",
+   "grade": 11,
+   "kk": "Толқындық оптика: интерференция, дифракция",
+   "ru": "Волновая оптика: интерференция, дифракция"
+  },
+  {
+   "id": "phys-11-relativity",
+   "subject": "physics",
+   "grade": 11,
+   "kk": "Салыстырмалылық теориясының элементтері",
+   "ru": "Элементы теории относительности"
+  },
+  {
+   "id": "phys-11-photoeffect",
+   "subject": "physics",
+   "grade": 11,
+   "kk": "Фотоэффект",
+   "ru": "Фотоэффект"
+  },
+  {
+   "id": "phys-11-bohr-model",
+   "subject": "physics",
+   "grade": 11,
+   "kk": "Бор моделі. Атом спектрлері",
+   "ru": "Модель Бора. Атомные спектры"
+  },
+  {
+   "id": "phys-11-nucleus",
+   "subject": "physics",
+   "grade": 11,
+   "kk": "Атом ядросы. Байланыс энергиясы",
+   "ru": "Атомное ядро. Энергия связи"
+  },
+  {
+   "id": "phys-11-elementary-particles",
+   "subject": "physics",
+   "grade": 11,
+   "kk": "Элементар бөлшектер",
+   "ru": "Элементарные частицы"
+  },
+  {
+   "id": "chem-7-substances",
+   "subject": "chemistry",
+   "grade": 7,
+   "kk": "Заттар және олардың қасиеттері",
+   "ru": "Вещества и их свойства"
+  },
+  {
+   "id": "chem-7-mixtures",
+   "subject": "chemistry",
+   "grade": 7,
+   "kk": "Таза заттар және қоспалар",
+   "ru": "Чистые вещества и смеси"
+  },
+  {
+   "id": "chem-7-separation",
+   "subject": "chemistry",
+   "grade": 7,
+   "kk": "Қоспаларды бөлу әдістері",
+   "ru": "Способы разделения смесей"
+  },
+  {
+   "id": "chem-7-phenomena",
+   "subject": "chemistry",
+   "grade": 7,
+   "kk": "Физикалық және химиялық құбылыстар",
+   "ru": "Физические и химические явления"
+  },
+  {
+   "id": "chem-7-atoms-molecules",
+   "subject": "chemistry",
+   "grade": 7,
+   "kk": "Атомдар және молекулалар",
+   "ru": "Атомы и молекулы"
+  },
+  {
+   "id": "chem-7-elements",
+   "subject": "chemistry",
+   "grade": 7,
+   "kk": "Химиялық элементтер және таңбалары",
+   "ru": "Химические элементы и знаки"
+  },
+  {
+   "id": "chem-7-valence",
+   "subject": "chemistry",
+   "grade": 7,
+   "kk": "Валенттілік",
+   "ru": "Валентность"
+  },
+  {
+   "id": "chem-7-formulas",
+   "subject": "chemistry",
+   "grade": 7,
+   "kk": "Химиялық формулалар",
+   "ru": "Химические формулы"
+  },
+  {
+   "id": "chem-7-reaction-equations",
+   "subject": "chemistry",
+   "grade": 7,
+   "kk": "Химиялық реакция теңдеулері",
+   "ru": "Уравнения химических реакций"
+  },
+  {
+   "id": "chem-7-air-oxygen",
+   "subject": "chemistry",
+   "grade": 7,
+   "kk": "Ауа. Оттек",
+   "ru": "Воздух. Кислород"
+  },
+  {
+   "id": "chem-7-combustion",
+   "subject": "chemistry",
+   "grade": 7,
+   "kk": "Жану",
+   "ru": "Горение"
+  },
+  {
+   "id": "chem-8-mole",
+   "subject": "chemistry",
+   "grade": 8,
+   "kk": "Зат мөлшері. Моль",
+   "ru": "Количество вещества. Моль"
+  },
+  {
+   "id": "chem-8-molar-mass",
+   "subject": "chemistry",
+   "grade": 8,
+   "kk": "Молярлық масса",
+   "ru": "Молярная масса"
+  },
+  {
+   "id": "chem-8-avogadro",
+   "subject": "chemistry",
+   "grade": 8,
+   "kk": "Авогадро заңы. Газдардың молярлық көлемі",
+   "ru": "Закон Авогадро. Молярный объём газов"
+  },
+  {
+   "id": "chem-8-stoichiometry",
+   "subject": "chemistry",
+   "grade": 8,
+   "kk": "Реакция теңдеулері бойынша есептеу",
+   "ru": "Расчёты по уравнениям реакций"
+  },
+  {
+   "id": "chem-8-electron-configuration",
+   "subject": "chemistry",
+   "grade": 8,
+   "kk": "Атом құрылысы. Электрондық конфигурация",
+   "ru": "Строение атома. Электронная конфигурация"
+  },
+  {
+   "id": "chem-8-periodic-law",
+   "subject": "chemistry",
+   "grade": 8,
+   "kk": "Периодтық заң және периодтық жүйе",
+   "ru": "Периодический закон и периодическая система"
+  },
+  {
+   "id": "chem-8-chemical-bond",
+   "subject": "chemistry",
+   "grade": 8,
+   "kk": "Химиялық байланыс түрлері",
+   "ru": "Виды химической связи"
+  },
+  {
+   "id": "chem-8-oxides",
+   "subject": "chemistry",
+   "grade": 8,
+   "kk": "Оксидтер",
+   "ru": "Оксиды"
+  },
+  {
+   "id": "chem-8-acids",
+   "subject": "chemistry",
+   "grade": 8,
+   "kk": "Қышқылдар",
+   "ru": "Кислоты"
+  },
+  {
+   "id": "chem-8-bases",
+   "subject": "chemistry",
+   "grade": 8,
+   "kk": "Негіздер",
+   "ru": "Основания"
+  },
+  {
+   "id": "chem-8-salts",
+   "subject": "chemistry",
+   "grade": 8,
+   "kk": "Тұздар",
+   "ru": "Соли"
+  },
+  {
+   "id": "chem-8-hydrogen-water",
+   "subject": "chemistry",
+   "grade": 8,
+   "kk": "Сутек. Су",
+   "ru": "Водород. Вода"
+  },
+  {
+   "id": "chem-9-dissociation",
+   "subject": "chemistry",
+   "grade": 9,
+   "kk": "Электролиттік диссоциация",
+   "ru": "Электролитическая диссоциация"
+  },
+  {
+   "id": "chem-9-ionic-equations",
+   "subject": "chemistry",
+   "grade": 9,
+   "kk": "Иондық теңдеулер",
+   "ru": "Ионные уравнения"
+  },
+  {
+   "id": "chem-9-redox",
+   "subject": "chemistry",
+   "grade": 9,
+   "kk": "Тотығу-тотықсыздану реакциялары",
+   "ru": "Окислительно-восстановительные реакции"
+  },
+  {
+   "id": "chem-9-reaction-rate",
+   "subject": "chemistry",
+   "grade": 9,
+   "kk": "Химиялық реакция жылдамдығы",
+   "ru": "Скорость химической реакции"
+  },
+  {
+   "id": "chem-9-equilibrium",
+   "subject": "chemistry",
+   "grade": 9,
+   "kk": "Химиялық тепе-теңдік",
+   "ru": "Химическое равновесие"
+  },
+  {
+   "id": "chem-9-halogens",
+   "subject": "chemistry",
+   "grade": 9,
+   "kk": "Галогендер",
+   "ru": "Галогены"
+  },
+  {
+   "id": "chem-9-sulfur",
+   "subject": "chemistry",
+   "grade": 9,
+   "kk": "Күкірт және оның қосылыстары",
+   "ru": "Сера и её соединения"
+  },
+  {
+   "id": "chem-9-nitrogen",
+   "subject": "chemistry",
+   "grade": 9,
+   "kk": "Азот және оның қосылыстары",
+   "ru": "Азот и его соединения"
+  },
+  {
+   "id": "chem-9-carbon-silicon",
+   "subject": "chemistry",
+   "grade": 9,
+   "kk": "Көміртек және кремний",
+   "ru": "Углерод и кремний"
+  },
+  {
+   "id": "chem-9-metals",
+   "subject": "chemistry",
+   "grade": 9,
+   "kk": "Металдардың жалпы қасиеттері",
+   "ru": "Общие свойства металлов"
+  },
+  {
+   "id": "chem-9-alkali-metals",
+   "subject": "chemistry",
+   "grade": 9,
+   "kk": "Сілтілік металдар",
+   "ru": "Щелочные металлы"
+  },
+  {
+   "id": "chem-9-organic-intro",
+   "subject": "chemistry",
+   "grade": 9,
+   "kk": "Органикалық химияға кіріспе",
+   "ru": "Введение в органическую химию"
+  },
+  {
+   "id": "chem-10-solutions",
+   "subject": "chemistry",
+   "grade": 10,
+   "kk": "Ерітінділер. Концентрация",
+   "ru": "Растворы. Концентрация"
+  },
+  {
+   "id": "chem-10-hydrolysis",
+   "subject": "chemistry",
+   "grade": 10,
+   "kk": "Тұздардың гидролизі",
+   "ru": "Гидролиз солей"
+  },
+  {
+   "id": "chem-10-electrolysis",
+   "subject": "chemistry",
+   "grade": 10,
+   "kk": "Электролиз",
+   "ru": "Электролиз"
+  },
+  {
+   "id": "chem-10-thermochemistry",
+   "subject": "chemistry",
+   "grade": 10,
+   "kk": "Термохимия. Реакцияның жылу эффектісі",
+   "ru": "Термохимия. Тепловой эффект реакции"
+  },
+  {
+   "id": "chem-10-alkanes",
+   "subject": "chemistry",
+   "grade": 10,
+   "kk": "Алкандар",
+   "ru": "Алканы"
+  },
+  {
+   "id": "chem-10-alkenes",
+   "subject": "chemistry",
+   "grade": 10,
+   "kk": "Алкендер",
+   "ru": "Алкены"
+  },
+  {
+   "id": "chem-10-alkynes",
+   "subject": "chemistry",
+   "grade": 10,
+   "kk": "Алкиндер",
+   "ru": "Алкины"
+  },
+  {
+   "id": "chem-10-arenes",
+   "subject": "chemistry",
+   "grade": 10,
+   "kk": "Арендер. Бензол",
+   "ru": "Арены. Бензол"
+  },
+  {
+   "id": "chem-10-isomerism",
+   "subject": "chemistry",
+   "grade": 10,
+   "kk": "Изомерия",
+   "ru": "Изомерия"
+  },
+  {
+   "id": "chem-10-alcohols",
+   "subject": "chemistry",
+   "grade": 10,
+   "kk": "Спирттер",
+   "ru": "Спирты"
+  },
+  {
+   "id": "chem-10-aldehydes-acids",
+   "subject": "chemistry",
+   "grade": 10,
+   "kk": "Альдегидтер мен карбон қышқылдары",
+   "ru": "Альдегиды и карбоновые кислоты"
+  },
+  {
+   "id": "chem-10-esters-fats",
+   "subject": "chemistry",
+   "grade": 10,
+   "kk": "Күрделі эфирлер. Майлар",
+   "ru": "Сложные эфиры. Жиры"
+  },
+  {
+   "id": "chem-11-carbohydrates",
+   "subject": "chemistry",
+   "grade": 11,
+   "kk": "Көмірсулар",
+   "ru": "Углеводы"
+  },
+  {
+   "id": "chem-11-amines",
+   "subject": "chemistry",
+   "grade": 11,
+   "kk": "Аминдер",
+   "ru": "Амины"
+  },
+  {
+   "id": "chem-11-proteins",
+   "subject": "chemistry",
+   "grade": 11,
+   "kk": "Аминқышқылдары және ақуыздар",
+   "ru": "Аминокислоты и белки"
+  },
+  {
+   "id": "chem-11-polymers",
+   "subject": "chemistry",
+   "grade": 11,
+   "kk": "Полимерлер",
+   "ru": "Полимеры"
+  },
+  {
+   "id": "chem-11-transition-metals",
+   "subject": "chemistry",
+   "grade": 11,
+   "kk": "Ауыспалы металдар",
+   "ru": "Переходные металлы"
+  },
+  {
+   "id": "chem-11-corrosion",
+   "subject": "chemistry",
+   "grade": 11,
+   "kk": "Металдар коррозиясы",
+   "ru": "Коррозия металлов"
+  },
+  {
+   "id": "chem-11-industry",
+   "subject": "chemistry",
+   "grade": 11,
+   "kk": "Химиялық өндіріс",
+   "ru": "Химическое производство"
+  },
+  {
+   "id": "chem-11-environment",
+   "subject": "chemistry",
+   "grade": 11,
+   "kk": "Қоршаған орта және химия",
+   "ru": "Химия и окружающая среда"
+  },
+  {
+   "id": "bio-7-cell",
+   "subject": "biology",
+   "grade": 7,
+   "kk": "Жасуша құрылысы",
+   "ru": "Строение клетки"
+  },
+  {
+   "id": "bio-7-plant-tissues",
+   "subject": "biology",
+   "grade": 7,
+   "kk": "Өсімдік ұлпалары",
+   "ru": "Ткани растений"
+  },
+  {
+   "id": "bio-7-root",
+   "subject": "biology",
+   "grade": 7,
+   "kk": "Тамыр",
+   "ru": "Корень"
+  },
+  {
+   "id": "bio-7-stem-leaf",
+   "subject": "biology",
+   "grade": 7,
+   "kk": "Сабақ және жапырақ",
+   "ru": "Стебель и лист"
+  },
+  {
+   "id": "bio-7-photosynthesis",
+   "subject": "biology",
+   "grade": 7,
+   "kk": "Фотосинтез",
+   "ru": "Фотосинтез"
+  },
+  {
+   "id": "bio-7-flower-fruit",
+   "subject": "biology",
+   "grade": 7,
+   "kk": "Гүл, тұқым, жеміс",
+   "ru": "Цветок, семя, плод"
+  },
+  {
+   "id": "bio-7-plant-reproduction",
+   "subject": "biology",
+   "grade": 7,
+   "kk": "Өсімдіктердің көбеюі",
+   "ru": "Размножение растений"
+  },
+  {
+   "id": "bio-7-classification",
+   "subject": "biology",
+   "grade": 7,
+   "kk": "Тірі ағзаларды жіктеу",
+   "ru": "Классификация живых организмов"
+  },
+  {
+   "id": "bio-7-bacteria-fungi",
+   "subject": "biology",
+   "grade": 7,
+   "kk": "Бактериялар мен саңырауқұлақтар",
+   "ru": "Бактерии и грибы"
+  },
+  {
+   "id": "bio-7-invertebrates",
+   "subject": "biology",
+   "grade": 7,
+   "kk": "Омыртқасыз жануарлар",
+   "ru": "Беспозвоночные животные"
+  },
+  {
+   "id": "bio-7-vertebrates",
+   "subject": "biology",
+   "grade": 7,
+   "kk": "Омыртқалы жануарлар",
+   "ru": "Позвоночные животные"
+  },
+  {
+   "id": "bio-7-food-chains",
+   "subject": "biology",
+   "grade": 7,
+   "kk": "Экожүйелер. Қоректік тізбектер",
+   "ru": "Экосистемы. Пищевые цепи"
+  },
+  {
+   "id": "bio-8-human-tissues",
+   "subject": "biology",
+   "grade": 8,
+   "kk": "Адам ұлпалары",
+   "ru": "Ткани человека"
+  },
+  {
+   "id": "bio-8-skeleton-muscles",
+   "subject": "biology",
+   "grade": 8,
+   "kk": "Тірек-қимыл жүйесі",
+   "ru": "Опорно-двигательная система"
+  },
+  {
+   "id": "bio-8-blood",
+   "subject": "biology",
+   "grade": 8,
+   "kk": "Қан және оның құрамы",
+   "ru": "Кровь и её состав"
+  },
+  {
+   "id": "bio-8-circulation",
+   "subject": "biology",
+   "grade": 8,
+   "kk": "Қан айналым жүйесі",
+   "ru": "Кровеносная система"
+  },
+  {
+   "id": "bio-8-heart",
+   "subject": "biology",
+   "grade": 8,
+   "kk": "Жүрек",
+   "ru": "Сердце"
+  },
+  {
+   "id": "bio-8-respiration",
+   "subject": "biology",
+   "grade": 8,
+   "kk": "Тыныс алу жүйесі",
+   "ru": "Дыхательная система"
+  },
+  {
+   "id": "bio-8-digestion",
+   "subject": "biology",
+   "grade": 8,
+   "kk": "Ас қорыту жүйесі",
+   "ru": "Пищеварительная система"
+  },
+  {
+   "id": "bio-8-excretion",
+   "subject": "biology",
+   "grade": 8,
+   "kk": "Зәр шығару жүйесі",
+   "ru": "Выделительная система"
+  },
+  {
+   "id": "bio-8-nervous-system",
+   "subject": "biology",
+   "grade": 8,
+   "kk": "Жүйке жүйесі",
+   "ru": "Нервная система"
+  },
+  {
+   "id": "bio-8-senses",
+   "subject": "biology",
+   "grade": 8,
+   "kk": "Сезім мүшелері",
+   "ru": "Органы чувств"
+  },
+  {
+   "id": "bio-8-endocrine",
+   "subject": "biology",
+   "grade": 8,
+   "kk": "Эндокриндік жүйе",
+   "ru": "Эндокринная система"
+  },
+  {
+   "id": "bio-8-immunity",
+   "subject": "biology",
+   "grade": 8,
+   "kk": "Иммунитет",
+   "ru": "Иммунитет"
+  },
+  {
+   "id": "bio-9-mitosis",
+   "subject": "biology",
+   "grade": 9,
+   "kk": "Жасушаның бөлінуі: митоз",
+   "ru": "Деление клетки: митоз"
+  },
+  {
+   "id": "bio-9-meiosis",
+   "subject": "biology",
+   "grade": 9,
+   "kk": "Мейоз",
+   "ru": "Мейоз"
+  },
+  {
+   "id": "bio-9-dna-rna",
+   "subject": "biology",
+   "grade": 9,
+   "kk": "ДНҚ және РНҚ",
+   "ru": "ДНК и РНК"
+  },
+  {
+   "id": "bio-9-protein-synthesis",
+   "subject": "biology",
+   "grade": 9,
+   "kk": "Ақуыз биосинтезі",
+   "ru": "Биосинтез белка"
+  },
+  {
+   "id": "bio-9-metabolism",
+   "subject": "biology",
+   "grade": 9,
+   "kk": "Зат алмасу және энергия",
+   "ru": "Обмен веществ и энергии"
+  },
+  {
+   "id": "bio-9-mendel-laws",
+   "subject": "biology",
+   "grade": 9,
+   "kk": "Мендель заңдары",
+   "ru": "Законы Менделя"
+  },
+  {
+   "id": "bio-9-genetic-problems",
+   "subject": "biology",
+   "grade": 9,
+   "kk": "Будандастыру. Генетикалық есептер",
+   "ru": "Скрещивание. Генетические задачи"
+  },
+  {
+   "id": "bio-9-variation",
+   "subject": "biology",
+   "grade": 9,
+   "kk": "Өзгергіштік",
+   "ru": "Изменчивость"
+  },
+  {
+   "id": "bio-9-evolution",
+   "subject": "biology",
+   "grade": 9,
+   "kk": "Эволюция. Табиғи сұрыпталу",
+   "ru": "Эволюция. Естественный отбор"
+  },
+  {
+   "id": "bio-9-ecological-factors",
+   "subject": "biology",
+   "grade": 9,
+   "kk": "Экологиялық факторлар",
+   "ru": "Экологические факторы"
+  },
+  {
+   "id": "bio-10-biomolecules",
+   "subject": "biology",
+   "grade": 10,
+   "kk": "Биологиялық молекулалар",
+   "ru": "Биологические молекулы"
+  },
+  {
+   "id": "bio-10-enzymes",
+   "subject": "biology",
+   "grade": 10,
+   "kk": "Ферменттер",
+   "ru": "Ферменты"
+  },
+  {
+   "id": "bio-10-cell-respiration",
+   "subject": "biology",
+   "grade": 10,
+   "kk": "Жасушалық тыныс алу",
+   "ru": "Клеточное дыхание"
+  },
+  {
+   "id": "bio-10-photosynthesis-phases",
+   "subject": "biology",
+   "grade": 10,
+   "kk": "Фотосинтездің жарық және қараңғы фазалары",
+   "ru": "Световая и темновая фазы фотосинтеза"
+  },
+  {
+   "id": "bio-10-membrane-transport",
+   "subject": "biology",
+   "grade": 10,
+   "kk": "Жасуша мембранасы арқылы тасымалдау",
+   "ru": "Транспорт через клеточную мембрану"
+  },
+  {
+   "id": "bio-10-homeostasis",
+   "subject": "biology",
+   "grade": 10,
+   "kk": "Гомеостаз",
+   "ru": "Гомеостаз"
+  },
+  {
+   "id": "bio-10-heredity",
+   "subject": "biology",
+   "grade": 10,
+   "kk": "Тұқым қуалау заңдылықтары",
+   "ru": "Закономерности наследственности"
+  },
+  {
+   "id": "bio-10-sex-linked",
+   "subject": "biology",
+   "grade": 10,
+   "kk": "Жынысқа тіркесіп тұқым қуалау",
+   "ru": "Наследование, сцепленное с полом"
+  },
+  {
+   "id": "bio-10-energy-flow",
+   "subject": "biology",
+   "grade": 10,
+   "kk": "Экожүйедегі энергия ағыны",
+   "ru": "Поток энергии в экосистеме"
+  },
+  {
+   "id": "bio-11-biotechnology",
+   "subject": "biology",
+   "grade": 11,
+   "kk": "Биотехнология",
+   "ru": "Биотехнология"
+  },
+  {
+   "id": "bio-11-genetic-engineering",
+   "subject": "biology",
+   "grade": 11,
+   "kk": "Гендік инженерия",
+   "ru": "Генная инженерия"
+  },
+  {
+   "id": "bio-11-population-genetics",
+   "subject": "biology",
+   "grade": 11,
+   "kk": "Популяция генетикасы",
+   "ru": "Генетика популяций"
+  },
+  {
+   "id": "bio-11-speciation",
+   "subject": "biology",
+   "grade": 11,
+   "kk": "Түр түзілу",
+   "ru": "Видообразование"
+  },
+  {
+   "id": "bio-11-origin-of-life",
+   "subject": "biology",
+   "grade": 11,
+   "kk": "Жердегі тіршіліктің пайда болуы",
+   "ru": "Происхождение жизни на Земле"
+  },
+  {
+   "id": "bio-11-human-evolution",
+   "subject": "biology",
+   "grade": 11,
+   "kk": "Адам эволюциясы",
+   "ru": "Эволюция человека"
+  },
+  {
+   "id": "bio-11-biosphere",
+   "subject": "biology",
+   "grade": 11,
+   "kk": "Биосфера",
+   "ru": "Биосфера"
+  },
+  {
+   "id": "bio-11-nature-protection",
+   "subject": "biology",
+   "grade": 11,
+   "kk": "Табиғатты қорғау",
+   "ru": "Охрана природы"
+  },
+  {
+   "id": "inf-5-computer-parts",
+   "subject": "informatics",
+   "grade": 5,
+   "kk": "Компьютер құрылғылары",
+   "ru": "Устройство компьютера"
+  },
+  {
+   "id": "inf-5-files-folders",
+   "subject": "informatics",
+   "grade": 5,
+   "kk": "Файлдар мен бумалар",
+   "ru": "Файлы и папки"
+  },
+  {
+   "id": "inf-5-information",
+   "subject": "informatics",
+   "grade": 5,
+   "kk": "Ақпарат және оның түрлері",
+   "ru": "Информация и её виды"
+  },
+  {
+   "id": "inf-5-algorithm",
+   "subject": "informatics",
+   "grade": 5,
+   "kk": "Алгоритм ұғымы",
+   "ru": "Понятие алгоритма"
+  },
+  {
+   "id": "inf-5-internet-safety",
+   "subject": "informatics",
+   "grade": 5,
+   "kk": "Интернеттегі қауіпсіздік",
+   "ru": "Безопасность в интернете"
+  },
+  {
+   "id": "inf-6-binary",
+   "subject": "informatics",
+   "grade": 6,
+   "kk": "Екілік санау жүйесі",
+   "ru": "Двоичная система счисления"
+  },
+  {
+   "id": "inf-6-information-units",
+   "subject": "informatics",
+   "grade": 6,
+   "kk": "Ақпаратты өлшеу бірліктері",
+   "ru": "Единицы измерения информации"
+  },
+  {
+   "id": "inf-6-text-editor",
+   "subject": "informatics",
+   "grade": 6,
+   "kk": "Мәтіндік редактор",
+   "ru": "Текстовый редактор"
+  },
+  {
+   "id": "inf-6-algorithm-types",
+   "subject": "informatics",
+   "grade": 6,
+   "kk": "Алгоритм түрлері: сызықтық, тармақталу, цикл",
+   "ru": "Виды алгоритмов: линейный, ветвление, цикл"
+  },
+  {
+   "id": "inf-6-block-programming",
+   "subject": "informatics",
+   "grade": 6,
+   "kk": "Блоктық бағдарламалау",
+   "ru": "Блочное программирование"
+  },
+  {
+   "id": "inf-7-number-systems",
+   "subject": "informatics",
+   "grade": 7,
+   "kk": "Санау жүйелері",
+   "ru": "Системы счисления"
+  },
+  {
+   "id": "inf-7-spreadsheets",
+   "subject": "informatics",
+   "grade": 7,
+   "kk": "Электрондық кестелер",
+   "ru": "Электронные таблицы"
+  },
+  {
+   "id": "inf-7-logic",
+   "subject": "informatics",
+   "grade": 7,
+   "kk": "Логика негіздері",
+   "ru": "Основы логики"
+  },
+  {
+   "id": "inf-7-python-intro",
+   "subject": "informatics",
+   "grade": 7,
+   "kk": "Python тіліне кіріспе",
+   "ru": "Введение в Python"
+  },
+  {
+   "id": "inf-7-variables",
+   "subject": "informatics",
+   "grade": 7,
+   "kk": "Айнымалылар және деректер түрлері",
+   "ru": "Переменные и типы данных"
+  },
+  {
+   "id": "inf-8-conditions",
+   "subject": "informatics",
+   "grade": 8,
+   "kk": "Шартты оператор",
+   "ru": "Условный оператор"
+  },
+  {
+   "id": "inf-8-loops",
+   "subject": "informatics",
+   "grade": 8,
+   "kk": "Циклдар",
+   "ru": "Циклы"
+  },
+  {
+   "id": "inf-8-networks",
+   "subject": "informatics",
+   "grade": 8,
+   "kk": "Компьютерлік желілер",
+   "ru": "Компьютерные сети"
+  },
+  {
+   "id": "inf-8-truth-tables",
+   "subject": "informatics",
+   "grade": 8,
+   "kk": "Логикалық амалдар және ақиқат кестелері",
+   "ru": "Логические операции и таблицы истинности"
+  },
+  {
+   "id": "inf-8-encoding",
+   "subject": "informatics",
+   "grade": 8,
+   "kk": "Мәтін, сурет және дыбысты кодтау",
+   "ru": "Кодирование текста, изображений и звука"
+  },
+  {
+   "id": "inf-9-lists",
+   "subject": "informatics",
+   "grade": 9,
+   "kk": "Тізімдер мен массивтер",
+   "ru": "Списки и массивы"
+  },
+  {
+   "id": "inf-9-strings",
+   "subject": "informatics",
+   "grade": 9,
+   "kk": "Жолдармен жұмыс",
+   "ru": "Работа со строками"
+  },
+  {
+   "id": "inf-9-functions",
+   "subject": "informatics",
+   "grade": 9,
+   "kk": "Бағдарламалаудағы функциялар",
+   "ru": "Функции в программировании"
+  },
+  {
+   "id": "inf-9-databases",
+   "subject": "informatics",
+   "grade": 9,
+   "kk": "Деректер базасы",
+   "ru": "Базы данных"
+  },
+  {
+   "id": "inf-9-sorting",
+   "subject": "informatics",
+   "grade": 9,
+   "kk": "Сұрыптау алгоритмдері",
+   "ru": "Алгоритмы сортировки"
+  },
+  {
+   "id": "inf-10-searching",
+   "subject": "informatics",
+   "grade": 10,
+   "kk": "Іздеу алгоритмдері",
+   "ru": "Алгоритмы поиска"
+  },
+  {
+   "id": "inf-10-recursion",
+   "subject": "informatics",
+   "grade": 10,
+   "kk": "Рекурсия",
+   "ru": "Рекурсия"
+  },
+  {
+   "id": "inf-10-complexity",
+   "subject": "informatics",
+   "grade": 10,
+   "kk": "Алгоритм күрделілігі",
+   "ru": "Сложность алгоритмов"
+  },
+  {
+   "id": "inf-10-sql",
+   "subject": "informatics",
+   "grade": 10,
+   "kk": "SQL сұраныстары",
+   "ru": "SQL-запросы"
+  },
+  {
+   "id": "inf-10-architecture",
+   "subject": "informatics",
+   "grade": 10,
+   "kk": "Компьютер архитектурасы",
+   "ru": "Архитектура компьютера"
+  },
+  {
+   "id": "inf-11-oop",
+   "subject": "informatics",
+   "grade": 11,
+   "kk": "Объектіге бағытталған бағдарламалау",
+   "ru": "Объектно-ориентированное программирование"
+  },
+  {
+   "id": "inf-11-graphs",
+   "subject": "informatics",
+   "grade": 11,
+   "kk": "Графтар және олардағы алгоритмдер",
+   "ru": "Графы и алгоритмы на графах"
+  },
+  {
+   "id": "inf-11-web-basics",
+   "subject": "informatics",
+   "grade": 11,
+   "kk": "Веб-әзірлеу негіздері: HTML",
+   "ru": "Основы веб-разработки: HTML"
+  },
+  {
+   "id": "inf-11-cybersecurity",
+   "subject": "informatics",
+   "grade": 11,
+   "kk": "Ақпараттық қауіпсіздік",
+   "ru": "Информационная безопасность"
+  },
+  {
+   "id": "inf-11-ai-basics",
+   "subject": "informatics",
+   "grade": 11,
+   "kk": "Жасанды интеллект негіздері",
+   "ru": "Основы искусственного интеллекта"
+  }
+ ]
+}

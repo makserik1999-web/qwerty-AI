@@ -252,3 +252,47 @@ export function rejectPayment(id: string, reason: string) {
 export function refundPayment(id: string, reason: string, takeBack: boolean) {
   return send<unknown>(`/payments/${encodeURIComponent(id)}/refund`, 'POST', { reason, take_back: takeBack })
 }
+
+/* Video library ------------------------------------------------------------- */
+
+export interface AdminVideo {
+  id: string
+  topic_id: string
+  subject: string
+  grade: number
+  lang: string
+  title: string
+  video_url: string
+  duration: number | null
+  has_audio: boolean | null
+  rating_up: number
+  rating_down: number
+  status: 'cached' | 'public' | 'rejected'
+  served: number
+  created_at: string | null
+}
+
+export interface Topic {
+  id: string
+  subject: string
+  grade: number
+  kk: string
+  ru: string
+}
+
+export function listVideos(status: string, silent: boolean) {
+  const params = new URLSearchParams({ status, silent: String(silent) })
+  return request<{ items: AdminVideo[]; counts: Record<string, number> }>(`/videos?${params}`)
+}
+
+export function listTopics() {
+  return request<{ items: Topic[] }>('/topics')
+}
+
+export function videoAction(id: string, action: 'publish' | 'reject' | 'delete', reason = '') {
+  return send<unknown>(`/videos/${encodeURIComponent(id)}/${action}`, 'POST', { reason })
+}
+
+export function editVideo(id: string, changes: { title?: string; topic_id?: string; reason?: string }) {
+  return send<AdminVideo>(`/videos/${encodeURIComponent(id)}`, 'PUT', changes)
+}

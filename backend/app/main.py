@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import (
     admin,
     admin_payments,
+    admin_videos,
     assessments,
     auth,
     chats,
@@ -25,6 +26,7 @@ from app.api import (
     quiz_drafts,
     quota,
     saved,
+    videos,
 )
 from app.config import CORS_ORIGINS
 from app.db import lifespan
@@ -55,12 +57,14 @@ app.include_router(chats.router)
 app.include_router(media.router)
 app.include_router(admin.router)
 app.include_router(admin_payments.router)
+app.include_router(admin_videos.router)
 app.include_router(exports.router)
 app.include_router(quota.router)
 app.include_router(assessments.router)
 app.include_router(lesson_plans.router)
 app.include_router(quiz_drafts.router)
 app.include_router(saved.router)
+app.include_router(videos.router)
 
 # /ws/agent and /ws are exact paths (no path params)
 app.include_router(ws_agent.router)

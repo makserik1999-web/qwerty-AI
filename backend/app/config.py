@@ -192,6 +192,14 @@ PAYMENT_NOTIFY_EMAILS = [
 # An order nobody paid for is closed after this many days.
 PAYMENT_REQUEST_TTL_DAYS = int(os.getenv("PAYMENT_REQUEST_TTL_DAYS", "3"))
 
+# ============== Topic video cache ==============
+# A general question on a topic that already has a video gets that video
+# instead of a render. Deciding "general, and which topic" is one short
+# model call before the render; past this many seconds it is skipped and
+# the question is simply rendered.
+TOPIC_CACHE_ENABLED = os.getenv("TOPIC_CACHE_ENABLED", "1") == "1"
+CLASSIFY_TIMEOUT_SEC = float(os.getenv("CLASSIFY_TIMEOUT_SEC", "20"))
+
 
 # ============== Assessments ==============
 # Closed sets, because every one of these reaches a prompt. Free text there is
@@ -402,7 +410,10 @@ SIGNUP_MAX_PER_HOUR = int(os.getenv("SIGNUP_MAX_PER_HOUR", "100"))
 # pair with margin, catching about half the paraphrases and none of the
 # collisions. Raise it if a wrong answer ever appears; lower it only with
 # fresh measurements.
-CACHE_SEMANTIC_ENABLED = os.getenv("CACHE_SEMANTIC_ENABLED", "1") == "1"
+# Off by default since the topic layer arrived: similar wording is not the
+# same lesson ("Pythagoras" and "the converse of Pythagoras" are close
+# vectors and two topics). Topics come from a fixed list instead.
+CACHE_SEMANTIC_ENABLED = os.getenv("CACHE_SEMANTIC_ENABLED", "0") == "1"
 CACHE_SEMANTIC_THRESHOLD = float(os.getenv("CACHE_SEMANTIC_THRESHOLD", "0.85"))
 
 # Matching NEVER crosses languages. A Kazakh and a Russian phrasing of the

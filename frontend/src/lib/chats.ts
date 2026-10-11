@@ -25,6 +25,7 @@ interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   video_url?: string | null
+  video_cache_id?: string
   timestamp: string
 }
 
@@ -156,6 +157,8 @@ export function explanationFromAnswer(answer: Answer): Explanation {
     fromCache: answer.fromCache,
     cacheMatch: answer.cacheMatch,
     matchedQuestion: answer.matchedQuestion,
+    videoCacheId: answer.videoCacheId || undefined,
+    rating: answer.rating,
   }
 }
 
@@ -176,6 +179,7 @@ export function explanationFromChat(chat: ChatDetail): Explanation | null {
     createdAt: answer.timestamp || chat.created_at,
     markdown: answer.content,
     videoUrl: answer.video_url || undefined,
+    videoCacheId: answer.video_cache_id || undefined,
     status: answer.video_url ? 'complete' : 'partial',
     saved: false,
   }

@@ -10,7 +10,7 @@ from app.db import db
 
 async def save_message(chat_id: str, role: str, content: str,
                        screenshots: List[Dict[str, Any]] = None,
-                       video_url: str = None) -> dict:
+                       video_url: str = None, video_cache_id: str = None) -> dict:
     """Save a message to the database."""
     message = {
         "chat_id": chat_id,
@@ -20,6 +20,9 @@ async def save_message(chat_id: str, role: str, content: str,
         "video_url": video_url,
         "timestamp": datetime.now(timezone.utc),
     }
+    # The topic video this answer is (or became): what its rating applies to.
+    if video_cache_id:
+        message["video_cache_id"] = video_cache_id
     result = await db.db.messages.insert_one(message)
 
     update_fields = {"updated_at": datetime.now(timezone.utc)}
@@ -96,5 +99,6 @@ async def get_chat_messages(chat_id: str) -> list:
             "screenshots": msg.get("screenshots", []),
             "video_url": msg.get("video_url"),
             "timestamp": timestamp.isoformat(),
+            **({"video_cache_id": msg["video_cache_id"]} if msg.get("video_cache_id") else {}),
         })
     return messages

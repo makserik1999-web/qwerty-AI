@@ -25,6 +25,15 @@ def semantic(backend):
 
 
 @pytest.fixture(autouse=True)
+def semantic_on(backend, monkeypatch):
+    """The layer is off by default since topics arrived; these tests are about
+    how it behaves when it is switched on."""
+    from app.services import cache_service
+
+    monkeypatch.setattr(cache_service, "CACHE_SEMANTIC_ENABLED", True)
+
+
+@pytest.fixture(autouse=True)
 async def clean_library(backend):
     await backend.db.db.library_entries.delete_many({})
     yield

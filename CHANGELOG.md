@@ -5,6 +5,37 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### Topics: one video per topic, served to everyone who asks
+
+**Added**
+
+- A fixed list of 354 school topics (`agent/anyq/topics.json`, mirrored in
+  `backend/app/data/topics.json`; a test keeps them equal). Questions are
+  filed by picking an id from it - never by embedding similarity, which puts
+  a theorem and its converse side by side.
+- Before rendering, the backend asks the agent (new `classify` request, off
+  the render queue) whether the question is general or specific and which
+  topic it is. Unclear means specific; an invented id is dropped; no answer
+  within `CLASSIFY_TIMEOUT_SEC` means render.
+- `video_cache`: every successful video for a general question, filed under
+  its topic and language, up to three versions; the best by 👍/👎 is served
+  instead of rendering - free, students included. A new version replaces the
+  worst unchecked one only if it is rated down.
+- Under a topic answer: which topic it was matched to, 👍/👎, and «Менің
+  сұрағым бойынша жаңасын жасау» - a new render for that exact question,
+  charged to the plan. The existing "ask again" on a semantic hit now really
+  asks again (it used to find the same library answer).
+- «Бейнетека»: the showcase of videos the team has checked. Admin «Библиотека»
+  tab (support too): review queue, publish, reject, delete, fix title and
+  topic, silent-video filter. Every change is audited.
+- The agent reports each video's duration and whether it has sound, read
+  from the file with ffprobe.
+
+**Changed**
+
+- The embedding-based "similar question" layer is off by default
+  (`CACHE_SEMANTIC_ENABLED=0`); the exact-wording cache is unchanged.
+
 ### Paying through Kaspi, confirmed by a person
 
 **Added**

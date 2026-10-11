@@ -40,9 +40,10 @@ import { useStore } from '../lib/store'
 import type { StaffRole } from '../lib/types'
 import '../styles/admin.css'
 import { PaymentsSection } from './AdminPayments'
+import { VideosSection } from './AdminVideos'
 import { PLAN_LABEL, PlansSection, UserPlanPanel } from './AdminPlans'
 
-type Section = 'stats' | 'users' | 'payments' | 'plans' | 'audit'
+type Section = 'stats' | 'users' | 'videos' | 'payments' | 'plans' | 'audit'
 
 const PAGE = 50
 
@@ -100,6 +101,7 @@ export function Admin() {
   const sections: Array<{ value: Section; label: string }> = [
     { value: 'stats', label: 'Статистика' },
     { value: 'users', label: 'Пользователи' },
+    { value: 'videos', label: 'Библиотека' },
     ...(isAdmin
       ? [
           { value: 'payments' as const, label: 'Платежи' },
@@ -125,6 +127,7 @@ export function Admin() {
         <Tabs label="Разделы админки" value={section} items={sections} onChange={setSection}>
           {section === 'stats' ? <StatsSection isAdmin={isAdmin} /> : null}
           {section === 'users' ? <UsersSection isAdmin={isAdmin} /> : null}
+          {section === 'videos' ? <VideosSection /> : null}
           {section === 'payments' && isAdmin ? <PaymentsSection /> : null}
           {section === 'plans' && isAdmin ? <PlansSection /> : null}
           {section === 'audit' && isAdmin ? <AuditSection /> : null}

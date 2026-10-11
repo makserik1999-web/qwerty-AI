@@ -173,3 +173,13 @@
 .admin__grow {
   flex: 1 1 260px;
 }
+
+.admin__videos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: var(--space-lg);
+}
+
+.admin__video {
+  padding: var(--space-md);
+}

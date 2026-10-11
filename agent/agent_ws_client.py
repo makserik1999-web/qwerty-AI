@@ -33,7 +33,7 @@ import re
 import tempfile
 from typing import Any, Dict, List, Tuple
 
-from anyq import progress, telemetry, watermark
+from anyq import media_info, progress, telemetry, watermark
 
 # Environment and the user-facing failure message now live in the anyq package.
 # Importing anyq.config is also what calls load_dotenv().
@@ -216,6 +216,9 @@ async def process_request(payload: Dict[str, Any]) -> Dict[str, Any]:
         # A trial video gets the mark burned in; the backend files the clean
         # render in the library and shows the marked one to the trial account.
         shown_path, clean_path = await watermark.apply(video_path, payload.get("watermark"))
+        # Length and sound as the file has them: the library shows the
+        # length, and the admin panel finds videos that came out silent.
+        info = await asyncio.to_thread(media_info.probe, clean_path) if clean_path else {}
 
         return {
             "request_id": request_id,
@@ -223,6 +226,8 @@ async def process_request(payload: Dict[str, Any]) -> Dict[str, Any]:
             "text": final_text,
             "video_path": shown_path,
             "clean_video_path": clean_path,
+            "duration": info.get("duration"),
+            "has_audio": info.get("has_audio"),
             "subject": str(result.get("final_subject") or ""),
         }
     except Exception as e:
@@ -350,6 +355,28 @@ async def _handle_quiz(websocket, request_id: str, spec: Dict[str, Any]) -> None
               flush=True)
 
 
+async def _handle_classify(websocket, request_id: str, text: str) -> None:
+    """Is a question general or about one problem, and which topic is it?
+
+    Asked by the backend before it decides to render: a general question on a
+    topic the library already has a video for is answered with that video.
+    Off the main loop for the same reason as an embedding - a lookup must not
+    wait behind a render.
+    """
+    from anyq.nodes.intent import classify_request
+
+    payload: Dict[str, Any] = {"type": "classify_result", "request_id": request_id}
+    try:
+        payload.update(await classify_request(text))
+    except Exception as e:  # noqa: BLE001 - no answer means "render it"
+        payload["error"] = _safe_error_text(e)
+    try:
+        await _send_json(websocket, payload)
+    except Exception as e:  # noqa: BLE001 - the socket may have gone
+        print(f"Failed to send classification for {request_id}: {type(e).__name__}: {e}",
+              flush=True)
+
+
 async def _handle_embed(websocket, request_id: str, text: str) -> None:
     """Answer one embedding request, off the main receive loop."""
     from anyq.embeddings import embed_question
@@ -390,7 +417,7 @@ async def _authenticate(websocket) -> bool:
             # A backend talking to an older agent must not wait for a
             # confirmation that is never sent, which is what declaring it here
             # is for.
-            "features": ["embed", "assessment", "lesson_plan", "quiz", "ack"],
+            "features": ["embed", "classify", "assessment", "lesson_plan", "quiz", "ack"],
         }))
         raw = await asyncio.wait_for(
             websocket.recv(), timeout=AGENT_HANDSHAKE_TIMEOUT_SEC
@@ -599,6 +626,9 @@ async def agent_client() -> None:
                         # that long would defeat the point of having a cache.
                         if data.get("type") == "embed":
                             asyncio.create_task(_handle_embed(websocket, request_id, text))
+                            continue
+                        if data.get("type") == "classify":
+                            asyncio.create_task(_handle_classify(websocket, request_id, text))
                             continue
 
                         # An assessment is text, not a video: it does not go

@@ -1191,3 +1191,52 @@
   gap: var(--space-sm);
   font-size: var(--fs-body-sm);
 }
+
+/* Topic videos: rating and the showcase ------------------------------------ */
+
+.video-rating {
+  display: inline-flex;
+  gap: var(--space-xs);
+  margin-left: auto;
+}
+
+.video-rating__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--fs-body-sm);
+  cursor: pointer;
+}
+
+.video-rating__btn.is-on {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.video-rating__btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.showcase__filters {
+  max-width: 520px;
+}
+
+.showcase__grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--space-lg);
+}
+
+.showcase__card {
+  height: 100%;
+}

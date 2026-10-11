@@ -14,7 +14,7 @@ from app.config import (
     CACHE_ENABLED,
 )
 from app.repositories.messages import save_message
-from app.services import cache_service, plans, quota, usage_log
+from app.services import cache_service, plans, quota, topic_cache, usage_log
 from app.ws.manager import _notify_pending_failures, agent_manager, ui_manager
 
 router = APIRouter()
@@ -84,6 +84,17 @@ async def websocket_agent_endpoint(websocket: WebSocket):
 
             # Embedding replies are internal lookups, not answers to a user:
             # they have no chat, no message and no quota behind them.
+            if data.get("type") == "classify_result":
+                agent_manager.resolve_classification(
+                    request_id,
+                    None if data.get("error") else {
+                        "specificity": data.get("specificity") or "specific",
+                        "topic_id": data.get("topic_id"),
+                        "language": data.get("language") or "",
+                    },
+                )
+                continue
+
             if data.get("type") == "embed_result":
                 agent_manager.resolve_embedding(
                     request_id,
@@ -186,11 +197,26 @@ async def websocket_agent_endpoint(websocket: WebSocket):
             elif status == "complete":
                 await plans.release(request_id)
 
+            # A general question's video is filed under its topic for the
+            # next person who asks - the clean render, never a trial's copy.
+            video_cache_id = None
+            classification = request_info.get("classification") or {}
+            if (status == "complete" and response_text and clean_url
+                    and classification.get("specificity") == "generic" and classification.get("topic_id")):
+                try:
+                    video_cache_id = await topic_cache.add(
+                        topic_id=classification["topic_id"], lang=classification.get("language", ""),
+                        video_url=clean_url, text=response_text, user_id=user_id,
+                        duration=data.get("duration"), has_audio=data.get("has_audio"),
+                    )
+                except Exception as e:
+                    print(f"topic cache write failed: {type(e).__name__}: {e}")
+
             if status == "complete" and response_text:
                 try:
                     msg_data = await save_message(
                         chat_id, "assistant", response_text,
-                        video_url=video_url,
+                        video_url=video_url, video_cache_id=video_cache_id,
                     )
                 except Exception as e:
                     print(f"Failed to save assistant message: {type(e).__name__}: {e}")
@@ -205,6 +231,8 @@ async def websocket_agent_endpoint(websocket: WebSocket):
                         "video_url": video_url,
                         "timestamp": msg_data["timestamp"],
                         "subject": subject,
+                        **({"video_cache_id": video_cache_id,
+                            "rating": {"up": 0, "down": 0, "mine": 0}} if video_cache_id else {}),
                     },
                 })
                 await usage_log.log(user_id, "explanation", video=bool(video_url))

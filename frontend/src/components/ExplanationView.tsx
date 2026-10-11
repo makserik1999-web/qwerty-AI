@@ -5,7 +5,8 @@ import { AnimationPlayer } from './anim/AnimationPlayer'
 import { SCENE_TITLES } from './anim/scenes'
 import { MarkdownMessage } from './MarkdownMessage'
 import { VideoPlayer } from './player/VideoPlayer'
-import { Alert, Badge } from './ui'
+import { Alert, Badge, Button } from './ui'
+import { VideoRating } from './VideoRating'
 
 interface ExplanationViewProps {
   explanation: Explanation
@@ -18,6 +19,9 @@ interface ExplanationViewProps {
   headingLevel?: 2 | 3
   /** Freshly generated results start playing; saved ones wait for the user. */
   autoPlay?: boolean
+  /** Offered under a video served by topic: render one for this exact
+   *  question instead. Only for accounts that can generate. */
+  onMakeMine?: () => void
 }
 
 /** Explanation text plus its animation. Shared by Explain and Library. */
@@ -28,6 +32,7 @@ export function ExplanationView({
   askAgainAction,
   headingLevel = 2,
   autoPlay = false,
+  onMakeMine,
 }: ExplanationViewProps) {
   const { t, lang } = useI18n()
   const Heading = `h${headingLevel}` as 'h2' | 'h3'
@@ -64,6 +69,25 @@ export function ExplanationView({
         </Alert>
       ) : null}
 
+      {/* Served by topic: say which topic, so a wrong match is visible, and
+          offer the way out - the classifier will be wrong sometimes, and a
+          teacher who got the wrong video with no remedy decides the product
+          is stupid. */}
+      {explanation.cacheMatch === 'topic' && explanation.matchedQuestion ? (
+        <Alert
+          tone="info"
+          action={
+            onMakeMine ? (
+              <Button icon="refresh" onClick={onMakeMine} title={t('video.makeMineHint')}>
+                {t('video.makeMine')}
+              </Button>
+            ) : undefined
+          }
+        >
+          {t('video.topicHit', { topic: explanation.matchedQuestion })}
+        </Alert>
+      ) : null}
+
       {explanation.status === 'partial' ? (
         <Alert tone="warning" title={t('explain.partialTitle')} action={partialAction}>
           {t('explain.partialBody')}
@@ -84,7 +108,14 @@ export function ExplanationView({
               autoPlay={autoPlay}
             />
           ) : null}
-          {actions ? <div className="row row-wrap">{actions}</div> : null}
+          {actions || explanation.videoCacheId ? (
+            <div className="row row-wrap">
+              {actions}
+              {explanation.videoCacheId ? (
+                <VideoRating videoId={explanation.videoCacheId} initial={explanation.rating} />
+              ) : null}
+            </div>
+          ) : null}
         </>
       )}
 

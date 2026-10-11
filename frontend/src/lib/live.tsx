@@ -78,6 +78,9 @@ export interface Answer {
   /** "exact" or "semantic"; a semantic hit answered a DIFFERENT wording. */
   cacheMatch: string
   matchedQuestion: string
+  /** The topic video this answer is, if it was filed or served by topic. */
+  videoCacheId: string
+  rating: { up: number; down: number; mine: number } | null
 }
 
 /** How long the video should run. The seconds are approximate on purpose -
@@ -93,6 +96,8 @@ export interface AskInput {
   narrationVoice: string
   videoLength: VideoLength
   effort: Effort
+  /** Skip every library answer and make a new video for this question. */
+  forceRegenerate?: boolean
 }
 
 interface LiveValue {
@@ -126,6 +131,12 @@ export class AgentError extends Error {
 
 function str(value: unknown): string {
   return typeof value === 'string' ? value : ''
+}
+
+function readRating(value: unknown): Answer['rating'] {
+  if (!value || typeof value !== 'object') return null
+  const r = value as Record<string, unknown>
+  return { up: Number(r.up) || 0, down: Number(r.down) || 0, mine: Number(r.mine) || 0 }
 }
 
 export function LiveProvider({
@@ -171,6 +182,7 @@ export function LiveProvider({
           narration_voice: input?.narrationVoice ?? 'aigul',
           video_length: input?.videoLength ?? 'medium',
           effort: input?.effort ?? 'medium',
+          ...(input?.forceRegenerate ? { force_regenerate: true } : {}),
         })
         return
       }
@@ -207,6 +219,8 @@ export function LiveProvider({
             cacheTier: str(data.cache_tier),
             cacheMatch: str(data.cache_match),
             matchedQuestion: str(data.matched_question),
+            videoCacheId: str(data.video_cache_id),
+            rating: readRating(data.rating),
           }),
         )
         return

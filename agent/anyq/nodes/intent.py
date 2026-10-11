@@ -92,3 +92,63 @@ async def reject_non_science(state: ScienceVideoState) -> Dict[str, Any]:
     language = _resolve_output_language(state)
     msg = _REJECT_MESSAGES.get(language, _REJECT_MESSAGES["kk"])
     return {"final_text": msg, "final_video_path": "", "output_language": language}
+
+
+# ------------------------------------------------------------ topic match --
+#
+# The second half of understanding a question: is it about a topic in general
+# ("explain Pythagoras"), or about this one problem ("the legs are 3 and 4")?
+# A general question can be answered with a video already made for its topic;
+# a specific one cannot. The backend asks this before it decides to render.
+
+_SPECIFICITY_RULES = (
+    "A request is SPECIFIC if it has any of: numbers or given data "
+    "(\"legs 3 and 4\", \"m = 2 kg\"), a photo of a problem, \"apply this to this "
+    "problem\", or the asker's own example or context (\"using a staircase\", "
+    "\"for my class's experiment\"). Everything else is GENERIC: \"explain "
+    "Pythagoras\", \"what is induction\", \"how does photosynthesis work\"."
+)
+
+
+async def classify_request(text: str) -> Dict[str, Any]:
+    """{"specificity": "generic"|"specific", "topic_id": id|None, "language": ...}
+
+    The topic is an id picked from topics.json or nothing. An id the model
+    invents is dropped, and anything unclear counts as specific: a wrong
+    "generic" would hand someone a video about a different question, a wrong
+    "specific" only costs a render.
+    """
+    from anyq import topics
+
+    q = (text or "").strip()
+    if not q:
+        return {"specificity": "specific", "topic_id": None, "language": ""}
+    resp = await _llm_chat(
+        [
+            Message(
+                role="system",
+                content=(
+                    "You file school questions under a fixed list of topics.\n"
+                    + _SPECIFICITY_RULES
+                    + "\n\nPick the ONE topic id from the list below that the question "
+                    "is about, or null if none fits closely. Never invent an id; "
+                    "\"theorem\" and \"converse theorem\" are different topics.\n"
+                    "Return ONLY valid JSON with keys:\n"
+                    '- "specificity": "generic" or "specific"\n'
+                    '- "topic_id": string or null\n'
+                    '- "language": "kk", "ru" or "en" - the language the question is written in\n\n'
+                    "Topics (id | Russian | Kazakh):\n" + topics.prompt_list()
+                ),
+            ),
+            Message(role="user", content=USER_CONTENT_NOTICE + "\n\n" + _wrap("user_input", q)),
+        ]
+    )
+    payload = _safe_json_loads(resp.content) or {}
+    topic_id = payload.get("topic_id")
+    if not isinstance(topic_id, str) or topic_id not in topics.by_id():
+        topic_id = None
+    specificity = payload.get("specificity")
+    if specificity not in ("generic", "specific"):
+        specificity = "specific"
+    language = payload.get("language") if payload.get("language") in ("kk", "ru", "en") else ""
+    return {"specificity": specificity, "topic_id": topic_id, "language": language}

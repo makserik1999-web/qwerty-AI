@@ -118,7 +118,7 @@ export function Explain() {
   }, [])
 
   const run = useCallback(
-    async (text: string) => {
+    async (text: string, options: { force?: boolean } = {}) => {
       const asked = text.trim()
       if (!asked) return
       setState('generating')
@@ -131,6 +131,7 @@ export function Explain() {
           narrationVoice: voice,
           videoLength,
           effort,
+          forceRegenerate: options.force,
         })
         const explanation = explanationFromAnswer(answer)
         setCurrent(explanation)
@@ -459,9 +460,16 @@ export function Explain() {
                   explanation={current}
                   autoPlay
                   askAgainAction={
-                    <Button icon="refresh" onClick={() => void run(current.question)}>
+                    // Forced: asking the same words again would find the
+                    // same library answer.
+                    <Button icon="refresh" onClick={() => void run(current.question, { force: true })}>
                       {t('explain.askAgain')}
                     </Button>
+                  }
+                  onMakeMine={
+                    user?.role === 'teacher'
+                      ? () => void run(current.question, { force: true })
+                      : undefined
                   }
                   partialAction={
                     <Button icon="refresh" onClick={() => void run(current.question)}>

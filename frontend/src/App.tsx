@@ -11,6 +11,7 @@ import { LessonPlan } from './pages/LessonPlan'
 import { Landing } from './pages/Landing'
 import { Library } from './pages/Library'
 import { Settings } from './pages/Settings'
+import { Showcase } from './pages/Showcase'
 import { SignIn } from './pages/SignIn'
 import { SignUp } from './pages/SignUp'
 import { ForgotPassword } from './pages/ForgotPassword'
@@ -147,6 +148,7 @@ export function App() {
           <Route index element={<Navigate to="/app/explain" replace />} />
           <Route path="explain" element={<Explain />} />
           <Route path="library" element={<Library />} />
+          <Route path="showcase" element={<Showcase />} />
           <Route
             path="generate"
             element={

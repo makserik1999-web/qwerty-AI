@@ -63,8 +63,12 @@ export interface Explanation {
   fromCache?: boolean
   /** "exact" or "semantic". A semantic hit answered a DIFFERENT wording. */
   cacheMatch?: string
-  /** The stored question a semantic hit was matched against. */
+  /** The stored question a semantic hit was matched against; for a topic hit,
+   *  the topic it was filed under. */
   matchedQuestion?: string
+  /** The topic video this is, which is what 👍/👎 rate. */
+  videoCacheId?: string
+  rating?: { up: number; down: number; mine: number } | null
   /** The chat it was filed under, so the history can open it again. */
   chatId?: string
   /** The message that carried it. Saving is addressed by this, not by a copy. */

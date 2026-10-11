@@ -9,12 +9,14 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from app.config import (
     CACHE_ENABLED,
+    CLASSIFY_TIMEOUT_SEC,
     COOKIE_NAME,
     EFFORT_DEFAULT,
     EFFORT_LEVELS,
     NARRATION_DEFAULT,
     NARRATION_VOICE_DEFAULT,
     NARRATION_VOICES,
+    TOPIC_CACHE_ENABLED,
     USER_ROLE_DEFAULT,
     VIDEO_LENGTH_DEFAULT,
     VIDEO_LENGTHS,
@@ -25,7 +27,7 @@ from app.repositories.messages import save_message
 from app.security.origins import _is_allowed_origin
 from app.security.sessions import _user_from_token
 from app.security.verified import EMAIL_UNVERIFIED, may_generate
-from app.services import cache_service, plans, quota, usage_log
+from app.services import cache_service, plans, quota, topic_cache, usage_log
 from app.validators import (
     _validate_chat_id,
     _validate_prompt,
@@ -185,6 +187,53 @@ async def _handle_ui_frame(websocket: WebSocket, user_id: str, data: dict) -> No
                                 video=bool(cached.get("video_url")))
             return
 
+        # The topic layer. A general question ("explain Pythagoras") on a
+        # topic that already has a video is answered with it - free, like any
+        # library answer, and for students too. Whether it is general, and
+        # which topic, is one short call to the agent; without an answer the
+        # question is simply rendered. Asked even when the person insisted on
+        # a new video: the new one is then filed as another version.
+        classification = None
+        if CACHE_ENABLED and TOPIC_CACHE_ENABLED and not screenshots and prompt:
+            classification = await agent_manager.request_classification(prompt, CLASSIFY_TIMEOUT_SEC)
+        if (classification and classification.get("specificity") == "generic"
+                and classification.get("topic_id") and not payload.get("force_regenerate")):
+            hit = None
+            try:
+                hit = await topic_cache.best(classification["topic_id"], classification.get("language", ""),
+                                             narration=narration)
+            except Exception as e:
+                print(f"topic cache lookup failed, rendering instead: {type(e).__name__}: {e}")
+            if hit:
+                hit_id = str(hit["_id"])
+                await save_message(chat_id, "user", prompt, screenshots)
+                await websocket.send_json({"type": "message_received"})
+                msg_data = await save_message(chat_id, "assistant", hit.get("text", ""),
+                                              video_url=hit.get("video_url"), video_cache_id=hit_id)
+                await topic_cache.served(hit["_id"])
+                await websocket.send_json({
+                    "type": "ai_response",
+                    "data": {
+                        "message_id": msg_data["id"],
+                        "chat_id": chat_id,
+                        "content": msg_data["content"],
+                        "video_url": msg_data["video_url"],
+                        "timestamp": msg_data["timestamp"],
+                        "from_cache": True,
+                        "cache_tier": hit.get("status", ""),
+                        "cache_match": "topic",
+                        # Which topic it was filed under, so a wrong match is
+                        # visible - and the "make one for my question" button
+                        # is there for exactly that.
+                        "matched_question": hit.get("title", ""),
+                        "video_cache_id": hit_id,
+                        "rating": {"up": hit.get("rating_up", 0), "down": hit.get("rating_down", 0),
+                                   "mine": await topic_cache.my_vote(hit_id, user_id)},
+                    },
+                })
+                await usage_log.log(user_id, "explanation", cached=True, video=True)
+                return
+
         # Making a new answer is for teachers. A student still gets whatever
         # the library already holds - that costs a couple of reads - but a
         # generation is a paid model call. Read from the account, like every
@@ -282,6 +331,9 @@ async def _handle_ui_frame(websocket: WebSocket, user_id: str, data: dict) -> No
             "variant": variant,
             # A trial video carries a watermark; the cache gets the clean copy.
             "watermark": entitlement.watermark,
+            # General or specific, and the topic: decides whether the video
+            # is filed for the next person who asks.
+            "classification": classification,
         }
         await quota.record(user_id, request_id)
         try:
