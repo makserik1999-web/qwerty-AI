@@ -220,10 +220,21 @@ class TestWhatComesBack:
 
 
 class TestTheRequest:
-    @pytest.mark.parametrize("asked,expected", [(40, 40), (45, 45), (30, 40),
+    @pytest.mark.parametrize("asked,expected", [(40, 40), (45, 45), (30, 30), (90, 90),
+                                                (480, 480), (900, 480), (2, 10),
                                                 ("45", 45), (None, 40), ("x", 40)])
-    def test_only_a_real_lesson_length_is_accepted(self, asked, expected):
+    def test_any_lesson_length_within_eight_hours(self, asked, expected):
         assert lp._clamp_duration(asked) == expected
+
+    def test_a_long_lesson_keeps_its_long_stages(self):
+        """A training day is not cut down to two-hour stages and then refused."""
+        stages = [
+            {"phase": "start", "title": "a", "minutes": 30, "teacher": "t", "student": "s"},
+            {"phase": "middle", "title": "b", "minutes": 180, "teacher": "t", "student": "s"},
+            {"phase": "middle", "title": "c", "minutes": 210, "teacher": "t", "student": "s"},
+            {"phase": "end", "title": "d", "minutes": 60, "teacher": "t", "student": "s"},
+        ]
+        assert "error" not in lp._validate(payload(stages), {**SPEC, "duration": 480})
 
     def test_the_prompt_names_the_grade_the_codes_must_start_with(self):
         """The one instruction that makes the code guard mostly unnecessary."""

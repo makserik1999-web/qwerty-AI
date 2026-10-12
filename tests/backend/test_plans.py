@@ -310,6 +310,34 @@ class TestUstazPeriods:
         expires = user["subscription"]["expires_at"].replace(tzinfo=timezone.utc)
         assert (expires.year, expires.month, expires.day) == (2027, 1, 5)
 
+    def test_month_to_year_switches_and_keeps_the_month_in_progress(self, backend, account, plans):
+        _, user = self._user(backend, account)
+        user = run_db(plans.grant(user, plans.USTAZ_MONTH, now=utc(2026, 10, 5)))
+        run_db(backend.db.db.users.update_one({"_id": user["_id"]}, {"$set": {"period.used.videos": 7}}))
+        user = run_db(plans.grant(doc(backend, str(user["_id"])), plans.USTAZ_YEAR, now=utc(2026, 10, 20)))
+        assert user["subscription"]["plan_id"] == plans.USTAZ_YEAR
+        local_end = user["subscription"]["expires_at"].replace(tzinfo=timezone.utc) + timedelta(hours=5)
+        assert (local_end.year, local_end.month, local_end.day) == (2027, 6, 1)
+        # Not a fresh month of videos: what was used this month stays used.
+        assert user["period"]["used"]["videos"] == 7
+
+    def test_year_to_month_adds_the_month_after_the_paid_year(self, backend, account, plans):
+        _, user = self._user(backend, account)
+        user = run_db(plans.grant(user, plans.USTAZ_YEAR, now=utc(2026, 10, 5)))
+        year_end = user["subscription"]["expires_at"].replace(tzinfo=timezone.utc)
+        user = run_db(plans.grant(user, plans.USTAZ_MONTH, now=utc(2026, 10, 20)))
+        assert user["subscription"]["plan_id"] == plans.USTAZ_MONTH
+        expires = user["subscription"]["expires_at"].replace(tzinfo=timezone.utc)
+        assert expires == plans.add_months(year_end, 1)
+
+    def test_switching_back_and_forth_gives_no_new_videos(self, backend, account, plans):
+        _, user = self._user(backend, account)
+        user = run_db(plans.grant(user, plans.USTAZ_MONTH, now=utc(2026, 10, 5)))
+        run_db(backend.db.db.users.update_one({"_id": user["_id"]}, {"$set": {"period.used.videos": 20}}))
+        for plan_id in (plans.USTAZ_YEAR, plans.USTAZ_MONTH, plans.USTAZ_YEAR):
+            user = run_db(plans.grant(doc(backend, str(user["_id"])), plan_id, now=utc(2026, 10, 6)))
+        assert run_db(plans.resolve(user, now=utc(2026, 10, 7))).available("videos") == 0
+
 
 class TestSummerPause:
     def test_pause_keeps_the_paid_days_until_september(self, backend, account, plans):

@@ -13,6 +13,7 @@ from app.config import (
     COOKIE_NAME,
     EFFORT_DEFAULT,
     EFFORT_LEVELS,
+    EXPLANATION_LANGUAGES,
     NARRATION_DEFAULT,
     NARRATION_VOICE_DEFAULT,
     NARRATION_VOICES,
@@ -147,7 +148,12 @@ async def _handle_ui_frame(websocket: WebSocket, user_id: str, data: dict) -> No
         entitlement = await plans.resolve(account) if account else None
         if entitlement and entitlement.plan:
             effort = plans.clamp_effort(effort, entitlement.plan)
-        variant = cache_service.render_variant(narration, voice, video_length, effort)
+        # The answer language, when the asker chose one. Otherwise the agent
+        # answers in the language of the question, as it always has.
+        output_language = str(payload.get("output_language") or "").strip().lower()
+        if output_language not in EXPLANATION_LANGUAGES:
+            output_language = ""
+        variant = cache_service.render_variant(narration, voice, video_length, effort, output_language)
 
         cached = None
         if CACHE_ENABLED and not payload.get("force_regenerate"):
@@ -200,7 +206,10 @@ async def _handle_ui_frame(websocket: WebSocket, user_id: str, data: dict) -> No
                 and classification.get("topic_id") and not payload.get("force_regenerate")):
             hit = None
             try:
-                hit = await topic_cache.best(classification["topic_id"], classification.get("language", ""),
+                # The shelf in the language the answer is wanted in, which is
+                # the question's own unless another was chosen.
+                hit = await topic_cache.best(classification["topic_id"],
+                                             output_language or classification.get("language", ""),
                                              narration=narration)
             except Exception as e:
                 print(f"topic cache lookup failed, rendering instead: {type(e).__name__}: {e}")
@@ -334,6 +343,7 @@ async def _handle_ui_frame(websocket: WebSocket, user_id: str, data: dict) -> No
             # General or specific, and the topic: decides whether the video
             # is filed for the next person who asks.
             "classification": classification,
+            "output_language": output_language,
         }
         await quota.record(user_id, request_id)
         # The task the admin panel sees. What was asked is kept so a failure
@@ -343,6 +353,7 @@ async def _handle_ui_frame(websocket: WebSocket, user_id: str, data: dict) -> No
             "screenshots": len(screenshots or []), "narration": narration,
             "voice": voice, "video_length": video_length, "effort": effort,
             "variant": variant, "classification": classification,
+            "output_language": output_language,
         })
         try:
             await agent_manager.send_to_agent(
@@ -356,6 +367,7 @@ async def _handle_ui_frame(websocket: WebSocket, user_id: str, data: dict) -> No
                 video_length=video_length,
                 effort=effort,
                 watermark=entitlement.watermark,
+                output_language=output_language,
             )
         except Exception as e:
             agent_manager.pending_requests.pop(request_id, None)

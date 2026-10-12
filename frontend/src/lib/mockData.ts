@@ -1,4 +1,5 @@
 import type {
+  ExplainLang,
   ExplanationBlock,
   Lang,
   SceneId,
@@ -229,7 +230,7 @@ export const EXPLANATION_SEEDS: Record<SceneId, Seed> = {
   },
 }
 
-export const EXAMPLE_QUESTIONS: Record<Lang, string[]> = {
+export const EXAMPLE_QUESTIONS: Record<ExplainLang, string[]> = {
   kk: [
     'Пифагор теоремасы қалай дәлелденеді?',
     'Дөңгелектің ауданы неге πr² болады?',
@@ -239,6 +240,11 @@ export const EXAMPLE_QUESTIONS: Record<Lang, string[]> = {
     'Что такое производная функции?',
     'Почему график квадратичной функции — парабола?',
     'Как уравнять химическое уравнение?',
+  ],
+  en: [
+    'Why is the area of a circle πr²?',
+    "What does Newton's second law say?",
+    'How does photosynthesis work?',
   ],
 }
 

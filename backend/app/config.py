@@ -214,6 +214,9 @@ CLASSIFY_TIMEOUT_SEC = float(os.getenv("CLASSIFY_TIMEOUT_SEC", "20"))
 # reading as it did.
 CONTENT_SUBJECTS = ("math", "geometry", "physics", "chemistry", "biology", "informatics")
 CONTENT_LANGUAGES = ("kk", "ru")
+# What an explanation may be asked to be in. English too: schools such as
+# НЗМ/NIS teach some subjects in it. Empty means "the question's language".
+EXPLANATION_LANGUAGES = ("kk", "ru", "en")
 
 ASSESSMENT_SUBJECTS = CONTENT_SUBJECTS
 ASSESSMENT_TYPES = ("sor", "soch", "quiz")
@@ -259,9 +262,12 @@ QUIZ_DRAFT_TIMEOUT_SEC = float(os.getenv("QUIZ_DRAFT_TIMEOUT_SEC", "120"))
 LESSON_PLAN_SUBJECTS = CONTENT_SUBJECTS
 LESSON_PLAN_LANGUAGES = CONTENT_LANGUAGES
 LESSON_PLAN_GRADES = ASSESSMENT_GRADES
-# What a school timetable actually uses. Keep in step with agent/anyq/
-# lesson_plans.py, which turns these into the per-phase minute shares.
-LESSON_PLAN_DURATIONS = (40, 45)
+# Any lesson length a teacher names, in whole minutes: 40 and 45 are the
+# usual, but a double lesson, a lab or a training day are lessons too. Up to
+# eight hours, and no shorter than four stages can share. Keep in step with
+# MIN_DURATION and MAX_DURATION in agent/anyq/lesson_plans.py.
+LESSON_PLAN_MIN_MINUTES = 10
+LESSON_PLAN_MAX_MINUTES = 480
 LESSON_PLAN_TOPIC_MAX_LEN = 200
 LESSON_PLAN_SECTION_MAX_LEN = 200
 # Writing a plan is one text call, like a paper, so the ceiling is the same

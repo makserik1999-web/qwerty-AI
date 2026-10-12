@@ -30,9 +30,10 @@ const RESOURCES: PlanResource[] = ['videos', 'assessments', 'quiz_drafts', 'less
  * The plan, as it actually is: what the account is on, what is left, and what
  * it could move to.
  *
- * There is no payment form here yet. Until Kaspi is connected, a plan is
- * switched on by the team by hand, and the page says so instead of offering a
- * button that does nothing.
+ * The plans are a choice and the button under them is the action - pay,
+ * extend, or switch. Until Kaspi is connected there is no button: a plan is
+ * switched on by the team by hand, and the page says so, naming the plan that
+ * was chosen, instead of offering a button that does nothing.
  */
 export function Billing() {
   const { t, lang } = useI18n()
@@ -46,6 +47,9 @@ export function Billing() {
   const [kaspi, setKaspi] = useState<KaspiDetails | null>(null)
   const [orders, setOrders] = useState<Payment[]>([])
   const [orderError, setOrderError] = useState<string | null>(null)
+  // Which subscription the teacher is looking at. Nothing is bought by
+  // choosing: the cards are a choice, the button under them is the action.
+  const [chosen, setChosen] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -105,6 +109,23 @@ export function Billing() {
 
   const date = (iso: string | null) => (iso ? formatDate(iso, lang) : '')
   const yearOffer = offers.find((o) => o.period === 'school_year')
+  const subscriptions = offers.filter((o) => o.kind === 'subscription')
+  const addons = offers.filter((o) => o.kind === 'addon')
+  const currentId = plan?.kind === 'ustaz' ? plan.plan_id : null
+  // The current plan first, so "extend" is one press; otherwise the main one.
+  const selected =
+    subscriptions.find((o) => o._id === chosen) ??
+    subscriptions.find((o) => o._id === currentId) ??
+    yearOffer ??
+    subscriptions[0]
+  const price = (amount: number) => amount.toLocaleString('ru-RU')
+  const action = !selected
+    ? null
+    : selected._id === currentId
+      ? t('pay.extend')
+      : currentId
+        ? t('pay.switch')
+        : t('pay.buy')
 
   return (
     <div className="page page--narrow">
@@ -237,48 +258,75 @@ export function Billing() {
       {offers.length && user?.role === 'teacher' ? (
         <Card as="section" elevation="raised" className="stack stack-md">
           <h2 className="card__title">{t('plan.offers.title')}</h2>
-          <ul className="plan-offers">
-            {offers.map((offer) => (
-              <li key={offer._id} className={offer.period === 'school_year' ? 'plan-offer is-main' : 'plan-offer'}>
-                {/* The add-on's own line already says what it is, in the reader's language. */}
-                {offer.kind !== 'addon' ? <strong>{offer.title}</strong> : null}
-                <span>
-                  {offer.kind === 'addon'
-                    ? t('plan.offer.addon', { n: offer.videos ?? 0, price: offer.price.toLocaleString('ru-RU') })
-                    : offer.period === 'school_year'
-                      ? t('plan.offer.year', { price: offer.price.toLocaleString('ru-RU') })
-                      : t('plan.offer.month', { price: offer.price.toLocaleString('ru-RU') })}
-                </span>
-                {offer.period === 'school_year' ? <span className="caption">{t('plan.offer.yearNote')}</span> : null}
-                {offer.kind === 'subscription' && offer.limits ? (
-                  <span className="caption">
-                    {t('plan.offer.limits', {
-                      videos: offer.limits.videos ?? 0,
-                      assessments: offer.limits.assessments ?? 0,
-                      plans: offer.limits.lesson_plans ?? 0,
-                    })}
+          <div className="plan-offers" role="radiogroup" aria-label={t('plan.choose')}>
+            {subscriptions.map((offer) => {
+              const isSelected = offer._id === selected?._id
+              return (
+                <button
+                  key={offer._id}
+                  type="button"
+                  role="radio"
+                  aria-checked={isSelected}
+                  className={isSelected ? 'plan-offer is-selected' : 'plan-offer'}
+                  onClick={() => setChosen(offer._id)}
+                >
+                  <span className="plan-offer__head">
+                    <span className="plan-offer__radio" aria-hidden="true" />
+                    <strong>{offer.title}</strong>
+                    {offer._id === currentId ? <Badge tone="success">{t('plan.current')}</Badge> : null}
                   </span>
-                ) : null}
-                {kaspi && (offer.kind !== 'addon' || plan?.kind === 'ustaz') ? (
-                  <div>
-                    <Button
-                      variant={offer.period === 'school_year' ? 'primary' : 'secondary'}
-                      onClick={() => void buy(offer._id)}
-                    >
-                      {t('pay.buy')}
-                    </Button>
-                  </div>
-                ) : null}
-              </li>
-            ))}
-          </ul>
+                  <span>
+                    {offer.period === 'school_year'
+                      ? t('plan.offer.year', { price: price(offer.price) })
+                      : t('plan.offer.month', { price: price(offer.price) })}
+                  </span>
+                  {offer.period === 'school_year' ? <span className="caption">{t('plan.offer.yearNote')}</span> : null}
+                  {offer.limits ? (
+                    <span className="caption">
+                      {t('plan.offer.limits', {
+                        videos: offer.limits.videos ?? 0,
+                        assessments: offer.limits.assessments ?? 0,
+                        plans: offer.limits.lesson_plans ?? 0,
+                      })}
+                    </span>
+                  ) : null}
+                </button>
+              )
+            })}
+          </div>
+
+          {selected ? (
+            <div className="stack stack-sm">
+              {currentId && selected._id !== currentId ? (
+                <p className="text-sm text-secondary">{t('plan.switchNote')}</p>
+              ) : null}
+              {kaspi ? (
+                <div>
+                  <Button variant="primary" onClick={() => void buy(selected._id)}>
+                    {action} — {price(selected.price)} ₸
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-sm text-secondary">
+                  {t('plan.chosen', { title: selected.title, price: price(selected.price) })} {t('plan.buySoon')}{' '}
+                  <a href={CONTACT.phoneHref}>{CONTACT.phone}</a>, <a href={CONTACT.emailHref}>{CONTACT.email}</a>
+                </p>
+              )}
+            </div>
+          ) : null}
+
+          {addons.map((offer) => (
+            <div key={offer._id} className="plan-addon">
+              {/* The add-on's own line already says what it is, in the reader's language. */}
+              <span>{t('plan.offer.addon', { n: offer.videos ?? 0, price: price(offer.price) })}</span>
+              {kaspi && plan?.kind === 'ustaz' ? (
+                <Button size="sm" onClick={() => void buy(offer._id)}>
+                  {t('pay.buy')}
+                </Button>
+              ) : null}
+            </div>
+          ))}
           {orderError ? <Alert tone="error">{orderError}</Alert> : null}
-          {kaspi ? null : (
-            <p className="text-sm text-secondary">
-              {t('plan.buySoon')} <a href={CONTACT.phoneHref}>{CONTACT.phone}</a>,{' '}
-              <a href={CONTACT.emailHref}>{CONTACT.email}</a>
-            </p>
-          )}
         </Card>
       ) : null}
 

@@ -172,6 +172,10 @@ async def process_request(payload: Dict[str, Any]) -> Dict[str, Any]:
             initial["video_length"] = str(payload["video_length"])
         if payload.get("effort"):
             initial["effort"] = str(payload["effort"])
+        # The answer language the asker chose. Absent, the graph answers in
+        # the language of the question (anyq.language._resolve_output_language).
+        if str(payload.get("output_language") or "") in ("kk", "ru", "en"):
+            initial["output_language"] = str(payload["output_language"])
 
         if image_data:
             if isinstance(image_data, list):
@@ -231,6 +235,8 @@ async def process_request(payload: Dict[str, Any]) -> Dict[str, Any]:
             "duration": info.get("duration"),
             "has_audio": info.get("has_audio"),
             "subject": str(result.get("final_subject") or ""),
+            # The language it was answered in: the library files it there.
+            "language": str(result.get("output_language") or ""),
             # What this answer cost Azure, for the 500k-a-month free tier.
             "tts_chars": narration.take_spent(),
         }

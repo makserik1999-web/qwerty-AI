@@ -48,8 +48,11 @@ from anyq.script_guard import _safe_json_loads
 PHASES: Tuple[str, ...] = ("start", "middle", "end")
 _PHASE_SHARE: Dict[str, float] = {"start": 0.12, "middle": 0.75, "end": 0.13}
 
-# Lesson lengths a school timetable actually uses.
-DURATIONS: Tuple[int, ...] = (40, 45)
+# Any length the teacher names, within reason: 40 and 45 minutes are the
+# usual, a double lesson or a training day are not wrong. The backend refuses
+# anything outside these first; this is the agent not trusting that.
+MIN_DURATION = 10
+MAX_DURATION = 480
 DEFAULT_DURATION = 40
 
 MIN_STAGES = 4
@@ -75,7 +78,7 @@ def _clamp_duration(value: Any) -> int:
         minutes = int(value)
     except (TypeError, ValueError):
         return DEFAULT_DURATION
-    return minutes if minutes in DURATIONS else DEFAULT_DURATION
+    return max(MIN_DURATION, min(MAX_DURATION, minutes))
 
 
 def _text(value: Any, limit: int = MAX_FIELD_CHARS) -> str:
@@ -201,7 +204,7 @@ def _clean_stages(raw: Any) -> List[Dict[str, Any]]:
         stages.append({
             "phase": phase,
             "title": _text(item.get("title"), 200),
-            "minutes": max(0, min(120, minutes)),
+            "minutes": max(0, min(MAX_DURATION, minutes)),
             "teacher": teacher,
             "student": student,
             "assessment": _text(item.get("assessment"), MAX_STAGE_FIELD_CHARS),

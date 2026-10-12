@@ -5,6 +5,41 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### Plan switching, a real phone field, any lesson length, English explanations
+
+**Fixed**
+
+- Choosing a plan on the plan page did nothing: without Kaspi details the
+  month and school-year cards had no button, yet looked selectable, and the
+  year one was highlighted as if chosen. They are now a real choice - radio
+  cards, the current plan marked - with one action under them: pay, extend,
+  or switch, or, before Kaspi is set up, the chosen plan named next to the
+  contacts.
+- Switching between month and school year started the new plan from today:
+  a school-year teacher who paid for a month was cut to one month, and every
+  switch handed out a fresh month of videos. Paid days now stay (a month is
+  added after the year; a year runs to 1 June or longer), and so does the
+  month in progress.
+- The phone field took anything. It now holds +7 and ten digits, grouped as
+  +7 707 123 45 67; a leading 8, letters and extra digits are dropped, a
+  pasted number in any common form lands right, and the button waits for a
+  whole Kazakhstan mobile.
+- A test of the pending-request sweep failed on a machine up less than 30
+  minutes: it aged a request to 0 on a clock that counts from boot.
+
+**Changed**
+
+- A lesson plan can be any length from 10 to 480 minutes, not only 40 or 45:
+  presets for 40, 45, 80 and 90, and "other" for any number. Stages may now
+  be as long as the lesson.
+
+**Added**
+
+- Explanations in English, and the answer-language choice on the explain
+  page actually reaches the agent (it never did). The choice is part of the
+  cache key, the topic library keeps a shelf per language, and a video is
+  filed under the language the agent says it answered in.
+
 ### Generation tasks, system health, metrics; no more 524 on lesson plans
 
 **Added**

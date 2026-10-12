@@ -300,7 +300,8 @@ class AgentConnectionManager:
                             text: Optional[str], screenshots: List[Dict[str, Any]],
                             narration: bool = True, narration_voice: str = "aigul",
                             video_length: str = "", effort: str = "",
-                            watermark: Optional[str] = None):
+                            watermark: Optional[str] = None,
+                            output_language: str = ""):
         """Hand one question to the agent, and wait to be told it arrived.
 
         The wait is the point. This used to end at send_json, which reports
@@ -347,6 +348,9 @@ class AgentConnectionManager:
                 # Text to burn into the video, for a trial. Absent otherwise,
                 # so an older agent sees exactly the request it always did.
                 **({"watermark": watermark} if watermark else {}),
+                # The answer language the asker chose; absent means the
+                # question's own, which is all an older agent knows anyway.
+                **({"output_language": output_language} if output_language else {}),
             })
 
             if ack is not None:

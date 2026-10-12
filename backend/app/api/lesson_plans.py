@@ -24,10 +24,11 @@ from fastapi import APIRouter, Request, Response
 
 from app.api.plan import refusal
 from app.config import (
-    LESSON_PLAN_DURATIONS,
     LESSON_PLAN_GRADES,
     LESSON_PLAN_LANGUAGES,
+    LESSON_PLAN_MAX_MINUTES,
     LESSON_PLAN_MAX_PER_HOUR,
+    LESSON_PLAN_MIN_MINUTES,
     LESSON_PLAN_SECTION_MAX_LEN,
     LESSON_PLAN_SUBJECTS,
     LESSON_PLAN_TIMEOUT_SEC,
@@ -124,7 +125,7 @@ def _clean_plan(raw: Dict[str, Any]) -> Dict[str, Any]:
             "id": stage_id if isinstance(stage_id, str) and _STAGE_ID_RE.fullmatch(stage_id)
             else f"s-{uuid.uuid4().hex[:12]}",
             "phase": item.get("phase") if item.get("phase") in _PHASES else "middle",
-            "minutes": max(0, min(120, minutes)),
+            "minutes": max(0, min(LESSON_PLAN_MAX_MINUTES, minutes)),
         }
         for field in _STAGE_TEXT_FIELDS:
             stage[field] = _text(item.get(field))
@@ -151,8 +152,12 @@ def _validated_spec(body: LessonPlanRequest) -> Dict[str, Any]:
         raise HTTPExceptionJson(400, "Unsupported language")
     if body.grade not in LESSON_PLAN_GRADES:
         raise HTTPExceptionJson(400, "Unsupported grade")
-    if body.duration not in LESSON_PLAN_DURATIONS:
-        raise HTTPExceptionJson(400, "Unsupported lesson length")
+    if not LESSON_PLAN_MIN_MINUTES <= body.duration <= LESSON_PLAN_MAX_MINUTES:
+        raise HTTPExceptionJson(
+            400,
+            f"A lesson is {LESSON_PLAN_MIN_MINUTES} to {LESSON_PLAN_MAX_MINUTES} minutes long",
+            code="lesson_length",
+        )
 
     return {
         "subject": body.subject,

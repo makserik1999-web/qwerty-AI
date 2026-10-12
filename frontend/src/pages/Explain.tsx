@@ -37,7 +37,7 @@ import {
 } from '../lib/live'
 import { EXAMPLE_QUESTIONS } from '../lib/mockData'
 import { useStore } from '../lib/store'
-import type { Conversation, Explanation, Lang, LangChoice } from '../lib/types'
+import type { Conversation, ExplainLang, Explanation, LangChoice } from '../lib/types'
 import { formatDateTime } from '../lib/utils'
 
 type ViewState = 'idle' | 'generating' | 'result' | 'error'
@@ -132,6 +132,7 @@ export function Explain() {
           videoLength,
           effort,
           forceRegenerate: options.force,
+          ...(outputLang === 'auto' ? {} : { outputLanguage: outputLang }),
         })
         const explanation = explanationFromAnswer(answer)
         setCurrent(explanation)
@@ -173,7 +174,7 @@ export function Explain() {
         void refreshPlan()
       }
     },
-    [ask, effort, narration, refreshPlan, t, voice, videoLength],
+    [ask, effort, narration, outputLang, refreshPlan, t, voice, videoLength],
   )
 
   function onSubmit(event: React.FormEvent) {
@@ -261,7 +262,7 @@ export function Explain() {
   const defaultLangLabel = explainLang === 'kk' ? t('common.kazakh') : t('common.russian')
 
   // Sample questions are content, so they follow the answer language.
-  const exampleLang: Lang = outputLang === 'auto' ? explainLang : outputLang
+  const exampleLang: ExplainLang = outputLang === 'auto' ? explainLang : outputLang
 
   const busy = state === 'generating'
 
@@ -363,6 +364,7 @@ export function Explain() {
                       { value: 'auto', label: t('common.auto') },
                       { value: 'kk', label: t('common.kazakh') },
                       { value: 'ru', label: t('common.russian') },
+                      { value: 'en', label: t('common.english') },
                     ]}
                   />
                   {/* How a new video is made. A student does not make one -

@@ -405,8 +405,9 @@ async def grant(user: Dict[str, Any], plan_id: str, *, months: Optional[int] = N
                 until: Optional[datetime] = None, now: Optional[datetime] = None) -> Dict[str, Any]:
     """Start or extend a subscription. Used by the admin panel, and by payments.
 
-    The same plan, still running: the end date moves out. Otherwise a new one
-    starts now, with a fresh period and nothing carried over.
+    The same plan, still running: the end date moves out. Another plan while
+    one is running is a switch, see below. Nothing running: a new one starts
+    now, with a fresh period and nothing carried over.
     """
     now = now or _now()
     plan = await get_plan(plan_id)
@@ -414,6 +415,23 @@ async def grant(user: Dict[str, Any], plan_id: str, *, months: Optional[int] = N
         raise ValueError(f"not a subscription plan: {plan_id}")
     sub = user.get("subscription") or {}
     running = _sub_active(sub, now) and sub.get("plan_id") == plan_id
+
+    if _sub_active(sub, now) and not running:
+        # A switch between month and school year. It used to start the new
+        # plan from scratch: a school-year teacher who paid for a month was cut
+        # back to one month from today, and every switch handed out a fresh
+        # month of videos. Now the days already paid for stay, and so does
+        # the month in progress - its count, its carry-over, its anchor.
+        expires = _aware(sub["expires_at"])
+        if until:
+            new_expires = max(until, expires)
+        elif plan.get("period") == "school_year":
+            new_expires = max(school_year_end(now), expires)
+        else:
+            new_expires = add_months(expires, months or 1)
+        await db.db.users.update_one({"_id": user["_id"]}, {"$set": {
+            "subscription.plan_id": plan_id, "subscription.expires_at": new_expires}})
+        return await db.db.users.find_one({"_id": user["_id"]})
 
     if running:
         expires = _aware(sub["expires_at"])

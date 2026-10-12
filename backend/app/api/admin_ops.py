@@ -139,6 +139,7 @@ async def _restart_video(job: Dict[str, Any], user: Dict[str, Any]) -> str:
         "variant": spec.get("variant", ""),
         "watermark": entitlement.watermark,
         "classification": spec.get("classification"),
+        "output_language": str(spec.get("output_language") or ""),
     }
     new_id = await jobs.start("video", user_id, request_id, narration=bool(spec.get("narration")),
                               spec=spec, restart_of=str(job["_id"]))
@@ -149,6 +150,7 @@ async def _restart_video(job: Dict[str, Any], user: Dict[str, Any]) -> str:
             narration_voice=str(spec.get("voice") or "aigul"),
             video_length=str(spec.get("video_length") or ""), effort=effort,
             watermark=entitlement.watermark,
+            output_language=str(spec.get("output_language") or ""),
         )
     except Exception:
         agent_manager.pending_requests.pop(request_id, None)

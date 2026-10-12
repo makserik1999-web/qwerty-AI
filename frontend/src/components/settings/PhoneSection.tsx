@@ -3,6 +3,7 @@ import { ApiError, startPhone, verifyPhone } from '../../lib/api'
 import { describeAuthError } from '../../lib/authErrors'
 import { useI18n } from '../../lib/i18n'
 import { useStore } from '../../lib/store'
+import { formatLocal, formatPhone, isKzMobile, looksWrong, pastedDigits } from '../../lib/phone'
 import type { StringKey } from '../../lib/strings'
 import { Alert, Badge, Button, Card, Field, Input, useToast } from '../ui'
 
@@ -105,16 +106,25 @@ export function PhoneSection() {
         </div>
       ) : (
         <form className="stack stack-md" onSubmit={confirm} noValidate>
-          <Field label={t('settings.phoneLabel')}>
+          <Field
+            label={t('settings.phoneLabel')}
+            error={looksWrong(phone) ? t('phone.error.phone_invalid') : undefined}
+          >
             {(props) => (
               <Input
                 {...props}
                 type="tel"
                 inputMode="tel"
                 autoComplete="tel"
+                placeholder="+7 7__ ___ __ __"
                 value={phone}
                 disabled={step === 'code'}
-                onChange={(event) => setPhone(event.target.value)}
+                // Only digits, grouped as they are read, ten after +7 at most.
+                onChange={(event) => setPhone(formatPhone(event.target.value))}
+                onPaste={(event) => {
+                  event.preventDefault()
+                  setPhone(formatLocal(pastedDigits(event.clipboardData.getData('text'))))
+                }}
               />
             )}
           </Field>
@@ -145,7 +155,7 @@ export function PhoneSection() {
             <Button
               variant={step === 'code' ? 'ghost' : 'primary'}
               loading={busy && step === 'phone'}
-              disabled={cooldown > 0}
+              disabled={cooldown > 0 || !isKzMobile(phone)}
               onClick={() => void send()}
             >
               {cooldown > 0 ? t('settings.phoneResendIn', { s: cooldown }) : t('settings.phoneSend')}

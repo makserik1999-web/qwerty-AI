@@ -38,7 +38,11 @@ import { formatDate } from '../lib/utils'
 
 type Status = 'idle' | 'generating' | 'ready' | 'error'
 
-const DURATIONS = [40, 45]
+// The usual lengths, one press each; anything else is typed. The server
+// takes 10 to 480 minutes - a lesson, a double lesson, a training day.
+const DURATIONS = [40, 45, 80, 90]
+const MIN_MINUTES = 10
+const MAX_MINUTES = 480
 const PHASES: LessonPhase[] = ['start', 'middle', 'end']
 
 /** Editing one field of the document without rebuilding it by hand at every
@@ -57,6 +61,9 @@ export function LessonPlan() {
   const [section, setSection] = useState('')
   const [planLang, setPlanLang] = useState<Lang>(explainLang === 'ru' ? 'ru' : 'kk')
   const [duration, setDuration] = useState(40)
+  // What is in the "other" box, as typed: it may be half a number for a moment.
+  const [customDuration, setCustomDuration] = useState<string | null>(null)
+  const durationOk = Number.isInteger(duration) && duration >= MIN_MINUTES && duration <= MAX_MINUTES
 
   const [status, setStatus] = useState<Status>('idle')
   const [failure, setFailure] = useState<string | null>(null)
@@ -289,15 +296,50 @@ export function LessonPlan() {
                   )}
                 </Field>
 
-                <SegmentedControl
-                  label={t('plan.durationLabel')}
-                  value={String(duration)}
-                  onChange={(value) => setDuration(Number(value))}
-                  options={DURATIONS.map((d) => ({
-                    value: String(d),
-                    label: `${d} ${t('plan.minutes')}`,
-                  }))}
-                />
+                <div className="stack stack-sm">
+                  <SegmentedControl
+                    label={t('plan.durationLabel')}
+                    value={customDuration === null ? String(duration) : 'other'}
+                    onChange={(value) => {
+                      if (value === 'other') {
+                        setCustomDuration(String(duration))
+                      } else {
+                        setCustomDuration(null)
+                        setDuration(Number(value))
+                      }
+                    }}
+                    options={[
+                      ...DURATIONS.map((d) => ({ value: String(d), label: `${d} ${t('plan.minutes')}` })),
+                      { value: 'other', label: t('plan.durationOther') },
+                    ]}
+                  />
+                  {customDuration !== null ? (
+                    <Field
+                      label={t('plan.durationCustom')}
+                      hint={durationOk ? t('plan.durationRange') : undefined}
+                      error={durationOk ? undefined : t('plan.durationRange')}
+                    >
+                      {(props) => (
+                        <Input
+                          {...props}
+                          type="number"
+                          inputMode="numeric"
+                          min={MIN_MINUTES}
+                          max={MAX_MINUTES}
+                          step={5}
+                          className="plan__duration-input"
+                          value={customDuration}
+                          disabled={busy}
+                          onChange={(e) => {
+                            const typed = e.target.value.replace(/\D/g, '').slice(0, 3)
+                            setCustomDuration(typed)
+                            setDuration(Number(typed) || 0)
+                          }}
+                        />
+                      )}
+                    </Field>
+                  ) : null}
+                </div>
 
                 <SegmentedControl
                   label={t('common.language')}
@@ -322,7 +364,7 @@ export function LessonPlan() {
                 )}
               </Field>
 
-              <Button type="submit" icon="sparkle" disabled={busy || !topic.trim()}>
+              <Button type="submit" icon="sparkle" disabled={busy || !topic.trim() || !durationOk}>
                 {busy ? t('plan.generating') : t('plan.generate')}
               </Button>
             </form>
@@ -448,7 +490,7 @@ export function LessonPlan() {
                               <Input
                                 type="number"
                                 min={0}
-                                max={120}
+                                max={MAX_MINUTES}
                                 value={String(stage.minutes)}
                                 aria-label={t('plan.minutes')}
                                 onChange={(e) =>

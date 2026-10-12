@@ -28,6 +28,7 @@ for. What these tests hold is that it costs a rendered video when it happens.
 """
 
 import re
+import time
 from pathlib import Path
 
 import pytest
@@ -191,6 +192,7 @@ class TestTheAskerIsNotToldTwice:
         self, client, new_user, agent_secret, backend
     ):
         """Keeping the entry must not turn into a second error half an hour later."""
+        from app.config import PENDING_REQUESTS_TTL_SEC
         from app.ws import manager
 
         new_user()
@@ -212,7 +214,9 @@ class TestTheAskerIsNotToldTwice:
 
             # The entry is now stale; the sweep clears it out.
             info = manager.agent_manager.pending_requests[request_id]
-            info["created_at"] = 0.0
+            # Older than the TTL by the clock the sweep reads. Not 0.0: that clock
+            # counts from boot on Windows, so zero is "recent" on a fresh machine.
+            info["created_at"] = time.monotonic() - PENDING_REQUESTS_TTL_SEC - 1
             await manager._sweep_once()
 
             assert request_id not in manager.agent_manager.pending_requests

@@ -233,11 +233,16 @@ async def websocket_agent_endpoint(websocket: WebSocket):
             # next person who asks - the clean render, never a trial's copy.
             video_cache_id = None
             classification = request_info.get("classification") or {}
+            # Filed under the language the video is actually in: what the agent
+            # says it answered in, else what was asked for, else the question's.
+            answer_language = (str(data.get("language") or "")[:5]
+                               or request_info.get("output_language")
+                               or classification.get("language", ""))
             if (status == "complete" and response_text and clean_url
                     and classification.get("specificity") == "generic" and classification.get("topic_id")):
                 try:
                     video_cache_id = await topic_cache.add(
-                        topic_id=classification["topic_id"], lang=classification.get("language", ""),
+                        topic_id=classification["topic_id"], lang=answer_language,
                         video_url=clean_url, text=response_text, user_id=user_id,
                         duration=data.get("duration"), has_audio=data.get("has_audio"),
                     )

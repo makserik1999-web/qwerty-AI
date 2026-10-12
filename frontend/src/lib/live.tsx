@@ -98,6 +98,8 @@ export interface AskInput {
   effort: Effort
   /** Skip every library answer and make a new video for this question. */
   forceRegenerate?: boolean
+  /** The answer language; absent means the language of the question. */
+  outputLanguage?: 'kk' | 'ru' | 'en'
 }
 
 interface LiveValue {
@@ -182,6 +184,7 @@ export function LiveProvider({
           narration_voice: input?.narrationVoice ?? 'aigul',
           video_length: input?.videoLength ?? 'medium',
           effort: input?.effort ?? 'medium',
+          ...(input?.outputLanguage ? { output_language: input.outputLanguage } : {}),
           ...(input?.forceRegenerate ? { force_regenerate: true } : {}),
         })
         return

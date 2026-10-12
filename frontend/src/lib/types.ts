@@ -8,7 +8,9 @@ export type StaffRole = 'admin' | 'support'
  * Russian; `auto` is only valid as a request option.
  */
 export type Lang = 'kk' | 'ru'
-export type LangChoice = Lang | 'auto'
+/** An explanation may also be in English (НЗМ teaches some subjects in it). */
+export type ExplainLang = Lang | 'en'
+export type LangChoice = ExplainLang | 'auto'
 
 /** Interface language. English is available for the UI only, not for content. */
 export type UiLang = Lang | 'en'

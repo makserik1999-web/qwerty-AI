@@ -117,7 +117,8 @@ class TestTheRequestIsCheckedBeforeItTravels:
         ("subject", "astrology"),
         ("lang", "fr"),
         ("grade", 2),
-        ("duration", 90),
+        ("duration", 5),
+        ("duration", 481),
     ])
     def test_a_value_outside_its_closed_set_is_refused(self, client, teacher,
                                                        agent, field, bad):

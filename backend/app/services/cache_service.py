@@ -69,7 +69,7 @@ def cacheable_request(prompt: str, screenshots: List[Any]) -> Tuple[bool, str]:
 
 
 def render_variant(narration: bool, voice: str, length: str = "",
-                   effort: str = "") -> str:
+                   effort: str = "", language: str = "") -> str:
     """What the request chose about the video, as a cache-key fragment.
 
     Two people asking the same question get the same answer only if they asked
@@ -94,12 +94,18 @@ def render_variant(narration: bool, voice: str, length: str = "",
     An empty value for either reproduces the fragment as it was before that
     setting existed, so a caller that does not care still reaches entries
     stored earlier.
+
+    The answer language is the fourth: the same words asked for in English
+    are not answered by the Kazakh video. Empty - "the question's own
+    language" - is what every entry stored before the choice existed was.
     """
     key = f"voice={voice}" if narration else "silent"
     if length:
         key = f"{key},len={length}"
     if effort:
         key = f"{key},eff={effort}"
+    if language:
+        key = f"{key},lang={language}"
     return key
 
 

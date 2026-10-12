@@ -1146,11 +1146,58 @@
   padding: var(--space-md);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
+  /* A button that reads as a card: the browser's button look is reset. */
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
-.plan-offer.is-main {
+.plan-offer:hover {
+  border-color: var(--primary);
+}
+
+.plan-offer:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.plan-offer.is-selected {
   border-color: var(--primary);
   background: var(--primary-soft);
+}
+
+.plan-offer__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+/* The radio dot: empty, or filled when this is the chosen plan. */
+.plan-offer__radio {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  border: 2px solid var(--text-secondary);
+  border-radius: 50%;
+}
+
+.plan-offer.is-selected .plan-offer__radio {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 3px var(--surface-raised);
+  background: var(--primary);
+}
+
+.plan-addon {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--border);
 }
 
 .explain__plan-hint {
@@ -1248,4 +1295,8 @@
   font-size: var(--fs-body-sm);
   word-break: break-all;
   user-select: all;
+}
+
+.plan__duration-input {
+  max-width: 10ch;
 }
