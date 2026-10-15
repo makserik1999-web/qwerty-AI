@@ -5,6 +5,31 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### Payments to Telegram, privacy policy and consent
+
+**Added**
+
+- When a teacher presses "I have paid", the team's Telegram gets the amount,
+  plan, code, account and a link straight to the payments tab
+  (`/admin?tab=payments`). Same bot as the server monitor
+  (TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID), optionally its own chat
+  (PAYMENT_TELEGRAM_CHAT_ID). `python -m app.services.telegram` sends a test.
+- A privacy policy at `/privacy`, in Kazakh and Russian, linked from the
+  footer: who the operator is, what is kept and why, where (Kazakhstan),
+  who it is passed to (the AI models, Azure, Cloudflare, mail, SMS, Google,
+  Telegram - cross-border where it is), how long, and how to delete it.
+- Sign-up requires ticking consent; the version agreed to and the time are
+  stored. Anyone who has not agreed to the current version - every existing
+  account, a Google account made from the sign-in page, everyone after the
+  policy changes - is asked once inside the app (agree or sign out).
+- The admin page opens the tab named in `?tab=`.
+
+**Changed**
+
+- Deleting an account also takes its name off the topic videos it made; the
+  videos stay in the shared library.
+- The footer's dead "terms" link is gone until there is an offer to link to.
+
 ### Plan switching, a real phone field, any lesson length, English explanations
 
 **Fixed**

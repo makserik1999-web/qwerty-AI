@@ -32,6 +32,8 @@ export interface ApiUser {
   phone_verified: boolean
   /** False for an account made with Google that never set a password. */
   has_password: boolean
+  /** Has not agreed to the current privacy policy yet. */
+  consent_needed?: boolean
 }
 
 export class ApiError extends Error {
@@ -118,6 +120,8 @@ export interface SignUpInput {
   email: string
   password: string
   role: Role
+  /** The privacy box was ticked. */
+  consent: boolean
 }
 
 export async function signUp(input: SignUpInput): Promise<ApiUser> {
@@ -150,6 +154,12 @@ export async function signOut(): Promise<void> {
  * not look the same as a signed-out visitor, or a blip would sign everyone
  * out and lose whatever they were in the middle of.
  */
+/** Agree to the current privacy policy. */
+export async function giveConsent(): Promise<ApiUser> {
+  const { user } = await request<{ user: ApiUser }>('/auth/consent', { method: 'POST' })
+  return user
+}
+
 export async function currentUser(): Promise<ApiUser | null> {
   try {
     const { user } = await request<{ user: ApiUser }>('/auth/me')
@@ -195,9 +205,11 @@ export async function getProviders(): Promise<{ google: boolean; phone: boolean 
 }
 
 /** Where the "Continue with Google" button sends the browser. */
-export function googleStartUrl(role?: Role): string {
+export function googleStartUrl(role?: Role, consent = false): string {
   const params = new URLSearchParams()
   if (role) params.set('role', role)
+  // Ticked on the sign-up form; a new account made without it is asked inside.
+  if (consent) params.set('consent', '1')
   const ref = inviteRef()
   if (ref) params.set('ref', ref)
   const device = deviceId()

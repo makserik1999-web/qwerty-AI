@@ -136,6 +136,10 @@ services:
       - KASPI_PAY_LINK=${KASPI_PAY_LINK:-}
       - KASPI_PAY_NOTE=${KASPI_PAY_NOTE:-}
       - PAYMENT_NOTIFY_EMAILS=${PAYMENT_NOTIFY_EMAILS:-}
+      # A payment waiting to be checked, to Telegram (services/telegram.py).
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      - PAYMENT_TELEGRAM_CHAT_ID=${PAYMENT_TELEGRAM_CHAT_ID:-}
       - PAYMENT_REQUEST_TTL_DAYS=${PAYMENT_REQUEST_TTL_DAYS:-3}
       # Part of every cache key, so raising it retires stored answers the
       # current pipeline would no longer produce. config.py says to bump it

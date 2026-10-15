@@ -177,4 +177,6 @@ export interface User {
   phoneVerified: boolean
   /** False for an account made with Google that never set a password. */
   hasPassword: boolean
+  /** Has not agreed to the current privacy policy: the app asks first. */
+  consentNeeded: boolean
 }

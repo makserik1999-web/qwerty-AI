@@ -1300,3 +1300,64 @@
 .plan__duration-input {
   max-width: 10ch;
 }
+
+/* Privacy policy ------------------------------------------------------------- */
+
+.legal {
+  min-height: 100vh;
+  background: var(--bg);
+  padding: var(--space-xl) var(--space-md);
+}
+
+.legal__inner {
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.legal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  margin-bottom: var(--space-xl);
+}
+
+.legal__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  line-height: 1.6;
+}
+
+.legal__section h2 {
+  font-size: var(--fs-h4, 1.125rem);
+  margin: var(--space-md) 0 var(--space-sm);
+}
+
+.legal__section p,
+.legal__section ul {
+  margin: 0 0 var(--space-sm);
+}
+
+.legal__section ul {
+  padding-left: 1.25rem;
+}
+
+.legal__section li + li {
+  margin-top: var(--space-xs);
+}
+
+/* The privacy box on the sign-up form. */
+.consent-check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  font-size: var(--fs-body-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.consent-check input {
+  margin-top: 3px;
+  flex-shrink: 0;
+}

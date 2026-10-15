@@ -11,6 +11,8 @@ interface ModalProps {
   footer?: React.ReactNode
   children?: React.ReactNode
   wide?: boolean
+  /** No close button: a choice has to be made with the footer's buttons. */
+  hideClose?: boolean
 }
 
 const FOCUSABLE =
@@ -26,6 +28,7 @@ export function Modal({
   footer,
   children,
   wide = false,
+  hideClose = false,
 }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const returnFocusRef = useRef<HTMLElement | null>(null)
@@ -94,7 +97,7 @@ export function Modal({
           <h2 id={titleId} className="card__title">
             {title}
           </h2>
-          <IconButton icon="close" label={closeLabel} onClick={onClose} />
+          {hideClose ? null : <IconButton icon="close" label={closeLabel} onClick={onClose} />}
         </div>
         {description ? (
           <p id={descId} className="text-sm text-secondary">

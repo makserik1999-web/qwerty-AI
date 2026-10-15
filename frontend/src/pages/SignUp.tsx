@@ -12,6 +12,7 @@ import type { Role } from '../lib/types'
 import { isValidEmail } from '../lib/utils'
 
 interface Errors {
+  consent?: string
   role?: string
   name?: string
   email?: string
@@ -36,6 +37,7 @@ export function SignUp() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [consent, setConsent] = useState(false)
   const [errors, setErrors] = useState<Errors>({})
   const [formError, setFormError] = useState<string | null>(googleError ? t(googleError) : null)
   const [submitting, setSubmitting] = useState(false)
@@ -48,6 +50,7 @@ export function SignUp() {
     else if (!isValidEmail(email)) next.email = t('auth.error.emailInvalid')
     if (!password) next.password = t('auth.error.passwordRequired')
     else if (password.length < 8) next.password = t('auth.error.passwordShort')
+    if (!consent) next.consent = t('consent.required')
     return next
   }
 
@@ -67,6 +70,7 @@ export function SignUp() {
         email: email.trim(),
         password,
         role: role as Role,
+        consent,
       })
       navigate('/app/explain', { replace: true })
     } catch (error) {
@@ -159,6 +163,24 @@ export function SignUp() {
               )}
             </Field>
 
+            <div className="stack stack-xs">
+              <label className="consent-check">
+                <input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} />
+                <span>
+                  {t('consent.checkbox')}{' '}
+                  <Link to="/privacy" target="_blank" rel="noopener">
+                    {t('consent.policyLink')}
+                  </Link>
+                </span>
+              </label>
+              {errors.consent ? (
+                <p className="field__error" role="alert">
+                  <Icon name="alert" size={15} />
+                  {errors.consent}
+                </p>
+              ) : null}
+            </div>
+
             {formError ? <Alert tone="error">{formError}</Alert> : null}
 
             <Button type="submit" variant="primary" block loading={submitting}>
@@ -174,9 +196,14 @@ export function SignUp() {
               {/* A new account needs a role; Google does not know it. */}
               <GoogleButton
                 role={role || undefined}
+                consent={consent}
                 onBlocked={() => {
-                  if (role) return false
-                  setErrors((prev) => ({ ...prev, role: t('auth.googleNeedsRole') }))
+                  if (role && consent) return false
+                  setErrors((prev) => ({
+                    ...prev,
+                    ...(role ? {} : { role: t('auth.googleNeedsRole') }),
+                    ...(consent ? {} : { consent: t('consent.required') }),
+                  }))
                   return true
                 }}
               />

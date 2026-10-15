@@ -28,6 +28,9 @@ class SignupRequest(BaseModel):
     # A colleague's invite code from the link, and the browser's random id.
     ref: Optional[str] = None
     device: Optional[str] = None
+    # The box "I accept the privacy policy" was ticked. Recorded with the
+    # policy's version and the time; without it the app asks again inside.
+    consent: bool = False
 
 
 class LoginRequest(BaseModel):

@@ -45,7 +45,10 @@ interface AppActions {
     email: string
     password: string
     role: Role
+    consent: boolean
   }) => Promise<void>
+  /** Agree to the current privacy policy. */
+  giveConsent: () => Promise<void>
   signIn: (input: { email: string; password: string }) => Promise<void>
   signOut: () => Promise<void>
   updateProfile: (input: { name: string; email: string }) => Promise<void>
@@ -92,6 +95,7 @@ function toUser(found: ApiUser): User {
     phone: found.phone ?? null,
     phoneVerified: found.phone_verified === true,
     hasPassword: found.has_password !== false,
+    consentNeeded: found.consent_needed === true,
   }
 }
 
@@ -237,6 +241,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setUser(toUser(found))
   }, [])
 
+  const giveConsent = useCallback<AppActions['giveConsent']>(async () => {
+    setUser(toUser(await api.giveConsent()))
+  }, [])
+
   const reloadUser = useCallback<AppActions['reloadUser']>(async () => {
     const found = await api.currentUser()
     setUser(found ? toUser(found) : null)
@@ -332,6 +340,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       updateProfile,
       deleteAccount,
       acceptUser,
+      giveConsent,
       reloadUser,
       setUiLang: setUiLangState,
       setExplainLang: setExplainLangState,
@@ -361,6 +370,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       updateProfile,
       deleteAccount,
       acceptUser,
+      giveConsent,
       reloadUser,
       toggleTheme,
       recordExplanation,

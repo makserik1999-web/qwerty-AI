@@ -5,6 +5,7 @@ plan, once, and every decision is logged.
 """
 
 import asyncio
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -197,3 +198,41 @@ class TestTheTeamsSide:
         made = order(teacher)
         teacher.post(f"/api/payments/{made['id']}/submitted")
         assert ("team@akron.kz", f"Akron: оплата {made['code']} ждёт проверки") in sent
+
+    def test_a_reported_payment_reaches_telegram(self, backend, account, monkeypatch):
+        """Where somebody actually sees it: the code, the money, and the link."""
+        from app.services import telegram
+
+        sent = []
+        monkeypatch.setattr(backend.config, "TELEGRAM_BOT_TOKEN", "123:abc")
+        monkeypatch.setattr(backend.config, "TELEGRAM_CHAT_ID", "42")
+        monkeypatch.setattr(backend.config, "PAYMENT_TELEGRAM_CHAT_ID", "")
+        monkeypatch.setattr(telegram, "_post", lambda chat, text: sent.append((chat, text)))
+        teacher = account()
+        made = order(teacher, "ustaz_year")
+        teacher.post(f"/api/payments/{made['id']}/submitted")
+        for _ in range(50):
+            if sent:
+                break
+            time.sleep(0.02)
+        assert sent, "nothing was sent to Telegram"
+        chat, text = sent[0]
+        assert chat == "42"
+        assert made["code"] in text and "29 900 ₸" in text and "/admin?tab=payments" in text
+
+    def test_payments_can_have_their_own_chat(self, backend, monkeypatch):
+        from app.services import telegram
+
+        monkeypatch.setattr(backend.config, "TELEGRAM_CHAT_ID", "42")
+        monkeypatch.setattr(backend.config, "PAYMENT_TELEGRAM_CHAT_ID", "77")
+        assert telegram.payments_chat() == "77"
+
+    def test_no_bot_no_message(self, backend, account, monkeypatch):
+        from app.services import telegram
+
+        monkeypatch.setattr(backend.config, "TELEGRAM_BOT_TOKEN", "")
+        monkeypatch.setattr(telegram, "_post", lambda chat, text: (_ for _ in ()).throw(AssertionError("sent")))
+        teacher = account()
+        made = order(teacher)
+        assert teacher.post(f"/api/payments/{made['id']}/submitted").status_code == 200
+

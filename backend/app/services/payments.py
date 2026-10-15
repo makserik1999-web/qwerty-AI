@@ -180,9 +180,21 @@ async def mine(user: Dict[str, Any], limit: int = 20) -> List[Dict[str, Any]]:
 
 
 async def _notify_staff(payment: Dict[str, Any]) -> None:
+    from app.services import mailer, telegram
+
+    # Telegram first: it is what someone actually sees on a phone.
+    amount = f"{int(payment['amount']):,}".replace(",", " ")
+    telegram.send_later(
+        "💳 Akron: учитель сообщил об оплате\n\n"
+        f"Сумма: {amount} ₸\n"
+        f"Тариф: {payment.get('title')}\n"
+        f"Код: {payment['code']}\n"
+        f"Аккаунт: {payment.get('email') or payment['user_id']}\n\n"
+        "Найдите перевод в Kaspi с этим кодом и подтвердите:\n"
+        f"{config.PUBLIC_BASE_URL}/admin?tab=payments"
+    )
     if not config.PAYMENT_NOTIFY_EMAILS:
         return
-    from app.services import mailer
 
     text = (
         f"Учитель сообщил об оплате.\n\n"

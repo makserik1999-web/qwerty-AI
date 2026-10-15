@@ -99,7 +99,8 @@ async def providers():
 
 
 @router.get("/api/auth/google/start")
-async def google_start(role: str = "", next: str = "", ref: str = "", device: str = ""):
+async def google_start(role: str = "", next: str = "", ref: str = "", device: str = "",
+                       consent: str = ""):
     if not google_configured():
         raise HTTPExceptionJson(404, "Google sign-in is not set up")
     state = secrets.token_urlsafe(24)
@@ -116,6 +117,9 @@ async def google_start(role: str = "", next: str = "", ref: str = "", device: st
         "next": _safe_next(next) if next else "/app/explain",
         "ref": ref.strip()[:12],
         "device": device.strip()[:200],
+        # The privacy box ticked on the sign-up page. From the sign-in page
+        # it is not, and a new account is then asked inside the app.
+        "consent": consent == "1",
         "created_at": now,
         "expires_at": now + STATE_TTL,
     })
@@ -248,6 +252,8 @@ async def google_callback(request: Request, code: str = "", state: str = "", err
             inviter = await inviter_for(flow.get("ref"))
             if inviter:
                 doc["referred_by"] = str(inviter["_id"])
+            if flow.get("consent"):
+                doc["consent"] = {"version": config.PRIVACY_POLICY_VERSION, "at": now}
             try:
                 result = await db.db.users.insert_one(doc)
             except Exception:

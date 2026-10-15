@@ -125,6 +125,12 @@ STAFF_ROLES = ("admin", "support")
 # tzdata in the image.
 STATS_UTC_OFFSET_HOURS = int(os.getenv("STATS_UTC_OFFSET_HOURS", "5"))
 
+# The privacy policy a person agreed to, by the date it was published. Bump it
+# when the policy changes in substance: everyone is then asked again, once, the
+# next time they open the app. Keep it equal to PRIVACY_VERSION in
+# frontend/src/content/privacy.ts.
+PRIVACY_POLICY_VERSION = "2026-10-15"
+
 # Azure's free speech tier, in characters a month. The metrics page measures
 # narration against it; change it if the subscription changes.
 AZURE_TTS_FREE_CHARS = int(os.getenv("AZURE_TTS_FREE_CHARS", "500000"))
@@ -190,6 +196,13 @@ KASPI_PAY_LINK = os.getenv("KASPI_PAY_LINK", "").strip()
 # Free text shown under the details (e.g. "ИП Иса Ә., БИН ...").
 KASPI_PAY_NOTE = os.getenv("KASPI_PAY_NOTE", "").strip()
 # Who is emailed when a teacher says they have paid. Comma separated.
+# Telegram: the bot deploy/monitor.sh already uses. A payment waiting to be
+# checked is sent to PAYMENT_TELEGRAM_CHAT_ID, or to TELEGRAM_CHAT_ID if that
+# is empty. Both empty: no messages.
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "").strip()
+PAYMENT_TELEGRAM_CHAT_ID = os.getenv("PAYMENT_TELEGRAM_CHAT_ID", "").strip()
+
 PAYMENT_NOTIFY_EMAILS = [
     e.strip() for e in os.getenv("PAYMENT_NOTIFY_EMAILS", "").split(",") if e.strip()
 ]

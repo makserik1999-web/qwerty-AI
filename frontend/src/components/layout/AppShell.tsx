@@ -7,6 +7,7 @@ import { Avatar, Icon, type IconName } from '../ui'
 import { LanguageMenu } from './LanguageMenu'
 import { Logo } from './Logo'
 import { ThemeToggle } from './ThemeToggle'
+import { ConsentGate } from '../auth/ConsentGate'
 import { VerifyBanner } from './VerifyBanner'
 
 interface TabDef {
@@ -167,6 +168,7 @@ export function AppShell() {
 
       <main className="shell__main" id="main">
         <VerifyBanner />
+        <ConsentGate />
         <Outlet />
       </main>
     </div>

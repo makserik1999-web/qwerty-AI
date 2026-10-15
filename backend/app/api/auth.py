@@ -11,6 +11,7 @@ from app.config import (
     _EMAIL_RE,
     _USERNAME_RE,
     NAME_MAX_LEN,
+    PRIVACY_POLICY_VERSION,
     SESSION_TTL_HOURS,
     SIGNUP_MAX_PER_HOUR,
     USER_ROLE_DEFAULT,
@@ -152,6 +153,8 @@ async def signup(body: SignupRequest, request: Request):
         }
         if inviter:
             user["referred_by"] = str(inviter["_id"])
+        if body.consent:
+            user["consent"] = consent_record()
         # Only store email when provided. The sparse unique index on email
         # treats explicit null as a VALUE (not "missing"), so writing
         # email=None here would make every subsequent signup without an email
@@ -236,6 +239,23 @@ async def logout(request: Request):
     response = JSONResponse({"ok": True})
     response.headers["Set-Cookie"] = _expired_session_cookie()
     return response
+
+
+def consent_record() -> dict:
+    """What is kept of an agreement: which policy, and when. Not the IP - the
+    account itself is the who."""
+    return {"version": PRIVACY_POLICY_VERSION, "at": datetime.now(timezone.utc)}
+
+
+@router.post("/api/auth/consent")
+async def give_consent(request: Request):
+    """The person agreed to the privacy policy shown in the app."""
+    user = await _user_from_token(_cookie_token(request))
+    if not user:
+        raise HTTPExceptionJson(401, "Not authenticated")
+    record = consent_record()
+    await db.db.users.update_one({"_id": user["_id"]}, {"$set": {"consent": record}})
+    return {"user": _user_payload({**user, "consent": record})}
 
 
 @router.get("/api/auth/me")
@@ -344,6 +364,9 @@ async def delete_account(request: Request):
     await db.db.saved_explanations.delete_many({"user_id": user_id})
     await db.db.auth_tokens.delete_many({"user_id": user_id})
     await db.db.phone_codes.delete_many({"user_id": user_id})
+    # Videos made from this account's general questions stay in the shared
+    # library - they answer a topic, not a person - but not under its name.
+    await db.db.video_cache.update_many({"user_id": user_id}, {"$set": {"user_id": "deleted"}})
     # The tasks stay for the counts; what was asked, and by whom, goes.
     await db.db.generation_jobs.update_many(
         {"user_id": user_id},

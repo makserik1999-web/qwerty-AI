@@ -29,8 +29,7 @@ export function Footer() {
 
         <nav className="footer__col" aria-label={t('landing.footer.legal')}>
           <h2 className="footer__heading">{t('landing.footer.legal')}</h2>
-          <a href="#privacy">{t('landing.footer.privacy')}</a>
-          <a href="#terms">{t('landing.footer.terms')}</a>
+          <Link to="/privacy">{t('landing.footer.privacy')}</Link>
         </nav>
       </div>
       <div className="container footer__bottom">

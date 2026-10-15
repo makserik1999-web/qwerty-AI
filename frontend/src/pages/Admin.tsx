@@ -9,7 +9,7 @@
  * /api/admin request checks the staff role and answers 404 to anyone else.
  */
 import { useEffect, useState } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Navigate, useSearchParams } from 'react-router-dom'
 import { Logo } from '../components/layout/Logo'
 import {
   Alert,
@@ -104,7 +104,9 @@ function errorText(error: unknown): string {
 
 export function Admin() {
   const { user } = useStore()
-  const [section, setSection] = useState<Section>('stats')
+  const [params] = useSearchParams()
+  // ?tab=payments - where the Telegram message about a payment points.
+  const [section, setSection] = useState<Section>(() => (params.get('tab') as Section | null) ?? 'stats')
 
   // Not staff: the same thing as an address that does not exist.
   if (!user?.staffRole) return <Navigate to="/" replace />
@@ -127,6 +129,8 @@ export function Admin() {
       : []),
   ]
 
+  const shown: Section = sections.some((s) => s.value === section) ? section : 'stats'
+
   return (
     <div className="admin">
       <header className="admin__bar">
@@ -140,17 +144,17 @@ export function Admin() {
       </header>
 
       <main className="page admin__page">
-        <Tabs label="Разделы админки" value={section} items={sections} onChange={setSection}>
-          {section === 'stats' ? <StatsSection isAdmin={isAdmin} /> : null}
-          {section === 'users' ? <UsersSection isAdmin={isAdmin} /> : null}
-          {section === 'jobs' ? <JobsSection /> : null}
-          {section === 'system' ? <SystemSection /> : null}
-          {section === 'videos' ? <VideosSection /> : null}
-          {section === 'referrals' ? <ReferralsSection /> : null}
-          {section === 'metrics' && isAdmin ? <MetricsSection /> : null}
-          {section === 'payments' && isAdmin ? <PaymentsSection /> : null}
-          {section === 'plans' && isAdmin ? <PlansSection /> : null}
-          {section === 'audit' && isAdmin ? <AuditSection /> : null}
+        <Tabs label="Разделы админки" value={shown} items={sections} onChange={setSection}>
+          {shown === 'stats' ? <StatsSection isAdmin={isAdmin} /> : null}
+          {shown === 'users' ? <UsersSection isAdmin={isAdmin} /> : null}
+          {shown === 'jobs' ? <JobsSection /> : null}
+          {shown === 'system' ? <SystemSection /> : null}
+          {shown === 'videos' ? <VideosSection /> : null}
+          {shown === 'referrals' ? <ReferralsSection /> : null}
+          {shown === 'metrics' && isAdmin ? <MetricsSection /> : null}
+          {shown === 'payments' && isAdmin ? <PaymentsSection /> : null}
+          {shown === 'plans' && isAdmin ? <PlansSection /> : null}
+          {shown === 'audit' && isAdmin ? <AuditSection /> : null}
         </Tabs>
       </main>
     </div>

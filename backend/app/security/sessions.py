@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 
 from bson import ObjectId
 
-from app.config import SESSION_TTL, STAFF_ROLES, USER_ROLE_DEFAULT
+from app.config import PRIVACY_POLICY_VERSION, SESSION_TTL, STAFF_ROLES, USER_ROLE_DEFAULT
 from app.db import db
 
 
@@ -44,6 +44,10 @@ def _user_payload(user: Dict[str, Any]) -> Dict[str, Any]:
         # False for an account made with Google that never set a password:
         # "forgot password" is how it gets one.
         "has_password": bool(user.get("password_hash")),
+        # Not agreed to the current privacy policy yet - an account from before
+        # it existed, one made through Google from the sign-in page, or a
+        # policy that has since changed. The app asks before anything else.
+        "consent_needed": (user.get("consent") or {}).get("version") != PRIVACY_POLICY_VERSION,
     }
     # Only for staff, and only so the interface can show the admin link. It
     # grants nothing: every /api/admin route reads the role from the account.

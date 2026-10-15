@@ -15,6 +15,7 @@ import { Showcase } from './pages/Showcase'
 import { SignIn } from './pages/SignIn'
 import { SignUp } from './pages/SignUp'
 import { ForgotPassword } from './pages/ForgotPassword'
+import { Privacy } from './pages/Privacy'
 import { ResetPassword } from './pages/ResetPassword'
 import { VerifyEmail } from './pages/VerifyEmail'
 
@@ -100,6 +101,7 @@ export function App() {
         {/* Reached from emailed links, signed in or not. */}
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/privacy" element={<Privacy />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route
           path="/join"

@@ -7,18 +7,20 @@ interface GoogleButtonProps {
   role?: Role
   /** Called instead of navigating when the click must not go ahead yet. */
   onBlocked?: () => boolean
+  /** The privacy box on the sign-up form was ticked. */
+  consent?: boolean
 }
 
 /**
  * "Continue with Google". A plain link: the sign-in is a full-page round trip
  * through Google and back to /api/auth/google/callback, not a request.
  */
-export function GoogleButton({ role, onBlocked }: GoogleButtonProps) {
+export function GoogleButton({ role, onBlocked, consent = false }: GoogleButtonProps) {
   const { t } = useI18n()
   return (
     <a
       className="btn btn--secondary btn--md btn--block google-button"
-      href={googleStartUrl(role)}
+      href={googleStartUrl(role, consent)}
       onClick={(event) => {
         if (onBlocked && onBlocked()) event.preventDefault()
       }}
