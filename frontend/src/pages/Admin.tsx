@@ -39,7 +39,7 @@ import { ApiError } from '../lib/api'
 import { useStore } from '../lib/store'
 import type { StaffRole } from '../lib/types'
 import '../styles/admin.css'
-import { JobsSection, MetricsSection, SystemSection } from './AdminOps'
+import { JobsSection, MetricsSection, ReportsSection, SystemSection } from './AdminOps'
 import { PaymentsSection } from './AdminPayments'
 import { ReferralsSection } from './AdminReferrals'
 import { VideosSection } from './AdminVideos'
@@ -49,6 +49,7 @@ type Section =
   | 'stats'
   | 'users'
   | 'jobs'
+  | 'reports'
   | 'system'
   | 'videos'
   | 'referrals'
@@ -115,6 +116,7 @@ export function Admin() {
   const sections: Array<{ value: Section; label: string }> = [
     { value: 'stats', label: 'Статистика' },
     { value: 'users', label: 'Пользователи' },
+    { value: 'reports', label: 'Обращения' },
     { value: 'jobs', label: 'Задачи' },
     { value: 'system', label: 'Система' },
     { value: 'videos', label: 'Библиотека' },
@@ -147,6 +149,7 @@ export function Admin() {
         <Tabs label="Разделы админки" value={shown} items={sections} onChange={setSection}>
           {shown === 'stats' ? <StatsSection isAdmin={isAdmin} /> : null}
           {shown === 'users' ? <UsersSection isAdmin={isAdmin} /> : null}
+          {shown === 'reports' ? <ReportsSection /> : null}
           {shown === 'jobs' ? <JobsSection /> : null}
           {shown === 'system' ? <SystemSection /> : null}
           {shown === 'videos' ? <VideosSection /> : null}

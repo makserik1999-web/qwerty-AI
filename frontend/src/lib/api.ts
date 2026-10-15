@@ -230,6 +230,20 @@ export interface ReferralSummary {
   invitee_bonus_videos: number
 }
 
+/* Reports -------------------------------------------------------------------- */
+
+export type ReportKind = 'explanation' | 'assessment' | 'lesson_plan' | 'quiz' | 'other'
+
+/** "Something is wrong here", to the team. */
+export async function reportProblem(input: {
+  kind: ReportKind
+  ref_id?: string
+  text: string
+  page?: string
+}): Promise<{ id: string }> {
+  return request('/reports', { method: 'POST', body: JSON.stringify(input) })
+}
+
 export async function getReferrals(): Promise<ReferralSummary> {
   return request('/referrals')
 }

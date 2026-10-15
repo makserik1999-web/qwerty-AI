@@ -899,6 +899,7 @@
   .row--actions,
   .tabs,
   .document__actions,
+  .ai-check,
   .footer {
     display: none !important;
   }
@@ -1360,4 +1361,34 @@
 .consent-check input {
   margin-top: 3px;
   flex-shrink: 0;
+}
+
+/* "AI wrote this - check it": above every paper, plan and drafted quiz. */
+.ai-check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm);
+  background: var(--warning-soft, var(--surface));
+  color: var(--text-secondary);
+  font-size: var(--fs-body-sm);
+}
+
+.ai-check svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.ai-check {
+  flex-wrap: wrap;
+}
+
+.ai-check__text {
+  flex: 1 1 240px;
+}
+
+.ai-check .btn {
+  margin: -4px 0;
 }

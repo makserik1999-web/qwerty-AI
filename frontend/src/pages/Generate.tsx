@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { AiCheckNote } from '../components/AiCheckNote'
 import {
   Alert,
   AnchorButton,
@@ -331,6 +332,10 @@ export function Generate() {
                 <SkeletonText key={index} lines={2} />
               ))}
             </Card>
+          ) : null}
+
+          {status === 'ready' && assessment ? (
+            <AiCheckNote report={{ kind: 'assessment', refId: assessment.id }} />
           ) : null}
 
           {status === 'ready' && assessment ? (

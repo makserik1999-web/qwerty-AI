@@ -364,6 +364,9 @@ async def delete_account(request: Request):
     await db.db.saved_explanations.delete_many({"user_id": user_id})
     await db.db.auth_tokens.delete_many({"user_id": user_id})
     await db.db.phone_codes.delete_many({"user_id": user_id})
+    # Reports stay for what they say about the product, not about the person.
+    await db.db.problem_reports.update_many(
+        {"user_id": user_id}, {"$set": {"user_id": "deleted", "email": ""}})
     # Videos made from this account's general questions stay in the shared
     # library - they answer a topic, not a person - but not under its name.
     await db.db.video_cache.update_many({"user_id": user_id}, {"$set": {"user_id": "deleted"}})

@@ -28,6 +28,7 @@ from app.api import (
     quiz_drafts,
     quota,
     referrals,
+    reports,
     saved,
     videos,
 )
@@ -58,6 +59,8 @@ app.include_router(plan.router)
 app.include_router(payments.router)
 app.include_router(referrals.router)
 app.include_router(referrals.admin_router)
+app.include_router(reports.router)
+app.include_router(reports.admin_router)
 app.include_router(chats.router)
 app.include_router(media.router)
 app.include_router(admin.router)

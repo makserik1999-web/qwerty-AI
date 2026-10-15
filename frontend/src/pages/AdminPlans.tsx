@@ -203,6 +203,17 @@ export function UserPlanPanel({
             Заблокировать
           </Button>
         )}
+        {/* For somebody who picked the wrong role at sign-up. */}
+        <Button
+          loading={busy}
+          onClick={() =>
+            void run(detail.role === 'teacher' ? 'Теперь ученик' : 'Теперь учитель', () =>
+              adminApi.changeRole(detail.id, detail.role === 'teacher' ? 'student' : 'teacher', reason),
+            )
+          }
+        >
+          {detail.role === 'teacher' ? 'Сделать учеником' : 'Сделать учителем'}
+        </Button>
       </div>
 
       {error ? <Alert tone="error">{error}</Alert> : null}

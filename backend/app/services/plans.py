@@ -111,10 +111,13 @@ def school_year_end(moment: datetime) -> datetime:
     """1 June (Kazakhstan time) that ends the school year `moment` is in.
 
     June to August belong to the year that starts in September, so a school
-    year plan bought in the summer runs to the following June.
+    year plan bought in the summer runs to the following June. So does one
+    bought from 15 May: the year it would otherwise buy is a fortnight long,
+    and that is not what anybody paying for a year means.
     """
     local = _local(moment)
-    year = local.year if local.month < 6 else local.year + 1
+    late_may = local.month == 5 and local.day >= 15
+    year = local.year if local.month < 6 and not late_may else local.year + 1
     return _from_local(year, 6, 1)
 
 

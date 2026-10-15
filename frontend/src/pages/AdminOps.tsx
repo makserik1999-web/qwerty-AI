@@ -551,3 +551,104 @@ export function MetricsSection() {
     </div>
   )
 }
+
+/* Reports -------------------------------------------------------------------- */
+
+const REPORT_KIND: Record<string, string> = {
+  explanation: 'объяснение',
+  assessment: 'БЖБ/ТЖБ',
+  lesson_plan: 'план урока',
+  quiz: 'квиз',
+  other: 'другое',
+}
+
+const REPORT_FILTERS = [
+  { value: 'open', label: 'Новые' },
+  { value: 'resolved', label: 'Разобранные' },
+  { value: '', label: 'Все' },
+]
+
+export function ReportsSection() {
+  const [status, setStatus] = useState<'open' | 'resolved' | ''>('open')
+  const [data, setData] = useState<{ items: adminApi.ProblemReport[]; open: number } | null>(null)
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    try {
+      setData(await adminApi.listReports(status))
+      setError('')
+    } catch (e) {
+      setError(failureText(e, 'Не удалось загрузить обращения.'))
+    }
+  }, [status])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  async function resolve(report: adminApi.ProblemReport) {
+    const reason = window.prompt('Что сделано (попадёт в журнал):', 'исправлено')
+    if (reason === null) return
+    setBusy(report.id)
+    try {
+      await adminApi.resolveReport(report.id, reason)
+      await load()
+    } catch (e) {
+      setError(failureText(e, 'Не удалось отметить.'))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <div className="admin__stack">
+      <div className="admin__toolbar">
+        <SegmentedControl
+          label="Статус"
+          value={status}
+          options={REPORT_FILTERS.map((f) => (f.value === 'open' && data ? { ...f, label: `${f.label} (${data.open})` } : f))}
+          onChange={(v) => setStatus(v as 'open' | 'resolved' | '')}
+        />
+      </div>
+      {error ? <Alert tone="error">{error}</Alert> : null}
+      {!data && !error ? <p className="caption">Загрузка…</p> : null}
+      {data && !data.items.length ? <p className="caption">Обращений нет.</p> : null}
+      {data && data.items.length ? (
+        <Table caption="Обращения учителей">
+          <thead>
+            <tr>
+              <th>Когда</th>
+              <th>Что</th>
+              <th>Сообщение</th>
+              <th>Учитель</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {data.items.map((report) => (
+              <tr key={report.id}>
+                <td>{when(report.created_at)}</td>
+                <td>
+                  {REPORT_KIND[report.kind] ?? report.kind}
+                  {report.page ? <div className="caption">{report.page}</div> : null}
+                </td>
+                <td className="admin__report-text">{report.text}</td>
+                <td>{report.email || (report.user_id === 'deleted' ? 'аккаунт удалён' : report.user_id)}</td>
+                <td>
+                  {report.status === 'open' ? (
+                    <Button size="sm" variant="secondary" loading={busy === report.id} onClick={() => void resolve(report)}>
+                      Разобрано
+                    </Button>
+                  ) : (
+                    <Badge tone="success">{report.resolved_by || 'разобрано'}</Badge>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      ) : null}
+    </div>
+  )
+}

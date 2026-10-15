@@ -11,6 +11,7 @@ import {
   EmptyState,
   Field,
   Icon,
+  LinkButton,
   ProgressSteps,
   SegmentedControl,
   Textarea,
@@ -37,6 +38,7 @@ import {
 } from '../lib/live'
 import { EXAMPLE_QUESTIONS } from '../lib/mockData'
 import { useStore } from '../lib/store'
+import { ReportProblem } from '../components/ReportProblem'
 import type { Conversation, ExplainLang, Explanation, LangChoice } from '../lib/types'
 import { formatDateTime } from '../lib/utils'
 
@@ -70,6 +72,9 @@ export function Explain() {
   const [state, setState] = useState<ViewState>('idle')
   const [current, setCurrent] = useState<Explanation | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
+  // A refusal the same request would only get again: "retry" is then the
+  // wrong button. Not-a-teacher has none; a plan refusal points at the plan.
+  const [refused, setRefused] = useState<'role' | 'plan' | 'email' | null>(null)
   const [conversations, setConversations] = useState<Conversation[]>([])
   // On per the plan, and chosen per question rather than in settings: it
   // changes what the answer is, not how the app behaves.
@@ -158,6 +163,16 @@ export function Explain() {
         // A refusal with a code is said in the reader's language; the
         // server's sentence is English.
         const refusal = error instanceof AgentError ? refusalKey(error.code, 'videos') : null
+        const code = error instanceof AgentError ? error.code : ''
+        setRefused(
+          code === 'teacher_only'
+            ? 'role'
+            : code === 'email_unverified'
+              ? 'email'
+              : refusal
+                ? 'plan'
+                : null,
+        )
         setFailure(
           error instanceof AnswerTimeout
             ? t('explain.timedOut')
@@ -479,16 +494,19 @@ export function Explain() {
                     </Button>
                   }
                   actions={
-                    <Button
-                      variant={current.saved ? 'secondary' : 'primary'}
-                      icon={current.saved ? 'check' : 'book'}
-                      disabled={current.saved}
-                      onClick={() => void save()}
-                    >
-                      {current.saved
-                        ? t('explain.savedToLibrary')
-                        : t('explain.saveToLibrary')}
-                    </Button>
+                    <>
+                      <Button
+                        variant={current.saved ? 'secondary' : 'primary'}
+                        icon={current.saved ? 'check' : 'book'}
+                        disabled={current.saved}
+                        onClick={() => void save()}
+                      >
+                        {current.saved
+                          ? t('explain.savedToLibrary')
+                          : t('explain.saveToLibrary')}
+                      </Button>
+                      <ReportProblem kind="explanation" refId={current.chatId ?? current.id} />
+                    </>
                   }
                 />
               </Card>
@@ -499,9 +517,15 @@ export function Explain() {
                 tone="error"
                 title={t('explain.errorTitle')}
                 action={
-                  <Button icon="refresh" onClick={() => void run(question)}>
-                    {t('common.retry')}
-                  </Button>
+                  refused === 'plan' ? (
+                    <LinkButton to="/app/billing" variant="secondary">
+                      {t('nav.billing')}
+                    </LinkButton>
+                  ) : refused ? null : (
+                    <Button icon="refresh" onClick={() => void run(question)}>
+                      {t('common.retry')}
+                    </Button>
+                  )
                 }
               >
                 {/* The server's own words when there are any - "the agent is

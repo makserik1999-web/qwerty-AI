@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { AiCheckNote } from '../components/AiCheckNote'
 import {
   Alert,
   Badge,
@@ -394,6 +395,7 @@ export function LessonPlan() {
           {/* The document ------------------------------------------------- */}
           {status === 'ready' && current && doc ? (
             <Card as="section" elevation="raised" className="stack stack-lg">
+              <AiCheckNote report={{ kind: 'lesson_plan', refId: current.id }} />
               <div className="plan__head">
                 <div className="stack stack-2xs">
                   <h2 className="card__title">{current.topic}</h2>

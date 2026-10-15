@@ -23,6 +23,7 @@ from app.config import (
     STAFF_ROLES,
     STATS_UTC_OFFSET_HOURS,
     USER_ROLE_DEFAULT,
+    USER_ROLES,
 )
 from app.db import db
 from app.errors import HTTPExceptionJson
@@ -275,6 +276,10 @@ class _Reasoned(BaseModel):
     reason: str
 
 
+class RoleRequest(_Reasoned):
+    role: str
+
+
 class GrantRequest(_Reasoned):
     plan_id: str
     months: Optional[int] = None
@@ -411,6 +416,27 @@ async def unblock(user_id: str, body: _Reasoned, actor=Depends(require_staff)):
     await audit.record(actor=audit.staff_actor(actor), action="user.unblock",
                        target=audit.user_target(target), reason=reason)
     return {"ok": True}
+
+
+@router.post("/users/{user_id}/role")
+async def change_role(user_id: str, body: RoleRequest, actor=Depends(require_staff)):
+    """Teacher or student, for somebody who picked the wrong one at sign-up.
+
+    Nothing in the interface lets a person change it themselves - a student who
+    could make himself a teacher would be generating on a teacher's terms - so
+    a person who asks support is the way, and it is in the audit log.
+    """
+    reason = _reason(body)
+    if body.role not in USER_ROLES:
+        raise HTTPExceptionJson(400, "Unknown role")
+    target = await _target(user_id)
+    before = target.get("role") or USER_ROLE_DEFAULT
+    if before != body.role:
+        await db.db.users.update_one({"_id": target["_id"]}, {"$set": {"role": body.role}})
+        await audit.record(actor=audit.staff_actor(actor), action="user.role",
+                           target=audit.user_target(target),
+                           details={"from": before, "to": body.role}, reason=reason)
+    return {"ok": True, "role": body.role}
 
 
 @router.get("/plans", dependencies=[Depends(require_admin)])

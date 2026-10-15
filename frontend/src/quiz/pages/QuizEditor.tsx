@@ -6,6 +6,7 @@
  * the card's menu, which is the keyboard's way), a deleted one can be brought
  * back for a few seconds, and the panel on the right is where a run begins.
  */
+import { AiCheckNote } from '../../components/AiCheckNote'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
@@ -472,6 +473,8 @@ export function QuizEditor() {
 
   return (
     <div className="page">
+      {/* A quiz made from a topic was written by the model. */}
+      {quiz.topic ? <AiCheckNote report={{ kind: 'quiz', refId: quiz.id }} /> : null}
       <header className="qe-head">
         <div className="stack stack-sm grow" style={{ minWidth: 0 }}>
           <nav className="qe-crumbs" aria-label={t('quiz.edit.crumbs')}>

@@ -5,6 +5,28 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### Ready for the pilot: check notes, problem reports, role fixes
+
+**Added**
+
+- "AI wrote this - check it before the lesson" above every paper, lesson plan
+  and quiz the model wrote; hidden when printing.
+- "Report a problem" on those and on every explanation: stored, sent to the
+  team's Telegram, and listed in a new admin tab «Обращения» where staff mark
+  them done (audited). Twenty a day per account.
+- Staff can switch an account between teacher and student, with a reason in
+  the audit log, for whoever picked the wrong role at sign-up.
+
+**Fixed**
+
+- A refusal on the explain page offered "retry", which could only be refused
+  again: not-a-teacher now offers nothing, a plan refusal links to the plan.
+- English (and other) explanations could open with a sentence about "visual
+  stages for an animation": the prompt now says the text is read beside the
+  video and must not mention it.
+- A school-year plan bought from 15 May ran only to 1 June; it now runs to
+  June of the next year.
+
 ### Payments to Telegram, privacy policy and consent
 
 **Added**

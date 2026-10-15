@@ -186,6 +186,10 @@ export function resetTrial(id: string, reason: string) {
   return send<{ ok: boolean }>(`${user(id)}/trial/reset`, 'POST', { reason })
 }
 
+export function changeRole(id: string, role: Role, reason: string) {
+  return send<{ ok: boolean; role: Role }>(`${user(id)}/role`, 'POST', { role, reason })
+}
+
 export function blockUser(id: string, reason: string) {
   return send<{ ok: boolean }>(`${user(id)}/block`, 'POST', { reason })
 }
@@ -383,4 +387,28 @@ export interface Metrics {
 
 export function getMetrics(days: number) {
   return request<Metrics>(`/metrics?days=${days}`)
+}
+
+/* Reports from teachers ------------------------------------------------------ */
+
+export interface ProblemReport {
+  id: string
+  kind: 'explanation' | 'assessment' | 'lesson_plan' | 'quiz' | 'other'
+  ref_id: string
+  text: string
+  page: string
+  user_id: string
+  email: string
+  status: 'open' | 'resolved'
+  created_at: string | null
+  resolved_at: string | null
+  resolved_by: string
+}
+
+export function listReports(status: 'open' | 'resolved' | '') {
+  return request<{ items: ProblemReport[]; open: number }>(`/reports?status=${status}`)
+}
+
+export function resolveReport(id: string, reason = '') {
+  return send<{ ok: boolean }>(`/reports/${encodeURIComponent(id)}/resolve`, 'POST', { reason })
 }

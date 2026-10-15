@@ -303,6 +303,13 @@ class TestUstazPeriods:
         end = plans.school_year_end(utc(2026, 7, 10)) + timedelta(hours=5)
         assert (end.year, end.month, end.day) == (2027, 6, 1)
 
+    def test_bought_in_late_may_it_runs_to_the_next_june(self, plans):
+        """Not a fortnight for the price of a year."""
+        late = plans.school_year_end(utc(2027, 5, 20)) + timedelta(hours=5)
+        early = plans.school_year_end(utc(2027, 5, 10)) + timedelta(hours=5)
+        assert (late.year, late.month, late.day) == (2028, 6, 1)
+        assert (early.year, early.month, early.day) == (2027, 6, 1)
+
     def test_granting_again_extends(self, backend, account, plans):
         _, user = self._user(backend, account)
         user = run_db(plans.grant(user, plans.USTAZ_MONTH, now=utc(2026, 10, 5)))

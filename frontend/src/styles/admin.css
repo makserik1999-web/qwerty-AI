@@ -221,3 +221,10 @@
   flex-wrap: wrap;
   white-space: normal;
 }
+
+/* A teacher's report, in full: it is the point of the row. */
+.admin__report-text {
+  min-width: 24ch;
+  max-width: 60ch;
+  white-space: pre-wrap;
+}

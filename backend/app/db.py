@@ -106,6 +106,9 @@ async def lifespan(app: FastAPI):
     await db.db.users.create_index("referred_by", sparse=True)
     await db.db.referral_rewards.create_index("invitee_id", unique=True)
     await db.db.referral_rewards.create_index([("inviter_id", 1), ("at", -1)])
+    # "Something is wrong with this" from teachers.
+    await db.db.problem_reports.create_index([("status", 1), ("created_at", -1)])
+    await db.db.problem_reports.create_index([("user_id", 1), ("created_at", -1)])
     # Generation tasks, kept a year for the metrics.
     await db.db.generation_jobs.create_index("ref", unique=True)
     await db.db.generation_jobs.create_index([("status", 1), ("created_at", -1)])
