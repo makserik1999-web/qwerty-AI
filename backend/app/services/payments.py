@@ -17,6 +17,7 @@ The order keeps the price it was made at: changing a price in the admin
 panel does not change what someone was told to pay.
 """
 
+import re
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
@@ -191,7 +192,7 @@ async def _notify_staff(payment: Dict[str, Any]) -> None:
         f"Код: {payment['code']}\n"
         f"Аккаунт: {payment.get('email') or payment['user_id']}\n\n"
         "Найдите перевод в Kaspi с этим кодом и подтвердите:\n"
-        f"{config.PUBLIC_BASE_URL}/admin?tab=payments"
+        f"{config.PUBLIC_BASE_URL}/admin?tab=payments&code={payment['code']}"
     )
     if not config.PAYMENT_NOTIFY_EMAILS:
         return
@@ -294,9 +295,16 @@ async def refund(payment_id: str, actor: Dict[str, Any], reason: str, *, take_ba
     return updated
 
 
-async def list_for_staff(status: str = "", limit: int = 100) -> List[Dict[str, Any]]:
+async def list_for_staff(status: str = "", limit: int = 100, code: str = "") -> List[Dict[str, Any]]:
+    """Payments for the admin panel. `code` finds one by the code from the
+    Kaspi comment - typed loosely: "ak7kq3m", "AK-7KQ3M " and "7KQ3M" all match."""
     await expire_stale()
     query: Dict[str, Any] = {"status": status} if status else {}
+    wanted = re.sub(r"[^A-Z0-9]", "", (code or "").upper())
+    if wanted.startswith("AK"):
+        wanted = wanted[2:]
+    if wanted:
+        query = {"code": f"AK-{wanted}"}
     cursor = db.db.payments.find(query).sort("created_at", -1).limit(limit)
     out = []
     async for p in cursor:

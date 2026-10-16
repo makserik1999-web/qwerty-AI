@@ -239,9 +239,10 @@ export interface AdminPayment {
   refund: { at: string | null; by: string } | null
 }
 
-export function listPayments(status: string) {
+export function listPayments(status: string, code = '') {
+  const params = new URLSearchParams({ status, code })
   return request<{ items: AdminPayment[]; revenue: Array<{ month: string; amount: number }> }>(
-    `/payments?status=${encodeURIComponent(status)}`,
+    `/payments?${params}`,
   )
 }
 

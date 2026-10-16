@@ -228,3 +228,10 @@
   max-width: 60ch;
   white-space: pre-wrap;
 }
+
+/* A payment code is read against the Kaspi comment: one line, easy to compare. */
+.admin__code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+}

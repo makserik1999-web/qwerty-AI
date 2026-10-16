@@ -40,8 +40,9 @@ def _target(payment):
 
 
 @router.get("/payments", dependencies=[Depends(require_admin)])
-async def list_payments(status: str = ""):
-    return {"items": await payments.list_for_staff(status), "revenue": await payments.revenue_by_month()}
+async def list_payments(status: str = "", code: str = ""):
+    return {"items": await payments.list_for_staff(status, code=code),
+            "revenue": await payments.revenue_by_month()}
 
 
 @router.post("/payments/{payment_id}/confirm", dependencies=[Depends(require_admin)])

@@ -4,6 +4,7 @@
  * will see. Refunds are recorded here too. Admin only.
  */
 import { useCallback, useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Alert, Badge, Button, Input, SegmentedControl, Table } from '../components/ui'
 import * as adminApi from '../lib/admin'
 import type { AdminPayment } from '../lib/admin'
@@ -31,6 +32,9 @@ function when(iso: string | null): string {
 }
 
 export function PaymentsSection() {
+  const [params] = useSearchParams()
+  // ?code=AK-... - where the Telegram message about a payment points.
+  const [code, setCode] = useState(() => params.get('code') ?? '')
   const [status, setStatus] = useState('submitted')
   const [items, setItems] = useState<AdminPayment[] | null>(null)
   const [revenue, setRevenue] = useState<Array<{ month: string; amount: number }>>([])
@@ -40,17 +44,21 @@ export function PaymentsSection() {
 
   const load = useCallback(async () => {
     try {
-      const found = await adminApi.listPayments(status)
+      const found = await adminApi.listPayments(status, code.trim())
       setItems(found.items)
       setRevenue(found.revenue)
     } catch (failure) {
       setMessage({ tone: 'error', text: failure instanceof ApiError ? failure.detail || `Ошибка ${failure.status}` : 'Ошибка' })
     }
-  }, [status])
+  }, [status, code])
 
   useEffect(() => {
-    setItems(null)
-    void load()
+    // Typing a code settles for a moment before it becomes a request.
+    const timer = window.setTimeout(() => {
+      setItems(null)
+      void load()
+    }, 250)
+    return () => window.clearTimeout(timer)
   }, [load])
 
   async function act(id: string, label: string, action: () => Promise<unknown>) {
@@ -83,7 +91,13 @@ export function PaymentsSection() {
         </p>
       ) : null}
       <div className="admin__toolbar">
-        <SegmentedControl label="Статус" value={status} options={FILTERS} onChange={setStatus} />
+        <label className="field">
+          <span className="field__label">Код из комментария Kaspi</span>
+          <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="AK-7KQ3M" />
+        </label>
+        {code.trim() ? null : (
+          <SegmentedControl label="Статус" value={status} options={FILTERS} onChange={setStatus} />
+        )}
         <label className="field admin__grow">
           <span className="field__label">Причина (для отклонения и возврата обязательна)</span>
           <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Например: перевод не найден" />
@@ -111,7 +125,7 @@ export function PaymentsSection() {
           <tbody>
             {items.map((p) => (
               <tr key={p.id}>
-                <td className="admin__mono">{p.code}</td>
+                <td className="admin__code">{p.code}</td>
                 <td>{p.email || p.user_id}</td>
                 <td>{p.title}</td>
                 <td className="num">{p.amount.toLocaleString('ru-RU')} ₸</td>
@@ -132,7 +146,13 @@ export function PaymentsSection() {
                           size="sm"
                           variant="primary"
                           loading={busy === p.id}
-                          onClick={() => void act(p.id, `Подтверждён ${p.code}: тариф включён`, () => adminApi.confirmPayment(p.id, reason))}
+                          onClick={() => {
+                            // The code and the sum, said back once: confirming the
+                            // wrong row gives somebody a plan they did not pay for.
+                            const amount = `${p.amount.toLocaleString('ru-RU')} ₸`
+                            if (!window.confirm(`Подтвердить ${p.code} на ${amount} (${p.title})?\nПеревод с этим кодом пришёл в Kaspi?`)) return
+                            void act(p.id, `Подтверждён ${p.code}: тариф включён`, () => adminApi.confirmPayment(p.id, reason))
+                          }}
                         >
                           Подтвердить
                         </Button>

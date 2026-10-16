@@ -5,6 +5,14 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### Confirming a payment by its code
+
+- The Telegram message about a payment links to that payment
+  (`/admin?tab=payments&code=AK-...`), and the payments tab has a search by
+  the code from the Kaspi comment, however it was copied.
+- "Confirm" asks once more with the code and the sum before it switches the
+  plan on: confirming the wrong row gives somebody a plan they did not pay for.
+
 ### Confirm the email before the app, and a way back in without mail
 
 **Changed**

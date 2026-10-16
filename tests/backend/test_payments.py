@@ -236,3 +236,30 @@ class TestTheTeamsSide:
         made = order(teacher)
         assert teacher.post(f"/api/payments/{made['id']}/submitted").status_code == 200
 
+    def test_admin_finds_a_payment_by_its_kaspi_code(self, account):
+        """However the code was copied out of the Kaspi comment."""
+        admin = account(staff="admin")
+        teacher = account()
+        made = order(teacher)
+        bare = made["code"].split("-", 1)[1]
+        for typed in (made["code"], made["code"].lower(), f" {bare} ", f"ak{bare.lower()}"):
+            found = admin.get("/api/admin/payments", params={"code": typed}).json()["items"]
+            assert [p["code"] for p in found] == [made["code"]], typed
+        assert admin.get("/api/admin/payments", params={"code": "AK-NOPE1"}).json()["items"] == []
+
+    def test_the_telegram_link_opens_that_payment(self, backend, account, monkeypatch):
+        from app.services import telegram
+
+        sent = []
+        monkeypatch.setattr(backend.config, "TELEGRAM_BOT_TOKEN", "123:abc")
+        monkeypatch.setattr(backend.config, "TELEGRAM_CHAT_ID", "42")
+        monkeypatch.setattr(telegram, "_post", lambda chat, text: sent.append(text))
+        teacher = account()
+        made = order(teacher)
+        teacher.post(f"/api/payments/{made['id']}/submitted")
+        for _ in range(50):
+            if sent:
+                break
+            time.sleep(0.02)
+        assert f"/admin?tab=payments&code={made['code']}" in sent[0]
+
