@@ -278,7 +278,13 @@ async def websocket_agent_endpoint(websocket: WebSocket):
                 # after the user already has their reply, and never allowed to
                 # fail the request: a cache write is an optimisation, not part
                 # of answering.
-                if CACHE_ENABLED:
+                #
+                # Not when the voice was asked for and the video came out
+                # silent (Azure down, out of quota, a script with nothing to
+                # say): the next person asking the same words would be handed
+                # the silent one for as long as it stays in the cache.
+                voiced = str(request_info.get("variant", "")).startswith("voice=")
+                if CACHE_ENABLED and not (voiced and data.get("has_audio") is False):
                     try:
                         await cache_service.remember(
                             prompt=request_info.get("prompt", ""),

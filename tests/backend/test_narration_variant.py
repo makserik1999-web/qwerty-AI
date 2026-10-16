@@ -157,6 +157,14 @@ class TestTheVoiceIsNotTakenOnTrust:
 
 
 class TestTheAgentIsTold:
+    @pytest.fixture(autouse=True)
+    def _no_ack(self, backend, monkeypatch):
+        """A recorder never acknowledges. Whatever an earlier test's agent
+        declared at its handshake must not make these wait for one."""
+        from app.ws.manager import agent_manager
+
+        monkeypatch.setattr(agent_manager, "agent_features", set())
+
     async def test_the_request_carries_the_choice(self, backend):
         """The agent renders per request, not per its own configuration."""
         from app.ws.manager import agent_manager

@@ -93,6 +93,29 @@ class TestFilingAndServing:
         assert entry["duration"] == 42.0 and entry["has_audio"] is True
         assert entry["title"] == "Пифагор теоремасы"
 
+    def test_a_silent_render_is_not_kept_for_a_voiced_question(self, backend, client, new_user, agent_secret,
+                                                                media):
+        """Azure down, quota spent: the next person asking the same words with
+        the voice on must not be handed the silent one."""
+        new_user()
+        name = media("pyth_silent.mp4")
+        frames, _ = ask(client, agent_secret, "Пифагор теоремасы деген не?", classification=GENERIC,
+                        reply={**done(name), "has_audio": False})
+        assert frames[-1]["type"] == "ai_response"
+        assert run_db(backend.db.db.library_entries.count_documents({"video_url": f"/media/{name}"})) == 0
+        # Filed by topic all the same - with the voice off it is a fine answer.
+        entry = run_db(backend.db.db.video_cache.find_one({"video_url": f"/media/{name}"}))
+        assert entry and entry["has_audio"] is False
+
+    def test_a_silent_video_answers_only_a_silent_request(self, backend, media):
+        from app.services import topic_cache
+
+        name = media("pyth_mute.mp4")
+        run_db(topic_cache.add(topic_id=TOPIC, lang="kk", video_url=f"/media/{name}", text="t", user_id="u",
+                               duration=30.0, has_audio=False))
+        assert run_db(topic_cache.best(TOPIC, "kk", narration=True)) is None
+        assert run_db(topic_cache.best(TOPIC, "kk", narration=False))["video_url"] == f"/media/{name}"
+
     def test_the_next_general_question_gets_the_filed_video(self, backend, client, new_user, agent_secret, media):
         new_user()
         ask(client, agent_secret, "Пифагор теоремасы деген не?", classification=GENERIC,
@@ -264,6 +287,16 @@ class TestModeration:
         vid = self._vid()
         assert support.post(f"/api/admin/videos/{vid}/delete", json={}).status_code == 200
         assert run_db(backend.db.db.video_cache.count_documents({})) == 0
+
+    def test_delete_and_reject_also_clear_the_wording_cache(self, backend, staff_client):
+        """Deleted from the library, it used to go on being served by its exact wording."""
+        support = staff_client("support")
+        for action in ("delete", "reject"):
+            vid = self._vid()
+            url = run_db(backend.db.db.video_cache.find_one({"_id": ObjectId(vid)}))["video_url"]
+            run_db(backend.db.db.library_entries.insert_one({"cache_key": f"k-{action}-{vid}", "video_url": url}))
+            assert support.post(f"/api/admin/videos/{vid}/{action}", json={}).status_code == 200
+            assert run_db(backend.db.db.library_entries.count_documents({"video_url": url})) == 0
 
     def test_teachers_cannot_moderate(self, client, new_user):
         new_user()

@@ -67,8 +67,18 @@ async def list_topics():
     return {"items": list(topic_cache.topics().values())}
 
 
+async def _forget_everywhere(entry: Dict[str, Any]) -> None:
+    """The same file is also kept under the exact wording of the question
+    that made it. Rejected or deleted here, it must not keep being served from
+    there - which is what happened: deleted from the library, still answered."""
+    if entry.get("video_url"):
+        await db.db.library_entries.delete_many({"video_url": entry["video_url"]})
+
+
 async def _set_status(video_id: str, status: str, action: str, actor, reason: str):
     entry = await _entry(video_id)
+    if status == topic_cache.REJECTED:
+        await _forget_everywhere(entry)
     await db.db.video_cache.update_one({"_id": entry["_id"]}, {"$set": {
         "status": status, "reviewed_at": datetime.now(timezone.utc),
         "reviewed_by": actor.get("email") or str(actor["_id"])}})
@@ -94,6 +104,7 @@ async def delete(video_id: str, body: Decision, actor=Depends(require_staff)):
     """Gone from the library. The file is left to retention: a chat that
     showed this video still links to it."""
     entry = await _entry(video_id)
+    await _forget_everywhere(entry)
     await db.db.video_cache.delete_one({"_id": entry["_id"]})
     await db.db.video_ratings.delete_many({"video_id": video_id})
     await audit.record(actor=audit.staff_actor(actor), action="video.delete", target=_target(entry),

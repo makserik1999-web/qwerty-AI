@@ -5,6 +5,24 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### Silent videos stop being served to people who asked for a voice
+
+**Fixed**
+
+- A video that came out silent with narration on (no Azure key, quota spent)
+  was filed under the question's exact wording and served to the next person
+  asking the same words - even after it was deleted from the library. It is
+  no longer kept there, the topic library no longer hands a known-silent video
+  to a voiced request, and rejecting or deleting a library video also clears
+  it from the wording cache.
+- A narration test waited for an acknowledgement when an earlier test's agent
+  had declared "ack" at its handshake.
+
+**Added**
+
+- `python -m app.cache_cli forget "<question>"` takes every stored answer to
+  that question out of the cache, matched the way the cache matches.
+
 ### Confirming a payment by its code
 
 - The Telegram message about a payment links to that payment

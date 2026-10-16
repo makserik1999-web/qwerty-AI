@@ -61,6 +61,10 @@ async def best(topic_id: str, lang: str, *, narration: bool = True) -> Optional[
     A video with sound is preferred when narration was asked for, a silent
     one when it was not; after that the better rated, a checked one before an
     unchecked one, and the newer. A file that is gone is skipped.
+
+    A video known to be silent is never the answer to a request with the voice
+    on: that is the choice quietly not happening, and the person would think
+    narration is broken. It still answers a request with the voice off.
     """
     if not topic_id or not lang:
         return None
@@ -68,7 +72,8 @@ async def best(topic_id: str, lang: str, *, narration: bool = True) -> Optional[
         e async for e in db.db.video_cache.find(
             {"topic_id": topic_id, "lang": lang, "status": {"$in": list(SERVABLE)}})
     ]
-    candidates = [e for e in candidates if _media_present(e.get("video_url", ""))]
+    candidates = [e for e in candidates if _media_present(e.get("video_url", ""))
+                  and not (narration and e.get("has_audio") is False)]
     if not candidates:
         return None
 
