@@ -96,6 +96,7 @@ function toUser(found: ApiUser): User {
     phoneVerified: found.phone_verified === true,
     hasPassword: found.has_password !== false,
     consentNeeded: found.consent_needed === true,
+    verifyNeeded: found.verify_needed === true,
   }
 }
 

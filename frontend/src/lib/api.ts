@@ -34,6 +34,8 @@ export interface ApiUser {
   has_password: boolean
   /** Has not agreed to the current privacy policy yet. */
   consent_needed?: boolean
+  /** Must confirm the email address before using the app. */
+  verify_needed?: boolean
 }
 
 export class ApiError extends Error {

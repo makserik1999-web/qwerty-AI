@@ -3,14 +3,20 @@
     docker compose exec backend python -m app.staff list
     docker compose exec backend python -m app.staff grant teacher@school.kz --role admin
     docker compose exec backend python -m app.staff revoke teacher@school.kz
+    docker compose exec backend python -m app.staff reset-link teacher@school.kz
+
+`reset-link` prints a one-time link to set a new password, for when the mail
+does not arrive - or for the admin who forgot theirs. Whoever has the server
+has the accounts anyway; the link is the same one the email would carry, and
+the request is in the audit log.
 
 This is the only way anyone becomes staff. Signup, the profile and the admin
 panel itself have no way to set `staff_role`, so a person who can reach the
 site but not the server cannot hand themselves one.
 
 The person signs up on the site first, as anyone would. Before confirming,
-check the account printed below is really theirs: signup does not verify
-email addresses yet, so someone else could have registered that address.
+check the account printed below is really theirs - and that its address is
+confirmed: until it is, someone else could have registered that address.
 Every grant and revoke is written to the audit log.
 
 Keep the list short. Staff can read every account, and later the pupils'
@@ -21,11 +27,18 @@ import argparse
 import asyncio
 import re
 import sys
+from datetime import timedelta
 from typing import Any, Callable, Dict, List, Optional
 
-from app.config import DATABASE_NAME, MONGO_URL, STAFF_ROLES
+from app.config import (
+    DATABASE_NAME,
+    MONGO_URL,
+    PASSWORD_RESET_TTL_MINUTES,
+    PUBLIC_BASE_URL,
+    STAFF_ROLES,
+)
 from app.db import db
-from app.repositories import audit
+from app.repositories import audit, auth_tokens
 
 # More than this and the command says so. Not a limit - a reminder.
 STAFF_COMFORTABLE_MAX = 3
@@ -47,6 +60,10 @@ def _parser() -> argparse.ArgumentParser:
     revoke.add_argument("email")
     revoke.add_argument("--reason", default="")
     revoke.add_argument("--yes", action="store_true", help="не спрашивать подтверждение")
+
+    reset = sub.add_parser("reset-link", help="ссылка для нового пароля, без почты")
+    reset.add_argument("email")
+    reset.add_argument("--reason", default="")
     return parser
 
 
@@ -71,6 +88,7 @@ def _describe(user: Dict[str, Any]) -> str:
         f"  логин:        {user.get('username') or '-'}\n"
         f"  роль:         {user.get('role') or 'student'}\n"
         f"  сотрудник:    {user.get('staff_role') or 'нет'}\n"
+        f"  почта подтв.: {'да' if user.get('email_verified_at') else 'нет'}\n"
         f"  создан:       {created.strftime('%Y-%m-%d %H:%M UTC') if created else '-'}"
     )
 
@@ -112,6 +130,19 @@ async def run(argv: List[str], *, confirm: Callable[[str], str] = input,
         return 1
 
     print(_describe(user), file=out)
+
+    if args.command == "reset-link":
+        token = await auth_tokens.issue(
+            auth_tokens.RESET_PASSWORD, str(user["_id"]), email=user.get("email") or "",
+            ttl=timedelta(minutes=PASSWORD_RESET_TTL_MINUTES),
+        )
+        await audit.record(actor=audit.CLI_ACTOR, action="password.reset_link",
+                           target=audit.user_target(user), reason=args.reason)
+        print(f"\nСсылка для нового пароля (одноразовая, {PASSWORD_RESET_TTL_MINUTES} минут):", file=out)
+        print(f"{PUBLIC_BASE_URL}/reset-password?token={token}", file=out)
+        print("Откройте её в браузере и задайте пароль. Никому её не пересылайте, кроме владельца аккаунта.",
+              file=out)
+        return 0
 
     if args.command == "grant":
         if user.get("staff_role") == args.role:

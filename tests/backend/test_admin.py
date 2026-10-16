@@ -312,6 +312,26 @@ def audit_for(backend, user_id):
 
 
 class TestStaffCommand:
+    def test_reset_link_sets_a_new_password_without_mail(self, backend, account, staff_cli, anon_client):
+        """For the admin who forgot it, or mail that never came."""
+        person = account()
+        code, out = staff_cli("reset-link", person.user["email"], "--reason", "забыл")
+        assert code == 0, out
+        link = next(line for line in out.splitlines() if "/reset-password?token=" in line)
+        token = link.split("token=", 1)[1].strip()
+        reset = anon_client.post("/api/auth/password/reset", json={"token": token, "password": "new-password-1"})
+        assert reset.status_code == 200, reset.text
+        assert anon_client.post("/api/auth/login", json={"email": person.user["email"],
+                                                         "password": "new-password-1"}).status_code == 200
+        assert [e["action"] for e in audit_for(backend, person.user["id"])] == ["password.reset_link"]
+        # Once.
+        assert anon_client.post("/api/auth/password/reset",
+                                json={"token": token, "password": "another-pass-2"}).status_code == 400
+
+    def test_reset_link_for_nobody(self, staff_cli):
+        code, out = staff_cli("reset-link", "nobody-here@school.kz")
+        assert code == 1 and "token=" not in out
+
     def test_grant_writes_the_role_and_the_audit_log(self, backend, account, staff_cli):
         person = account()
         code, out = staff_cli("grant", person.user["email"], "--role", "admin",

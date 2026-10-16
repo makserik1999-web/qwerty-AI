@@ -8,6 +8,7 @@ import { LanguageMenu } from './LanguageMenu'
 import { Logo } from './Logo'
 import { ThemeToggle } from './ThemeToggle'
 import { ConsentGate } from '../auth/ConsentGate'
+import { VerifyGate } from '../auth/VerifyGate'
 import { VerifyBanner } from './VerifyBanner'
 
 interface TabDef {
@@ -64,6 +65,8 @@ export function AppShell() {
   }, [menuOpen])
 
   if (!user) return null
+  // Nothing of the app until the address is confirmed, when that is required.
+  if (user.verifyNeeded) return <VerifyGate />
   const tabs = user.role === 'teacher' ? TEACHER_TABS : STUDENT_TABS
 
   return (

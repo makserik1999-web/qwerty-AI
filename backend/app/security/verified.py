@@ -2,8 +2,9 @@
 
 With REQUIRE_VERIFIED_EMAIL=1 an account must have confirmed its address
 before it spends anything: a video, a paper, a lesson plan, a quiz draft.
-Signing in, reading and watching what the library already has stay open -
-the person needs to be able to reach the "send the link again" button.
+Signing in stays open - the person needs to reach the "send the link again"
+button - and the interface shows nothing else until the address is confirmed
+(`verify_needed` on /api/auth/me).
 
 Off by default, and it should stay off until mail actually leaves the server:
 switched on earlier, nobody could get the link that unlocks them.

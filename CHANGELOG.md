@@ -5,6 +5,23 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### Confirm the email before the app, and a way back in without mail
+
+**Changed**
+
+- With REQUIRE_VERIFIED_EMAIL=1 an unconfirmed account sees nothing of the
+  app but a "confirm your email" page: "I have confirmed", "send again" (with
+  a cooldown) and "sign out". It rechecks when the tab comes back into view,
+  so opening the link on a phone unlocks the laptop. `/api/auth/me` says so
+  with `verify_needed`. Generation was already refused server-side.
+
+**Added**
+
+- `python -m app.staff reset-link <email>` prints a one-time link to set a
+  new password, for an admin who forgot theirs or a teacher whose mail never
+  came. Audited. The account summary in the command now says whether the
+  address is confirmed.
+
 ### Ready for the pilot: check notes, problem reports, role fixes
 
 **Added**

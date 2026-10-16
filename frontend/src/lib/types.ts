@@ -179,4 +179,6 @@ export interface User {
   hasPassword: boolean
   /** Has not agreed to the current privacy policy: the app asks first. */
   consentNeeded: boolean
+  /** Must confirm the email address: the app shows only the confirm page. */
+  verifyNeeded: boolean
 }

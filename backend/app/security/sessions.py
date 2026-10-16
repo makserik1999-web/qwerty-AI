@@ -9,6 +9,7 @@ from bson import ObjectId
 
 from app.config import PRIVACY_POLICY_VERSION, SESSION_TTL, STAFF_ROLES, USER_ROLE_DEFAULT
 from app.db import db
+from app.security.verified import may_generate
 
 
 def _hash_token(token: str) -> str:
@@ -48,6 +49,10 @@ def _user_payload(user: Dict[str, Any]) -> Dict[str, Any]:
         # it existed, one made through Google from the sign-in page, or a
         # policy that has since changed. The app asks before anything else.
         "consent_needed": (user.get("consent") or {}).get("version") != PRIVACY_POLICY_VERSION,
+        # The address must be confirmed before the app is used at all
+        # (REQUIRE_VERIFIED_EMAIL=1). The interface shows only the "check
+        # your inbox" page until it is; the server refuses generation anyway.
+        "verify_needed": not may_generate(user),
     }
     # Only for staff, and only so the interface can show the admin link. It
     # grants nothing: every /api/admin route reads the role from the account.

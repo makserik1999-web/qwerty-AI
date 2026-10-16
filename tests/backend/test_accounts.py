@@ -159,6 +159,16 @@ class TestUnconfirmedCannotGenerate:
     def test_off_by_default(self, account):
         client, _ = account()
         assert client.post("/api/assessments", json=self.SPEC).status_code == 201
+        assert client.get("/api/auth/me").json()["user"]["verify_needed"] is False
+
+    def test_on_the_app_is_told_to_show_only_the_confirm_page(self, backend, account, outbox,
+                                                               anon_client, monkeypatch):
+        monkeypatch.setattr(backend.config, "REQUIRE_VERIFIED_EMAIL", True)
+        client, user = account()
+        assert user["verify_needed"] is True
+        assert client.get("/api/auth/me").json()["user"]["verify_needed"] is True
+        anon_client.post("/api/auth/email/verify", json={"token": link_token(outbox[-1][2], "/verify-email")})
+        assert client.get("/api/auth/me").json()["user"]["verify_needed"] is False
 
     def test_on_it_refuses_with_a_code(self, backend, account, monkeypatch):
         monkeypatch.setattr(backend.config, "REQUIRE_VERIFIED_EMAIL", True)
