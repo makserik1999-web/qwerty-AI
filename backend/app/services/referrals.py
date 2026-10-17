@@ -21,6 +21,7 @@ from bson import ObjectId
 
 from app import config
 from app.db import db
+from app.security.fingerprint import fingerprint
 
 INVITEE_BONUS_VIDEOS = 2
 REWARD_MONTHS = 1
@@ -56,6 +57,19 @@ async def inviter_for(code: Optional[str]) -> Optional[Dict[str, Any]]:
     if not code:
         return None
     return await db.db.users.find_one({"referral_code": code, "role": "teacher"})
+
+
+async def inviter_for_signup(code: Optional[str], device: Optional[str]) -> Optional[Dict[str, Any]]:
+    """Who invited a new account, unless it is being made in a browser the
+    inviter uses: that is inviting yourself, or somebody signing up on the
+    inviter's computer with the inviter's own link still remembered in it."""
+    inviter = await inviter_for(code)
+    if not inviter:
+        return None
+    digest = fingerprint("device", device)
+    if digest and digest in (inviter.get("device_hashes") or []):
+        return None
+    return inviter
 
 
 def link_for(code: str) -> str:

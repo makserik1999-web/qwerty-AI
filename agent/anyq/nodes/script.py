@@ -266,7 +266,8 @@ class Demo(Scene):
     # net, not the plan: a script written to the budget needs no rewrite.
     low, high = VIDEO_LENGTH_BUDGETS[_resolve_video_length(state)]
     system_prompt = build_manim_system_prompt(
-        allow_latex, language_name, narration_budget_rule(low, high)
+        allow_latex, language_name, narration_budget_rule(low, high),
+        portrait=state.get("orientation") == "portrait",
     )
 
     resp = await _llm_chat(

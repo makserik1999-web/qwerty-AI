@@ -70,3 +70,14 @@ def test_a_failed_mark_falls_back_to_the_clean_video(wm, monkeypatch, tmp_path):
 def test_no_text_means_no_work(wm, monkeypatch):
     monkeypatch.setattr(wm.subprocess, "run", lambda *a, **k: pytest.fail("ffmpeg ran"))
     assert asyncio.run(wm.apply("/x/rendered_3.mp4", None)) == ("/x/rendered_3.mp4", "/x/rendered_3.mp4")
+
+
+def test_a_portrait_video_is_marked_by_its_shorter_side(wm, monkeypatch):
+    """A 1080x1920 phone video gets the mark a 1080p one does, not one sized
+    to its 1920 pixels of height."""
+
+    class Probe:
+        stdout = "1080,1920\n"
+
+    monkeypatch.setattr(wm.subprocess, "run", lambda *a, **k: Probe())
+    assert wm._height("tall.mp4") == 1080

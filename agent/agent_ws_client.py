@@ -176,6 +176,9 @@ async def process_request(payload: Dict[str, Any]) -> Dict[str, Any]:
         # the language of the question (anyq.language._resolve_output_language).
         if str(payload.get("output_language") or "") in ("kk", "ru", "en"):
             initial["output_language"] = str(payload["output_language"])
+        # A 9:16 video for a phone. Absent - every older backend - is landscape.
+        if payload.get("orientation") == "portrait":
+            initial["orientation"] = "portrait"
 
         if image_data:
             if isinstance(image_data, list):

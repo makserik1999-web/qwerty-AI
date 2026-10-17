@@ -379,6 +379,11 @@ export const kk = {
   'length.medium.hint': '~50-60 сек',
   'length.long': 'Ұзақ',
   'length.long.hint': '~80-90 сек',
+  'orientation.label': 'Пішім',
+  'orientation.landscape': 'Көлденең',
+  'orientation.landscape.hint': '16:9 · тақтаға',
+  'orientation.portrait': 'Тік',
+  'orientation.portrait.hint': '9:16 · телефонға',
   'player.reducedMotion':
     'Жүйеңізде қозғалысты азайту қосулы. Анимация автоматты ойналмайды.',
 
@@ -1198,6 +1203,11 @@ export const ru: Record<StringKey, string> = {
   'length.medium.hint': '~50-60 сек',
   'length.long': 'Длинное',
   'length.long.hint': '~80-90 сек',
+  'orientation.label': 'Формат',
+  'orientation.landscape': 'Горизонтальное',
+  'orientation.landscape.hint': '16:9 · для доски',
+  'orientation.portrait': 'Вертикальное',
+  'orientation.portrait.hint': '9:16 · для телефона',
   'player.reducedMotion':
     'В системе включено уменьшение движения. Анимация не запускается автоматически.',
 
@@ -2009,6 +2019,11 @@ export const en: Record<StringKey, string> = {
   'length.medium.hint': '~50-60 sec',
   'length.long': 'Long',
   'length.long.hint': '~80-90 sec',
+  'orientation.label': 'Format',
+  'orientation.landscape': 'Landscape',
+  'orientation.landscape.hint': '16:9 · for a screen',
+  'orientation.portrait': 'Portrait',
+  'orientation.portrait.hint': '9:16 · for phones',
   'player.reducedMotion':
     'Reduced motion is on in your system, so the animation does not play automatically.',
 

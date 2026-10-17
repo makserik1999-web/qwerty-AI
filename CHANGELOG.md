@@ -5,6 +5,31 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### Portrait videos, boxes that fit their text, and invites that expire
+
+**Added**
+
+- Portrait (9:16) videos for phones: a "Пішім" choice beside the length. The
+  scene is laid out for the narrow frame - the prompt swaps its two frame
+  rules - and rendered at the quality's own pixels turned on their side
+  (1080x1920 at 1080p), with landscape's pixels per unit so font sizes look
+  the same. Portrait is its own variant in the wording cache and its own shelf
+  in the topic library; the player shows such a video upright.
+
+**Fixed**
+
+- Text stuck out of the boxes drawn around it: the model drew a fixed-width
+  Rectangle and put the text in afterwards. A new prompt rule, L9, has it
+  frame the text with SurroundingRectangle, or fit the text to a shape that
+  must keep its size. The prompt hash pinned in scripts/check.sh moves with it.
+- An invite code stayed in the browser for good, so anyone who later signed up
+  on that computer was told a colleague had invited them and got the +2
+  videos. It now lasts 30 days and goes as soon as any account signs in or up
+  there, and the server ignores an invite made from a browser the inviter
+  uses.
+- The trial watermark is sized to a video's shorter side, so it is not nearly
+  twice as large on a portrait video.
+
 ### Plan limits sized to how teachers work, and two variants per paper
 
 **Changed**

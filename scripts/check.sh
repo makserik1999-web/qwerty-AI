@@ -88,7 +88,13 @@ sys.path.insert(0, ".")
 # a whole spoken sentence, the second spent that sentence morphing one word's
 # letters into another's. Rules 15, 16, L1, L2 and L8 now say the opposite,
 # which is a behaviour change and not a refactor. Previous: 740244fe3570...
-EXPECTED_PROMPT_SHA256 = "1239fa501d3d3e849f7c6dd942ed9bc24d051bbd41a3620f478f2f78dc0f097c"
+#
+# FOURTH value: rule L9 added. Boxes were drawn as a fixed-width Rectangle
+# with the text put in afterwards, and the text stuck out of both ends; L9
+# says to frame the text with SurroundingRectangle or fit the text to the
+# shape. The landscape L6/L7 are byte for byte what they were - a portrait
+# video swaps only those two. Previous: 1239fa501d3d...
+EXPECTED_PROMPT_SHA256 = "ce00ce28d00c4b6fea3ed8b311e44e4c9818e6ed419b8fe742d35a9ce0280f2a"
 
 failures = []
 
@@ -208,14 +214,16 @@ class _FakeTool:
         pass
 
     async def call_mcp_tool(self, name, manim_code=None, narration_manifest="",
-                            quality="l"):
+                            quality="l", orientation="landscape"):
         # narration_manifest is accepted and ignored: these checks cover the
         # repair loop, and synthesising speech would need a live Azure key.
         # quality likewise - it selects a manim render profile, and nothing
         # here renders. It is in the signature because render_video now passes
         # it, and a stub that did not accept it would fail every check with a
-        # TypeError rather than telling anyone what changed.
+        # TypeError rather than telling anyone what changed. orientation the
+        # same: it turns the frame for a portrait video.
         _FakeTool.last_quality = quality
+        _FakeTool.last_orientation = orientation
         return _FakeTool._replies.pop(0)
 
 

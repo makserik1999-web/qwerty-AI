@@ -184,8 +184,35 @@ def _build_silent_scene() -> type:
     return SilentScene
 
 
+# "portrait" for a 9:16 video; anything else is the usual landscape frame.
+_ORIENTATION = (os.environ.get("ANYQ_ORIENTATION") or "").strip().lower()
+
+
+def _apply_orientation() -> None:
+    """Turn the frame on its side for a portrait video.
+
+    The script imports VoiceoverScene from here, which happens after manim has
+    read its quality flag and before the scene exists - the one moment the
+    frame can still be changed. The pixels are the quality's own, swapped
+    (1080p becomes 1080x1920), and the frame keeps landscape's pixels per
+    unit: 8 units across and about 14.2 down. A font_size therefore looks the
+    same size on a phone as it does on a classroom screen, and the prompt
+    tells the model the frame is x in [-4, 4], y in [-7, 7].
+    """
+    if _ORIENTATION != "portrait":
+        return
+    from manim import config
+
+    width, height = config.pixel_width, config.pixel_height
+    if width > height:
+        config.pixel_width, config.pixel_height = height, width
+    config.frame_width = 8.0
+    config.frame_height = 8.0 * config.pixel_height / config.pixel_width
+
+
 def __getattr__(name: str) -> Any:
     """`from anyq_narration import VoiceoverScene`, resolved on demand."""
     if name == "VoiceoverScene":
+        _apply_orientation()
         return _build_narrated_scene() if _MANIFEST_PATH else _build_silent_scene()
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

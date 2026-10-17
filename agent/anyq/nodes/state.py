@@ -57,6 +57,11 @@ class ScienceVideoState(TypedDict, total=False):
     # where it selects a manim quality profile and a repair budget.
     effort: str
 
+    # "portrait" for a 9:16 video; absent or anything else is landscape. Read
+    # twice: the prompt lays the scene out for that frame, the renderer turns
+    # the frame to match.
+    orientation: str
+
     # manim
     manim_script: str
     video_path: str

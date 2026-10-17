@@ -12,7 +12,7 @@
  * which the server does not know. `detail` is kept for the cases nothing has
  * been translated for yet.
  */
-import { deviceId, inviteRef } from './device'
+import { deviceId, forgetRef, inviteRef } from './device'
 import type { StringKey } from './strings'
 import type { Role, StaffRole } from './types'
 
@@ -134,6 +134,7 @@ export async function signUp(input: SignUpInput): Promise<ApiUser> {
     method: 'POST',
     body: JSON.stringify({ ...input, ref: inviteRef() || undefined, device: deviceId() || undefined }),
   })
+  forgetRef()
   return user
 }
 
@@ -142,6 +143,8 @@ export async function signIn(input: { email: string; password: string }): Promis
     method: 'POST',
     body: JSON.stringify({ ...input, device: deviceId() || undefined }),
   })
+  // Somebody with an account uses this browser: an invite left in it is not theirs.
+  forgetRef()
   return user
 }
 

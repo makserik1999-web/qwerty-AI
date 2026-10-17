@@ -22,14 +22,19 @@ TIMEOUT_SEC = 300
 
 
 def _height(path: str) -> int:
-    """The video's height in pixels, for sizing the mark; 720 if unknown."""
+    """The video's height in pixels, for sizing the mark; 720 if unknown.
+
+    For a portrait video, its width: the mark is sized to the shorter side,
+    or on a 1080x1920 phone video it would be nearly twice the size.
+    """
     try:
         out = subprocess.run(
             ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
-             "stream=height", "-of", "csv=p=0", path],
+             "stream=width,height", "-of", "csv=p=0", path],
             capture_output=True, text=True, timeout=30,
         )
-        return int(out.stdout.strip().splitlines()[0])
+        sides = [int(v) for v in out.stdout.strip().splitlines()[0].split(",") if v.strip()]
+        return min(sides)
     except Exception:  # noqa: BLE001 - a guess is good enough for a font size
         return 720
 

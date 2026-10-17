@@ -314,6 +314,14 @@ VIDEO_LENGTH_DEFAULT = (os.getenv("VIDEO_LENGTH_DEFAULT", "medium") or "").strip
 if VIDEO_LENGTH_DEFAULT not in VIDEO_LENGTHS:
     VIDEO_LENGTH_DEFAULT = "medium"
 
+# ============== Orientation ==============
+# Landscape for a classroom screen, portrait (9:16) for a phone, a status or a
+# Reels-style post. A closed set: it reaches the cache key and the topic
+# library, where a portrait video is not an answer to somebody who asked for
+# a landscape one.
+VIDEO_ORIENTATIONS = ("landscape", "portrait")
+VIDEO_ORIENTATION_DEFAULT = "landscape"
+
 # ============== Effort ==============
 # How much is spent making the video. The agent owns what each level means -
 # a manim quality profile and a repair budget; the backend validates the name

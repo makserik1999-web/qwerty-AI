@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { ExplanationView } from '../components/ExplanationView'
 import { NarrationToggle, type NarrationVoice } from '../components/NarrationToggle'
 import { EffortPicker } from '../components/EffortPicker'
+import { OrientationPicker } from '../components/OrientationPicker'
 import { VideoLengthPicker } from '../components/VideoLengthPicker'
 import {
   Alert,
@@ -34,6 +35,7 @@ import {
   useLive,
   type AskStage,
   type Effort,
+  type Orientation,
   type VideoLength,
 } from '../lib/live'
 import { EXAMPLE_QUESTIONS } from '../lib/mockData'
@@ -87,6 +89,8 @@ export function Explain() {
   // Medium, which is 720p30. The old default was manim's own 480p15 -
   // never chosen by anyone, and visibly choppy on a classroom projector.
   const [effort, setEffort] = useState<Effort>('medium')
+  // Landscape by default: the classroom screen is what most videos are for.
+  const [orientation, setOrientation] = useState<Orientation>('landscape')
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const [searchParams, setSearchParams] = useSearchParams()
 
@@ -136,6 +140,7 @@ export function Explain() {
           narrationVoice: voice,
           videoLength,
           effort,
+          orientation,
           forceRegenerate: options.force,
           ...(outputLang === 'auto' ? {} : { outputLanguage: outputLang }),
         })
@@ -189,7 +194,7 @@ export function Explain() {
         void refreshPlan()
       }
     },
-    [ask, effort, narration, outputLang, refreshPlan, t, voice, videoLength],
+    [ask, effort, narration, orientation, outputLang, refreshPlan, t, voice, videoLength],
   )
 
   function onSubmit(event: React.FormEvent) {
@@ -397,6 +402,11 @@ export function Explain() {
                       <VideoLengthPicker
                         value={videoLength}
                         onChange={setVideoLength}
+                        disabled={busy}
+                      />
+                      <OrientationPicker
+                        value={orientation}
+                        onChange={setOrientation}
                         disabled={busy}
                       />
                       <EffortPicker

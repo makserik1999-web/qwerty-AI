@@ -21,6 +21,8 @@ from app.config import (
     USER_ROLE_DEFAULT,
     VIDEO_LENGTH_DEFAULT,
     VIDEO_LENGTHS,
+    VIDEO_ORIENTATION_DEFAULT,
+    VIDEO_ORIENTATIONS,
 )
 from app.db import db
 from app.repositories.chats import create_chat, delete_chat_by_id
@@ -153,7 +155,13 @@ async def _handle_ui_frame(websocket: WebSocket, user_id: str, data: dict) -> No
         output_language = str(payload.get("output_language") or "").strip().lower()
         if output_language not in EXPLANATION_LANGUAGES:
             output_language = ""
-        variant = cache_service.render_variant(narration, voice, video_length, effort, output_language)
+        # Landscape for the classroom, portrait for a phone. Changes the video
+        # itself, so it is in the cache key like everything above.
+        orientation = str(payload.get("orientation") or "").strip().lower()
+        if orientation not in VIDEO_ORIENTATIONS:
+            orientation = VIDEO_ORIENTATION_DEFAULT
+        variant = cache_service.render_variant(narration, voice, video_length, effort, output_language,
+                                               orientation)
 
         cached = None
         if CACHE_ENABLED and not payload.get("force_regenerate"):
@@ -210,7 +218,7 @@ async def _handle_ui_frame(websocket: WebSocket, user_id: str, data: dict) -> No
                 # the question's own unless another was chosen.
                 hit = await topic_cache.best(classification["topic_id"],
                                              output_language or classification.get("language", ""),
-                                             narration=narration)
+                                             narration=narration, orientation=orientation)
             except Exception as e:
                 print(f"topic cache lookup failed, rendering instead: {type(e).__name__}: {e}")
             if hit:
@@ -344,6 +352,7 @@ async def _handle_ui_frame(websocket: WebSocket, user_id: str, data: dict) -> No
             # is filed for the next person who asks.
             "classification": classification,
             "output_language": output_language,
+            "orientation": orientation,
         }
         await quota.record(user_id, request_id)
         # The task the admin panel sees. What was asked is kept so a failure
@@ -353,7 +362,7 @@ async def _handle_ui_frame(websocket: WebSocket, user_id: str, data: dict) -> No
             "screenshots": len(screenshots or []), "narration": narration,
             "voice": voice, "video_length": video_length, "effort": effort,
             "variant": variant, "classification": classification,
-            "output_language": output_language,
+            "output_language": output_language, "orientation": orientation,
         })
         try:
             await agent_manager.send_to_agent(
@@ -368,6 +377,7 @@ async def _handle_ui_frame(websocket: WebSocket, user_id: str, data: dict) -> No
                 effort=effort,
                 watermark=entitlement.watermark,
                 output_language=output_language,
+                orientation=orientation,
             )
         except Exception as e:
             agent_manager.pending_requests.pop(request_id, None)

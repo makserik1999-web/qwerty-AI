@@ -7,6 +7,7 @@ import {
   useState,
 } from 'react'
 import * as api from './api'
+import { forgetRef } from './device'
 import * as saved from './saved'
 import type { ApiUser } from './api'
 import type {
@@ -168,6 +169,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     api
       .currentUser()
       .then((found) => {
+        // Back from Google, or simply signed in already: an invite left in
+        // this browser is not for this account.
+        if (found) forgetRef()
         if (!cancelled) setUser(found ? toUser(found) : null)
       })
       .catch(() => {

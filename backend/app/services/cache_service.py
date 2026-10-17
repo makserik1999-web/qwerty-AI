@@ -69,7 +69,7 @@ def cacheable_request(prompt: str, screenshots: List[Any]) -> Tuple[bool, str]:
 
 
 def render_variant(narration: bool, voice: str, length: str = "",
-                   effort: str = "", language: str = "") -> str:
+                   effort: str = "", language: str = "", orientation: str = "") -> str:
     """What the request chose about the video, as a cache-key fragment.
 
     Two people asking the same question get the same answer only if they asked
@@ -98,6 +98,9 @@ def render_variant(narration: bool, voice: str, length: str = "",
     The answer language is the fourth: the same words asked for in English
     are not answered by the Kazakh video. Empty - "the question's own
     language" - is what every entry stored before the choice existed was.
+
+    Orientation is the fifth. Only portrait adds to the key: every entry
+    stored before the choice existed is landscape, and stays reachable.
     """
     key = f"voice={voice}" if narration else "silent"
     if length:
@@ -106,6 +109,8 @@ def render_variant(narration: bool, voice: str, length: str = "",
         key = f"{key},eff={effort}"
     if language:
         key = f"{key},lang={language}"
+    if orientation == "portrait":
+        key = f"{key},frame=portrait"
     return key
 
 

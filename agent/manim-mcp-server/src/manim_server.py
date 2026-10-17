@@ -211,7 +211,7 @@ def _remux_faststart(source: Path, destination: Path) -> bool:
 
 
 def run_manim_script(code: str, quality: str = "l",
-                     narration_manifest: str = "") -> dict:
+                     narration_manifest: str = "", orientation: str = "landscape") -> dict:
     """
     Execute a Manim script and return the path to the rendered video.
 
@@ -221,6 +221,8 @@ def run_manim_script(code: str, quality: str = "l",
         narration_manifest: Path to audio the agent already synthesised.
             Empty renders the same script silently. Never a credential -
             see the safe_env note below.
+        orientation: "portrait" turns the frame on its side (9:16); the
+            script's own import of anyq_narration does it, see there.
 
     Returns:
         dict with 'success', 'video_path', and 'error' keys
@@ -293,6 +295,8 @@ def run_manim_script(code: str, quality: str = "l",
             # audio; this process only reads it, and PrerenderedService has no
             # network code to fall back on.
             safe_env["ANYQ_NARRATION_MANIFEST"] = narration_manifest
+        if orientation == "portrait":
+            safe_env["ANYQ_ORIENTATION"] = "portrait"
 
         # Run manim as a new process group so a timeout can kill the whole tree
         # (manim + ffmpeg + anything the script spawned) - no orphans.
@@ -339,6 +343,14 @@ def run_manim_script(code: str, quality: str = "l",
         quality_dir = quality_dirs.get(quality, "480p15")
 
         expected_video = Path(media_dir) / "videos" / script_stem / quality_dir / f"{scene_name}.mp4"
+        if not expected_video.exists():
+            # Manim names the folder after the pixel height, and a portrait
+            # 1080p video is 1920 pixels high: "1920p60", not "1080p60". The
+            # script's folder is unique to this run, so whichever quality
+            # folder holds the scene is this render's.
+            found = sorted((Path(media_dir) / "videos" / script_stem).glob(f"*/{scene_name}.mp4"))
+            if found:
+                expected_video = found[0]
 
         if expected_video.exists():
             # Move to outputs directory with unique name (use shutil.move for cross-device support)
@@ -435,6 +447,12 @@ async def handle_list_tools() -> list[types.Tool]:
                             "This is a path, never a credential - this server "
                             "does not synthesise and holds no key."
                         )
+                    },
+                    "orientation": {
+                        "type": "string",
+                        "enum": ["landscape", "portrait"],
+                        "default": "landscape",
+                        "description": "landscape = 16:9, portrait = 9:16 for phones"
                     }
                 },
                 "required": ["manim_code"]
@@ -455,6 +473,7 @@ async def handle_call_tool(name: str, arguments: dict | None) -> list[types.Text
     code = arguments["manim_code"]
     quality = arguments.get("quality", "l")
     narration_manifest = str(arguments.get("narration_manifest") or "")
+    orientation = "portrait" if arguments.get("orientation") == "portrait" else "landscape"
 
     if quality not in ("l", "m", "h"):
         raise ValueError("quality must be one of l, m, h")
@@ -462,7 +481,7 @@ async def handle_call_tool(name: str, arguments: dict | None) -> list[types.Text
     # Run in a thread pool to avoid blocking
     loop = asyncio.get_event_loop()
     result = await loop.run_in_executor(
-        None, run_manim_script, code, quality, narration_manifest
+        None, run_manim_script, code, quality, narration_manifest, orientation
     )
 
     return [types.TextContent(type="text", text=json.dumps(result))]

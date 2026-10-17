@@ -301,7 +301,7 @@ class AgentConnectionManager:
                             narration: bool = True, narration_voice: str = "aigul",
                             video_length: str = "", effort: str = "",
                             watermark: Optional[str] = None,
-                            output_language: str = ""):
+                            output_language: str = "", orientation: str = ""):
         """Hand one question to the agent, and wait to be told it arrived.
 
         The wait is the point. This used to end at send_json, which reports
@@ -351,6 +351,8 @@ class AgentConnectionManager:
                 # The answer language the asker chose; absent means the
                 # question's own, which is all an older agent knows anyway.
                 **({"output_language": output_language} if output_language else {}),
+                # Portrait only when asked: an older agent never sees the field.
+                **({"orientation": orientation} if orientation == "portrait" else {}),
             })
 
             if ack is not None:

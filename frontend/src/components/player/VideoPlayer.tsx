@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useI18n } from '../../lib/i18n'
 import { cx, formatClock } from '../../lib/utils'
 import { Icon, IconButton } from '../ui'
@@ -47,6 +47,10 @@ export function VideoPlayer({ src, title, autoPlay = false, className }: VideoPl
     setScrubbing,
   } = useVideoPlayer(src)
   const [rate, setRate] = usePlaybackRate()
+  // A phone video (9:16) is shown upright and centred rather than stretched
+  // to the width of the column. Read from the file itself, so a portrait
+  // video from the library or the cache is shown right as well.
+  const [portrait, setPortrait] = useState(false)
 
   useEffect(() => {
     const video = videoRef.current
@@ -70,7 +74,7 @@ export function VideoPlayer({ src, title, autoPlay = false, className }: VideoPl
   }
 
   return (
-    <figure className={cx('player', className)}>
+    <figure className={cx('player', portrait && 'player--portrait', className)}>
       <div className="player__stage">
         <video
           ref={videoRef}
@@ -81,6 +85,9 @@ export function VideoPlayer({ src, title, autoPlay = false, className }: VideoPl
           playsInline
           preload="metadata"
           onClick={togglePlay}
+          onLoadedMetadata={(event) =>
+            setPortrait(event.currentTarget.videoHeight > event.currentTarget.videoWidth)
+          }
         />
         {isWaiting || !isLoaded ? (
           <div className="player__waiting" role="status" aria-live="polite">

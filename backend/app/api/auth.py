@@ -135,9 +135,9 @@ async def signup(body: SignupRequest, request: Request):
         raise HTTPExceptionJson(409, "Email already registered")
 
     # Invited by a colleague: remembered once, here. Only teachers invite.
-    from app.services.referrals import inviter_for
+    from app.services.referrals import inviter_for_signup
 
-    inviter = await inviter_for(body.ref)
+    inviter = await inviter_for_signup(body.ref, body.device)
 
     try:
         user = {

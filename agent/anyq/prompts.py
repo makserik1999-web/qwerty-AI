@@ -240,9 +240,44 @@ _DEFAULT_NARRATION_BUDGET = (
 )
 
 
+# L6 and L7 as they always were: the frame of a landscape video.
+_FRAME_LANDSCAPE = (
+    "L6. STAY INSIDE THE FRAME. The visible area is about x in [-7, 7] and\n"
+    "    y in [-4, 4]. Keep every object within it. If a diagram is large, wrap it\n"
+    "    in a VGroup and call .scale(0.7) and/or .move_to(ORIGIN) so nothing is\n"
+    "    clipped at the edges.\n"
+    "L7. LONG TEXT MUST FIT. Use font_size=24-30 for captions, font_size=36-48 for\n"
+    "    titles. If a sentence is long, shorten it or split it into two shorter\n"
+    "    captions shown one after another - never let text run off screen or across\n"
+    "    the diagram.\n"
+)
+
+# The same two rules for a 9:16 phone video. The renderer keeps landscape's
+# pixels per unit (anyq_narration._apply_orientation), so font sizes mean what
+# they always did - it is the width that is gone, and the layout that changes.
+_FRAME_PORTRAIT = (
+    "L6. STAY INSIDE THE FRAME - THIS VIDEO IS PORTRAIT (9:16, for a phone).\n"
+    "    The visible area is about x in [-4, 4] and y in [-7, 7]: narrow and\n"
+    "    tall. Keep every object within x in [-3.6, 3.6]. Stack things\n"
+    "    VERTICALLY - the title at the top, the diagram in the middle, the\n"
+    "    caption at the bottom - and never put three things side by side in a\n"
+    "    row. A wide diagram goes in a VGroup with .scale_to_fit_width(7) and\n"
+    "    .move_to(ORIGIN); arrange its parts with .arrange(DOWN, buff=0.5).\n"
+    "L7. LONG TEXT MUST FIT THE NARROW FRAME. Use font_size=24-28 for captions\n"
+    "    and font_size=34-40 for titles. Keep a line of text under about 30\n"
+    "    characters: split a longer caption into two lines with \"\\n\" or into\n"
+    "    two captions shown one after another. Never let text run off the sides.\n"
+)
+
+
 def build_manim_system_prompt(allow_latex: bool, language_name: str,
-                              narration_budget: str = "") -> str:
-    """System prompt of generate_manim_script - the exact text the model sees."""
+                              narration_budget: str = "", portrait: bool = False) -> str:
+    """System prompt of generate_manim_script - the exact text the model sees.
+
+    `portrait` swaps the two frame rules, L6 and L7, for a 9:16 video; the
+    rest is the same prompt.
+    """
+    frame_rules = _FRAME_PORTRAIT if portrait else _FRAME_LANDSCAPE
     return f"""{MANIM_API_REFERENCE}
 
 You are an expert Manim Community script writer.
@@ -334,19 +369,22 @@ L4. NEVER leave multiple objects at the default centre position. Every
 L5. LABELS GO OUTSIDE THEIR SHAPE. Attach a label with
     .next_to(shape, DIRECTION, buff=0.25) - do not stack two labels on the
     same shape, and do not place a formula box on top of a filled shape.
-L6. STAY INSIDE THE FRAME. The visible area is about x in [-7, 7] and
-    y in [-4, 4]. Keep every object within it. If a diagram is large, wrap it
-    in a VGroup and call .scale(0.7) and/or .move_to(ORIGIN) so nothing is
-    clipped at the edges.
-L7. LONG TEXT MUST FIT. Use font_size=24-30 for captions, font_size=36-48 for
-    titles. If a sentence is long, shorten it or split it into two shorter
-    captions shown one after another - never let text run off screen or across
-    the diagram.
-L8. When the diagram itself changes, the same order applies: first a
+{frame_rules}L8. When the diagram itself changes, the same order applies: first a
     self.play(FadeOut(...)) of everything that is no longer needed, then a
     separate self.play(...) that brings in what comes next. Never overlap the
     two - a shape dissolving underneath a shape being drawn is the single
     thing that makes these videos look broken.
+L9. A FRAME FITS WHAT IS IN IT. To put a box around text or a formula, make
+    the text first and draw the box around it:
+        label = Text("From 192.168.1.5 to 10.0.0.8", font_size=26)
+        box = SurroundingRectangle(label, color=YELLOW, buff=0.25)
+    Never draw a Rectangle of a fixed width and then put text into it - the
+    text comes out wider than the box and sticks out of both ends. Around
+    several lines, frame the group: SurroundingRectangle(VGroup(a, b), buff=0.3).
+    When a shape must keep its own size (a node of a diagram), make the text
+    fit the shape instead:
+        label.scale_to_fit_width(min(label.width, node.width - 0.4))
+        label.move_to(node)
 8. {"LaTeX is available. Use MathTex/Tex for equations." if allow_latex else "LaTeX NOT available. Use Text() only, not Tex or MathTex."}
 9. NEVER use deprecated methods. Follow the examples exactly.
 

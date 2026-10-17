@@ -245,6 +245,7 @@ async def websocket_agent_endpoint(websocket: WebSocket):
                         topic_id=classification["topic_id"], lang=answer_language,
                         video_url=clean_url, text=response_text, user_id=user_id,
                         duration=data.get("duration"), has_audio=data.get("has_audio"),
+                        orientation=str(request_info.get("orientation") or ""),
                     )
                 except Exception as e:
                     print(f"topic cache write failed: {type(e).__name__}: {e}")

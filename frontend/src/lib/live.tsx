@@ -90,6 +90,9 @@ export type VideoLength = 'short' | 'medium' | 'long'
 /** How much is spent making the video. Picture quality is the visible part. */
 export type Effort = 'low' | 'medium' | 'high'
 
+/** Which way up the video is: 16:9 for a screen, 9:16 for a phone. */
+export type Orientation = 'landscape' | 'portrait'
+
 export interface AskInput {
   question: string
   narration: boolean
@@ -100,6 +103,8 @@ export interface AskInput {
   forceRegenerate?: boolean
   /** The answer language; absent means the language of the question. */
   outputLanguage?: 'kk' | 'ru' | 'en'
+  /** Absent means landscape, as every video was before the choice. */
+  orientation?: Orientation
 }
 
 interface LiveValue {
@@ -185,6 +190,7 @@ export function LiveProvider({
           video_length: input?.videoLength ?? 'medium',
           effort: input?.effort ?? 'medium',
           ...(input?.outputLanguage ? { output_language: input.outputLanguage } : {}),
+          ...(input?.orientation === 'portrait' ? { orientation: 'portrait' } : {}),
           ...(input?.forceRegenerate ? { force_regenerate: true } : {}),
         })
         return

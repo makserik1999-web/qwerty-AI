@@ -55,7 +55,13 @@ def _media_present(video_url: str) -> bool:
     return bool(name) and (config.MEDIA_DIR / name).is_file()
 
 
-async def best(topic_id: str, lang: str, *, narration: bool = True) -> Optional[Dict[str, Any]]:
+def _orientation(entry: Dict[str, Any]) -> str:
+    """Every video filed before the choice existed is landscape."""
+    return "portrait" if entry.get("orientation") == "portrait" else "landscape"
+
+
+async def best(topic_id: str, lang: str, *, narration: bool = True,
+               orientation: str = "landscape") -> Optional[Dict[str, Any]]:
     """The version to show for this topic in this language, or None.
 
     A video with sound is preferred when narration was asked for, a silent
@@ -65,6 +71,9 @@ async def best(topic_id: str, lang: str, *, narration: bool = True) -> Optional[
     A video known to be silent is never the answer to a request with the voice
     on: that is the choice quietly not happening, and the person would think
     narration is broken. It still answers a request with the voice off.
+
+    Nor is a video of the other orientation: somebody who asked for a phone
+    video is not helped by a landscape one, and the other way round.
     """
     if not topic_id or not lang:
         return None
@@ -73,7 +82,8 @@ async def best(topic_id: str, lang: str, *, narration: bool = True) -> Optional[
             {"topic_id": topic_id, "lang": lang, "status": {"$in": list(SERVABLE)}})
     ]
     candidates = [e for e in candidates if _media_present(e.get("video_url", ""))
-                  and not (narration and e.get("has_audio") is False)]
+                  and not (narration and e.get("has_audio") is False)
+                  and _orientation(e) == orientation]
     if not candidates:
         return None
 
@@ -89,14 +99,21 @@ async def best(topic_id: str, lang: str, *, narration: bool = True) -> Optional[
 
 
 async def add(*, topic_id: str, lang: str, video_url: str, text: str, user_id: str,
-              duration: Optional[float], has_audio: Optional[bool]) -> Optional[str]:
-    """File a new video under its topic. Returns its id, or None if not kept."""
+              duration: Optional[float], has_audio: Optional[bool],
+              orientation: str = "landscape") -> Optional[str]:
+    """File a new video under its topic. Returns its id, or None if not kept.
+
+    Portrait and landscape versions are counted apart, so phone videos do not
+    push the classroom ones out of their MAX_VERSIONS places.
+    """
     topic = topics().get(topic_id)
     if not topic or not video_url or lang not in ("kk", "ru", "en"):
         return None
+    orientation = "portrait" if orientation == "portrait" else "landscape"
     existing = [
         e async for e in db.db.video_cache.find(
             {"topic_id": topic_id, "lang": lang, "status": {"$in": list(SERVABLE)}})
+        if _orientation(e) == orientation
     ]
     if len(existing) >= MAX_VERSIONS:
         unchecked = [e for e in existing if e.get("status") == CACHED]
@@ -116,6 +133,7 @@ async def add(*, topic_id: str, lang: str, video_url: str, text: str, user_id: s
         "text": text[:20000],
         "duration": duration,
         "has_audio": has_audio,
+        "orientation": orientation,
         "rating_up": 0,
         "rating_down": 0,
         "status": CACHED,
@@ -176,6 +194,7 @@ def public_view(entry: Dict[str, Any]) -> Dict[str, Any]:
         "text": entry.get("text", ""),
         "duration": entry.get("duration"),
         "has_audio": entry.get("has_audio"),
+        "orientation": _orientation(entry),
         "rating_up": entry.get("rating_up", 0),
         "rating_down": entry.get("rating_down", 0),
         "status": entry.get("status"),

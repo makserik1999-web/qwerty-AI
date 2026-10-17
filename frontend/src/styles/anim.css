@@ -461,6 +461,16 @@
   cursor: pointer;
 }
 
+/* A portrait (9:16) video: upright, centred, and no taller than the screen
+   leaves room for - stretched to the column's width it would be a metre high. */
+.player--portrait .player__video {
+  aspect-ratio: 9 / 16;
+  width: auto;
+  height: min(75vh, 720px);
+  max-width: 100%;
+  margin-inline: auto;
+}
+
 /* Covers the stage while the file is still arriving. Deliberately a dimmed
    overlay rather than a spinner over black: the first frame is usually
    decoded well before the video is playable, and hiding it would make a

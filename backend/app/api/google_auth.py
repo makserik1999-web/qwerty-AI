@@ -247,9 +247,9 @@ async def google_callback(request: Request, code: str = "", state: str = "", err
                 "email_verified_at": now,
                 "created_at": now,
             }
-            from app.services.referrals import inviter_for
+            from app.services.referrals import inviter_for_signup
 
-            inviter = await inviter_for(flow.get("ref"))
+            inviter = await inviter_for_signup(flow.get("ref"), flow.get("device"))
             if inviter:
                 doc["referred_by"] = str(inviter["_id"])
             if flow.get("consent"):

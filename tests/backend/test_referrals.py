@@ -86,6 +86,22 @@ class TestTheLink:
         invitee = account(ref="NOPE99")
         assert "referred_by" not in doc(backend, invitee.user["id"])
 
+    def test_no_invite_from_the_inviters_own_browser(self, backend, account):
+        # A tester signing up on the owner's laptop, where the owner's own
+        # link was once opened: nobody invited them, and no bonus is due.
+        inviter = account(device="owner-laptop")
+        code = inviter.get("/api/referrals").json()["code"]
+        tester = account(ref=code, device="owner-laptop", phone=True)
+        assert "referred_by" not in doc(backend, tester.user["id"])
+        assert tester.get("/api/plan").json()["plan"]["available"]["videos"] == 2
+        assert inviter.get("/api/referrals").json()["invited"] == 0
+
+    def test_another_browser_is_a_real_invite(self, backend, account):
+        inviter = account(device="owner-laptop")
+        code = inviter.get("/api/referrals").json()["code"]
+        colleague = account(ref=code, device="colleague-phone")
+        assert doc(backend, colleague.user["id"])["referred_by"] == inviter.user["id"]
+
 
 class TestRewards:
     def test_the_invited_teacher_gets_two_more_trial_videos(self, backend, account):
@@ -159,7 +175,10 @@ class TestAbuseSignals:
         support = account(staff="support")
         inviter = account(device="dev-A")
         code = inviter.get("/api/referrals").json()["code"]
-        invitee = account(ref=code, device="dev-A")
+        invitee = account(ref=code, device="dev-B")
+        # Later signed in on the inviter's browser - and a third account made there.
+        invitee.post("/api/auth/login", json={"email": invitee.user["email"], "password": "password123",
+                                               "device": "dev-A"})
         account(device="dev-A")
 
         view = support.get("/api/admin/referrals").json()
