@@ -3,7 +3,8 @@ FROM python:3.12-slim-bookworm
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    HOME=/tmp
 
 WORKDIR /app
 
@@ -40,9 +41,16 @@ COPY . /app
 ENV MANIM_MCP_SERVER_SCRIPT=/app/manim-mcp-server/src/manim_server.py
 ENV MANIM_ALLOW_LATEX=1
 ENV AGENT_WS_URL=ws://backend:8000/ws/agent
+ENV MANIM_OUTPUT_DIR=/app/manim-mcp-server/src/media/outputs
+ENV ANYQ_TELEMETRY_PATH=/app/logs/runs.jsonl
 
-# Create media output directory
-RUN mkdir -p /app/manim-mcp-server/src/media/outputs
+# Non-root runtime user (the LLM-generated scripts run as this user).
+# The media dir is writable by appuser so manim can write intermediates and
+# the final video; compose mounts the shared volume here.
+RUN useradd --create-home --uid 10001 --shell /usr/sbin/nologin appuser \
+    && mkdir -p /app/manim-mcp-server/src/media/outputs /app/logs \
+    && chown -R appuser:appuser /app
+
+USER appuser
 
 CMD ["python", "agent_ws_client.py"]
-

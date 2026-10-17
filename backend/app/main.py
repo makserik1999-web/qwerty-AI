@@ -1,0 +1,81 @@
+"""Application assembly: middleware, routers and the error handler.
+
+Everything of substance lives in the modules imported below; this file only
+wires them together, which is what `uvicorn main:app` ultimately loads.
+"""
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.api import (
+    admin,
+    admin_ops,
+    admin_payments,
+    admin_videos,
+    assessments,
+    auth,
+    chats,
+    email_auth,
+    exports,
+    google_auth,
+    health,
+    jobs,
+    lesson_plans,
+    media,
+    payments,
+    phone,
+    plan,
+    quiz_drafts,
+    quota,
+    referrals,
+    reports,
+    saved,
+    videos,
+)
+from app.config import CORS_ORIGINS
+from app.db import lifespan
+from app.errors import HTTPExceptionJson, _http_exception_json_handler
+from app.ws import agent as ws_agent
+from app.ws import ui as ws_ui
+
+app = FastAPI(title="Akron Backend", version="1.1.0", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Accept"],
+)
+
+app.add_exception_handler(HTTPExceptionJson, _http_exception_json_handler)
+
+app.include_router(health.router)
+app.include_router(auth.router)
+app.include_router(email_auth.router)
+app.include_router(google_auth.router)
+app.include_router(phone.router)
+app.include_router(plan.router)
+app.include_router(payments.router)
+app.include_router(referrals.router)
+app.include_router(referrals.admin_router)
+app.include_router(reports.router)
+app.include_router(reports.admin_router)
+app.include_router(chats.router)
+app.include_router(media.router)
+app.include_router(admin.router)
+app.include_router(admin_payments.router)
+app.include_router(admin_videos.router)
+app.include_router(admin_ops.router)
+app.include_router(jobs.router)
+app.include_router(exports.router)
+app.include_router(quota.router)
+app.include_router(assessments.router)
+app.include_router(lesson_plans.router)
+app.include_router(quiz_drafts.router)
+app.include_router(saved.router)
+app.include_router(videos.router)
+
+# /ws/agent and /ws are exact paths (no path params)
+app.include_router(ws_agent.router)
+app.include_router(ws_ui.router)

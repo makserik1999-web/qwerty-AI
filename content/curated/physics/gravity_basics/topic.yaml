@@ -1,0 +1,38 @@
+topic_id: physics.gravity_basics
+subject: physics
+grade_range: [7, 9]
+languages: [kk, ru, en]
+
+# Phrasings that should land on this video. They go through the same
+# normaliser as a typed question, so case, punctuation and "explain ..."
+# framing are handled already - list real wordings, not variants of one.
+aliases:
+  kk:
+    - "гравитация деген не"
+    - "ауырлық күші дегеніміз не"
+    - "тартылыс күші деген не"
+  ru:
+    - "что такое гравитация"
+    - "что такое сила тяжести"
+    - "что такое сила притяжения"
+  en:
+    - "what is gravity"
+    - "what is the force of gravity"
+
+# ONE animation for every language; the wording comes from strings.<lang>.yaml.
+manim_script: scene.py
+strings: strings.{lang}.yaml
+educator_text: text.{lang}.md
+
+# Nothing here is published until a human has watched it. `animation` is the
+# motion itself - reviewed once, because it is the same in all languages.
+# Each language is then only a read-through of its captions and text.
+#
+# Workflow: `seed_library.py --preview` renders every language WITHOUT
+# publishing, so there is something to actually watch. Once watched, flip
+# approved to true here and run `seed_library.py` to publish.
+review:
+  animation: { approved: false, by: "", at: "" }
+  kk: { approved: false, by: "", at: "" }
+  ru: { approved: false, by: "", at: "" }
+  en: { approved: false, by: "", at: "" }
