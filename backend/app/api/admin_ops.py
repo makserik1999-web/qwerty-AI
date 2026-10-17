@@ -331,6 +331,40 @@ async def _failure_types(since: datetime) -> List[Dict[str, Any]]:
     return [{"error_type": k, "count": v} for k, v in sorted(counts.items(), key=lambda kv: -kv[1])]
 
 
+# Running out before this day of the subscription month means the plan is too
+# small for that teacher, not that the month was busy.
+EARLY_PERIOD_DAY = 15
+
+
+async def _limit_hits(since: datetime) -> List[Dict[str, Any]]:
+    """Who ran out of what: per resource, the refusals and the people behind them."""
+    rows: Dict[str, Dict[str, Any]] = {}
+    async for hit in db.db.plan_limit_hits.find({"at": {"$gte": since}}):
+        resource = hit.get("resource") or "?"
+        row = rows.setdefault(resource, {"resource": resource, "hits": 0, "_users": set(), "_trial": set(),
+                                         "_ustaz": set(), "_early": set(), "_fair": set()})
+        user = hit.get("user_id")
+        row["hits"] += 1
+        row["_users"].add(user)
+        if hit.get("kind") == plans.ON_TRIAL:
+            row["_trial"].add(user)
+        elif hit.get("kind") == plans.ON_USTAZ:
+            row["_ustaz"].add(user)
+            if int(hit.get("period_day") or 99) < EARLY_PERIOD_DAY:
+                row["_early"].add(user)
+        if hit.get("code") == "fair_use_reached":
+            row["_fair"].add(user)
+    out = []
+    for resource in [r for r in plans.RESOURCES if r in rows] + [r for r in rows if r not in plans.RESOURCES]:
+        row = rows[resource]
+        out.append({
+            "resource": resource, "hits": row["hits"], "users": len(row["_users"]),
+            "trial_users": len(row["_trial"]), "ustaz_users": len(row["_ustaz"]),
+            "early_users": len(row["_early"]), "fair_use_users": len(row["_fair"]),
+        })
+    return out
+
+
 async def _azure(now: datetime) -> Dict[str, Any]:
     """Characters sent to Azure this calendar month, against the free tier.
 
@@ -366,6 +400,8 @@ async def metrics(days: int = 30):
         "revenue": await payments.revenue_by_month(12),
         "renders": await _renders(since),
         "failures": await _failure_types(since),
+        "limit_hits": await _limit_hits(since),
+        "early_period_day": EARLY_PERIOD_DAY,
         "azure": await _azure(now),
         "utc_offset_hours": STATS_UTC_OFFSET_HOURS,
     }

@@ -74,6 +74,8 @@ class AssessmentRequest(BaseModel):
     difficulty: str
     lang: str
     count: int = 5
+    # 2: the same paper twice, 1-нұсқа and 2-нұсқа, for one generation.
+    variants: int = 1
 
 
 class QuizDraftRequest(BaseModel):
@@ -120,6 +122,8 @@ class QuestionsUpdate(BaseModel):
     """The paper as the teacher edited it: reworded, reordered or shortened."""
 
     questions: List[Dict[str, Any]]
+    # Which variant this is: 1-нұсқа, or 2-нұсқа when the paper has one.
+    variant: int = 1
 
 
 class SaveRequest(BaseModel):

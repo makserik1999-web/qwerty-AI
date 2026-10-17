@@ -12,6 +12,7 @@ router = APIRouter()
 REFUSAL_MESSAGES = {
     "plan_required": "Generating needs the trial or the Ұстаз plan.",
     "plan_exhausted": "This plan's allowance for that is used up.",
+    "fair_use_reached": "That is this month's fair-use ceiling for that; it opens again next month.",
     "no_subscription": "There is no running subscription.",
     "pause_month_only": "Only the monthly plan pauses; the school year one already skips the summer.",
     "pause_summer_only": "The pause is for the summer: from 15 May to the end of August.",
@@ -32,7 +33,8 @@ async def _signed_in(request: Request):
 
 
 def _offer(plan):
-    return {k: plan.get(k) for k in ("_id", "kind", "title", "price", "period", "limits", "videos")}
+    return {k: plan.get(k) for k in ("_id", "kind", "title", "price", "period", "limits", "videos",
+                                     "carryover_caps", "fair_use")}
 
 
 @router.get("/api/plan")

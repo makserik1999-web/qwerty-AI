@@ -85,6 +85,7 @@ def _validated_spec(body: AssessmentRequest) -> Dict[str, Any]:
         "difficulty": body.difficulty,
         "lang": body.lang,
         "count": count,
+        "variants": 2 if int(body.variants or 1) >= 2 else 1,
     }
 
 
@@ -101,8 +102,9 @@ def _with_ids(questions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     ]
 
 
-async def _ask_agent(spec: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """The questions, or an HTTP failure that says what to do about it."""
+async def _ask_agent_paper(spec: Dict[str, Any]) -> Dict[str, Any]:
+    """The agent's paper - `questions`, and `variant2` if two were asked for
+    and both came - or an HTTP failure that says what to do about it."""
     result = await agent_manager.request_assessment(
         {
             "subject": spec["subject"],
@@ -112,6 +114,7 @@ async def _ask_agent(spec: Dict[str, Any]) -> List[Dict[str, Any]]:
             "difficulty": spec["difficulty"],
             "language": spec["lang"],
             "count": spec["count"],
+            "variants": spec.get("variants", 1),
         },
         ASSESSMENT_TIMEOUT_SEC,
     )
@@ -121,10 +124,14 @@ async def _ask_agent(spec: Dict[str, Any]) -> List[Dict[str, Any]]:
         status, message = _FAILURES.get(error, (502, "Could not write the paper."))
         raise HTTPExceptionJson(status, message)
 
-    questions = result.get("questions") or []
-    if not questions:
+    if not result.get("questions"):
         raise HTTPExceptionJson(502, "Could not write the paper.")
-    return questions
+    return result
+
+
+async def _ask_agent(spec: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """The questions, or an HTTP failure that says what to do about it."""
+    return (await _ask_agent_paper({**spec, "variants": 1}))["questions"]
 
 
 @router.post("/api/assessments", status_code=201)
@@ -149,8 +156,11 @@ async def generate(body: AssessmentRequest, request: Request):
     await jobs.start("assessment", user_id, ref, spec=spec)
     await jobs.running(ref)
     try:
-        questions = await _ask_agent(spec)
-        created = await repo.create_assessment(user_id, spec, _with_ids(questions))
+        # Two variants are one paper, so one off the plan, not two.
+        paper = await _ask_agent_paper(spec)
+        second = paper.get("variant2") if spec["variants"] == 2 else None
+        created = await repo.create_assessment(user_id, spec, _with_ids(paper["questions"]),
+                                               _with_ids(second) if second else None)
     except BaseException as exc:
         await plans.release(ref)
         await jobs.failed(ref, exc)
@@ -225,14 +235,28 @@ async def save_questions(assessment_id: str, body: QuestionsUpdate, request: Req
     if not cleaned:
         raise HTTPExceptionJson(400, "A paper needs at least one question")
 
-    saved = await repo.replace_questions(assessment_id, str(user["_id"]), cleaned)
+    variant = _variant(body.variant)
+    if variant == 2:
+        paper = await repo.get_assessment(assessment_id, str(user["_id"]))
+        if not paper:
+            raise HTTPExceptionJson(404, "Not found")
+        if not paper.get("variant2"):
+            raise HTTPExceptionJson(404, "This paper has one variant")
+    saved = await repo.replace_questions(assessment_id, str(user["_id"]), cleaned, variant=variant)
     if not saved:
         raise HTTPExceptionJson(404, "Not found")
     return saved
 
 
+def _variant(value: Any) -> int:
+    try:
+        return 2 if int(value) == 2 else 1
+    except (TypeError, ValueError):
+        return 1
+
+
 @router.post("/api/assessments/{assessment_id}/questions/{question_id}/regenerate")
-async def regenerate_question(assessment_id: str, question_id: str, request: Request):
+async def regenerate_question(assessment_id: str, question_id: str, request: Request, variant: int = 1):
     """Swap one question for another on the same paper.
 
     Asks for a small batch and takes the first one whose text is not already
@@ -240,6 +264,9 @@ async def regenerate_question(assessment_id: str, question_id: str, request: Req
     there. Falls back to the first if they all collide - a repeat is a worse
     answer than a failure here, but not by much, and the teacher can press it
     again.
+
+    In 2-нұсқа the new question keeps the old one's marks: the two variants
+    are marked on one scale, and a swap must not tip one of them.
     """
     user = await require_teacher(request)
     require_may_generate(user)
@@ -255,7 +282,8 @@ async def regenerate_question(assessment_id: str, question_id: str, request: Req
     if not paper:
         raise HTTPExceptionJson(404, "Not found")
 
-    questions: List[Dict[str, Any]] = paper["questions"]
+    variant = _variant(variant)
+    questions: List[Dict[str, Any]] = paper["variant2"] if variant == 2 else paper["questions"]
     index = next((i for i, q in enumerate(questions) if q.get("id") == question_id), -1)
     if index < 0:
         raise HTTPExceptionJson(404, "No such question on this paper")
@@ -271,7 +299,9 @@ async def regenerate_question(assessment_id: str, question_id: str, request: Req
     }
     candidates = await _ask_agent(spec)
 
-    existing = {q["text"].strip().lower() for q in questions}
+    # Neither variant's questions: a swap that copies the other variant's
+    # question undoes the point of having two.
+    existing = {q["text"].strip().lower() for q in paper["questions"] + paper["variant2"]}
     fresh = next(
         (c for c in candidates if c["text"].strip().lower() not in existing),
         candidates[0],
@@ -282,9 +312,9 @@ async def regenerate_question(assessment_id: str, question_id: str, request: Req
         # would leave whatever it does next pointing at nothing.
         "id": question_id,
         "text": fresh["text"],
-        "marks": fresh["marks"],
+        "marks": questions[index]["marks"] if variant == 2 else fresh["marks"],
     }
-    saved = await repo.replace_questions(assessment_id, user_id, questions)
+    saved = await repo.replace_questions(assessment_id, user_id, questions, variant=variant)
     if not saved:
         raise HTTPExceptionJson(404, "Not found")
     return saved

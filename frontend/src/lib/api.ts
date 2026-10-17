@@ -66,6 +66,7 @@ const PLAN_RESOURCES = ['videos', 'assessments', 'quiz_drafts', 'lesson_plans']
 export function refusalKey(code: string, resource?: unknown): StringKey | null {
   if (code === 'email_unverified') return 'auth.verifyFirst'
   if (code === 'plan_required') return 'plan.refusal.required'
+  if (code === 'fair_use_reached') return 'plan.refusal.fairUse'
   if (code === 'plan_exhausted') {
     const kind = PLAN_RESOURCES.includes(String(resource)) ? String(resource) : 'videos'
     return `plan.refusal.exhausted.${kind}` as StringKey
@@ -298,6 +299,10 @@ export interface PlanSummary {
   /** null = unlimited */
   available: PerResource<number | null>
   carryover: number
+  /** Carried from last month, for everything but videos (those are `carryover`). */
+  carried?: Partial<PerResource<number>>
+  /** The fair-use ceiling on what is shown as unlimited. */
+  fair_use?: Partial<PerResource<number>>
   extra_videos: number
   watermark: boolean
   max_effort: 'low' | 'medium' | 'high' | null
@@ -325,6 +330,8 @@ export interface PlanOffer {
   period?: 'month' | 'school_year'
   limits?: Partial<PerResource<number | null>>
   videos?: number
+  carryover_caps?: Partial<PerResource<number>>
+  fair_use?: Partial<PerResource<number>>
 }
 
 export async function getPlan(): Promise<{

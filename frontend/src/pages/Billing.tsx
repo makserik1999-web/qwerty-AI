@@ -187,7 +187,8 @@ export function Billing() {
                 const total =
                   limit == null
                     ? null
-                    : limit + (resource === 'videos' ? plan.carryover + plan.extra_videos : 0)
+                    : limit +
+                      (resource === 'videos' ? plan.carryover + plan.extra_videos : (plan.carried?.[resource] ?? 0))
                 return (
                   <li key={resource} className="plan-meter">
                     <span className="plan-meter__label">{t(`plan.left.${resource}` as StringKey)}</span>
@@ -216,6 +217,12 @@ export function Billing() {
                 <p className="caption">{t('plan.ustaz.periodEnd', { date: date(plan.subscription.period_end) })}</p>
               ) : null}
               {plan.carryover ? <p className="caption">{t('plan.ustaz.carryover', { n: plan.carryover })}</p> : null}
+              {plan.carried?.assessments ? (
+                <p className="caption">{t('plan.ustaz.carriedAssessments', { n: plan.carried.assessments })}</p>
+              ) : null}
+              {plan.fair_use?.quiz_drafts ? (
+                <p className="caption">{t('plan.fairUse.quizzes', { n: plan.fair_use.quiz_drafts })}</p>
+              ) : null}
               {plan.extra_videos ? <p className="caption">{t('plan.ustaz.extra', { n: plan.extra_videos })}</p> : null}
               {plan.subscription.suggest_year && yearOffer ? (
                 <Alert tone="info">{t('plan.suggestYear', { price: yearOffer.price.toLocaleString('ru-RU') })}</Alert>
@@ -289,6 +296,9 @@ export function Billing() {
                         plans: offer.limits.lesson_plans ?? 0,
                       })}
                     </span>
+                  ) : null}
+                  {offer.fair_use?.quiz_drafts ? (
+                    <span className="caption">{t('plan.offer.fairUse', { n: offer.fair_use.quiz_drafts })}</span>
                   ) : null}
                 </button>
               )

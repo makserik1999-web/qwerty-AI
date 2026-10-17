@@ -930,6 +930,25 @@
   .document__question {
     break-inside: avoid;
   }
+
+  /* The second variant starts its own sheet. */
+  .document--print-only {
+    display: block;
+    break-before: page;
+  }
+
+  .generate__variants,
+  .document__question-head button {
+    display: none !important;
+  }
+}
+
+/* The variant not on screen, laid out for the printer only: a paper with two
+   variants prints both. */
+@media screen {
+  .document--print-only {
+    display: none;
+  }
 }
 
 /* A question is one paragraph of prose with formulas in it, not an article:

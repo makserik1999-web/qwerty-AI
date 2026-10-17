@@ -69,12 +69,37 @@ def _clamp_count(value: Any) -> int:
     return max(1, min(MAX_QUESTIONS, count))
 
 
+def _two_variants(spec: Dict[str, Any]) -> bool:
+    try:
+        return int(spec.get("variants") or 1) >= 2
+    except (TypeError, ValueError):
+        return False
+
+
+# Two variants, 1-нұсқа and 2-нұсқа, so neighbours in a row cannot copy. They
+# are one paper twice over, not two papers: the same skills in the same order
+# for the same marks, so the class is marked on one scale.
+_VARIANTS = (
+    "VARIANTS: write the paper TWICE, as 1-нұсқа and 2-нұсқа, for students\n"
+    "sitting next to each other. Question N of the second variant tests the\n"
+    "same skill as question N of the first, at the same difficulty and for\n"
+    "the same marks - but with different numbers, examples or wording, so\n"
+    "that copying a neighbour's answer gets nothing.\n\n"
+)
+
+
 def _system_prompt(spec: Dict[str, Any]) -> str:
     kind = _KINDS.get(str(spec.get("type") or ""), _KINDS["sor"])
     difficulty = _DIFFICULTY.get(str(spec.get("difficulty") or ""), _DIFFICULTY["medium"])
     language = _language_name(str(spec.get("language") or "kk"))
     grade = spec.get("grade")
     count = _clamp_count(spec.get("count"))
+    two = _two_variants(spec)
+    shape = (
+        '{"variants": [{"questions": [{"text": "...", "marks": 3}]}, '
+        '{"questions": [{"text": "...", "marks": 3}]}]}\n'
+        if two else '{"questions": [{"text": "...", "marks": 3}]}\n'
+    )
 
     return (
         "You write assessment papers for schools in Kazakhstan.\n\n"
@@ -83,8 +108,9 @@ def _system_prompt(spec: Dict[str, Any]) -> str:
         f"GRADE: {grade} (write for what a student of this age has been taught;\n"
         "  do not use material from later years)\n"
         f"DIFFICULTY: {difficulty}\n\n"
-        f"Write exactly {count} questions.\n\n"
-        f"LANGUAGE: Write every question in {language}. Use natural, fluent\n"
+        f"Write exactly {count} questions"
+        + (" in each variant.\n\n" + _VARIANTS if two else ".\n\n")
+        + f"LANGUAGE: Write every question in {language}. Use natural, fluent\n"
         "wording - do not translate literally. Keep formulas, symbols, units\n"
         "and variable names in standard notation; translate only the words.\n\n"
         "MARKS: give each question a mark worth its work - one mark for a\n"
@@ -95,7 +121,7 @@ def _system_prompt(spec: Dict[str, Any]) -> str:
         "is a quiz. Each question must stand on its own - a student answers\n"
         "them in any order and cannot ask what a question meant.\n\n"
         "Return ONLY a JSON object, no markdown, no explanation:\n"
-        '{"questions": [{"text": "...", "marks": 3}]}\n'
+        + shape
     )
 
 
@@ -142,6 +168,31 @@ def _validate(payload: Any, count: int) -> Dict[str, Any]:
     }
 
 
+def _parallel(first: List[Dict[str, Any]], second: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """The second variant held to the first: no more questions, and each for
+    the marks of its twin, so both halves of the class are marked on one
+    scale even when the model drifted."""
+    return [{"text": q["text"], "marks": first[i]["marks"]} for i, q in enumerate(second[: len(first)])]
+
+
+def _validate_paper(payload: Any, count: int, two: bool) -> Dict[str, Any]:
+    """One variant through _validate, or two with the second as `variant2`.
+
+    A second variant that came back unusable is dropped, not an error: the
+    first is a whole paper, and the teacher has it either way.
+    """
+    if two and isinstance(payload, dict) and isinstance(payload.get("variants"), list):
+        parts = payload["variants"]
+        first = _validate(parts[0] if parts else None, count)
+        if first.get("error") or len(parts) < 2:
+            return first
+        second = _validate(parts[1], count)
+        if not second.get("error"):
+            first["variant2"] = _parallel(first["questions"], second["questions"])
+        return first
+    return _validate(payload, count)
+
+
 async def generate_assessment(spec: Dict[str, Any]) -> Dict[str, Any]:
     """One paper's questions, or {"error": ...}.
 
@@ -181,7 +232,7 @@ async def generate_assessment(spec: Dict[str, Any]) -> Dict[str, Any]:
         telemetry.record(error_type=type(exc).__name__)
         return {"error": f"{type(exc).__name__}"}
 
-    result = _validate(_safe_json_loads(response.content), count)
+    result = _validate_paper(_safe_json_loads(response.content), count, _two_variants(spec))
     # A short paper is a complete request that produced fewer questions than
     # were asked for - not an error, and countable now that both numbers are
     # on the line. An "error" here is the model returning nothing usable.
@@ -204,6 +255,7 @@ async def generate_assessment(spec: Dict[str, Any]) -> Dict[str, Any]:
     else:
         telemetry.record(
             items_produced=len(result.get("questions") or []),
+            variants_produced=2 if result.get("variant2") else 1,
             status="complete",
         )
     return result

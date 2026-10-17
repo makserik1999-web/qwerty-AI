@@ -7,13 +7,16 @@ jobs are built around a source video this has none of.
 The text follows the paper's own language (Kazakh or Russian), not the
 interface's: it is the students' sheet. A trial paper carries "Akron арқылы
 жасалды" in the footer of every page; Ұстаз papers carry nothing.
+
+A paper with two variants prints each on its own page, headed 1-нұсқа and
+2-нұсқа, so the teacher prints the file and hands out alternate sheets.
 """
 
 import io
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 
 from docx import Document
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
 from docx.shared import Pt, RGBColor
 
 SIGNATURE = "Akron арқылы жасалды"
@@ -35,6 +38,7 @@ _TEXT = {
         "student": "Оқушының аты-жөні: ______________________   Сынып: ________   Күні: ________",
         "marks": "({n} балл)",
         "total": "Жалпы: {n} балл",
+        "variant": "{n}-нұсқа",
     },
     "ru": {
         "grade": "{n} класс",
@@ -42,6 +46,7 @@ _TEXT = {
         "student": "ФИО ученика: ______________________   Класс: ________   Дата: ________",
         "marks": "({n} б.)",
         "total": "Всего: {n} баллов",
+        "variant": "Вариант {n}",
     },
 }
 
@@ -60,18 +65,47 @@ def title_of(paper: Dict[str, Any]) -> str:
 
 def assessment_docx(paper: Dict[str, Any], *, signature: bool) -> bytes:
     lang = _lang(paper)
-    text = _TEXT[lang]
     document = Document()
 
     style = document.styles["Normal"]
     style.font.name = "Times New Roman"
     style.font.size = Pt(12)
 
+    variants = [paper.get("questions") or []]
+    if paper.get("variant2"):
+        variants.append(paper["variant2"])
+    for number, questions in enumerate(variants, start=1):
+        if number > 1:
+            document.paragraphs[-1].add_run().add_break(WD_BREAK.PAGE)
+        _sheet(document, paper, questions, lang, number if len(variants) > 1 else None)
+
+    if signature:
+        for section in document.sections:
+            footer = section.footer.paragraphs[0]
+            footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            mark = footer.add_run(SIGNATURE)
+            mark.font.size = Pt(9)
+            mark.font.color.rgb = RGBColor(0x80, 0x88, 0x99)
+
+    buffer = io.BytesIO()
+    document.save(buffer)
+    return buffer.getvalue()
+
+
+def _sheet(document: Any, paper: Dict[str, Any], questions: List[Dict[str, Any]], lang: str,
+           variant: Optional[int]) -> None:
+    """One student's sheet: the heading, the name line, the questions, the total."""
+    text = _TEXT[lang]
     heading = document.add_paragraph()
     heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = heading.add_run(title_of(paper))
     run.bold = True
     run.font.size = Pt(14)
+
+    if variant:
+        label = document.add_paragraph()
+        label.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        label.add_run(text["variant"].format(n=variant)).bold = True
 
     if paper.get("topic"):
         topic = document.add_paragraph(text["topic"].format(t=paper["topic"]))
@@ -80,7 +114,7 @@ def assessment_docx(paper: Dict[str, Any], *, signature: bool) -> bytes:
     document.add_paragraph(text["student"])
 
     total = 0
-    for number, question in enumerate(paper.get("questions") or [], start=1):
+    for number, question in enumerate(questions, start=1):
         marks = int(question.get("marks") or 0)
         total += marks
         paragraph = document.add_paragraph()
@@ -94,15 +128,3 @@ def assessment_docx(paper: Dict[str, Any], *, signature: bool) -> bytes:
     closing.paragraph_format.space_before = Pt(16)
     closing.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     closing.add_run(text["total"].format(n=total)).bold = True
-
-    if signature:
-        for section in document.sections:
-            footer = section.footer.paragraphs[0]
-            footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            mark = footer.add_run(SIGNATURE)
-            mark.font.size = Pt(9)
-            mark.font.color.rgb = RGBColor(0x80, 0x88, 0x99)
-
-    buffer = io.BytesIO()
-    document.save(buffer)
-    return buffer.getvalue()

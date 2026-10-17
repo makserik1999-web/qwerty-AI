@@ -206,6 +206,10 @@ export interface AdminPlan {
   period?: 'month' | 'school_year'
   limits?: Record<string, number | null>
   carryover_cap?: number
+  /** Carry-over caps for everything but videos; null takes one away. */
+  carryover_caps?: Record<string, number | null>
+  /** Fair-use ceilings on unlimited resources; null takes one away. */
+  fair_use?: Record<string, number | null>
   max_effort?: 'low' | 'medium' | 'high'
   watermark?: boolean
   docx_signature?: boolean
@@ -382,6 +386,16 @@ export interface Metrics {
   revenue: Array<{ month: string; amount: number }>
   renders: Array<{ date: string; videos: number; failed: number; silent: number; avg_render_sec: number | null }>
   failures: Array<{ error_type: string; count: number }>
+  limit_hits: Array<{
+    resource: string
+    hits: number
+    users: number
+    trial_users: number
+    ustaz_users: number
+    early_users: number
+    fair_use_users: number
+  }>
+  early_period_day: number
   azure: { month: string; chars: number; limit: number; projected: number }
   utc_offset_hours: number
 }

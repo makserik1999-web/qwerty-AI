@@ -103,6 +103,8 @@ export interface Assessment {
   difficulty: Difficulty
   lang: Lang
   questions: AssessmentQuestion[]
+  /** 2-нұсқа, when the paper was written in two variants; empty otherwise. */
+  variant2?: AssessmentQuestion[]
   createdAt: string
 }
 

@@ -33,6 +33,7 @@ import { useI18n } from '../lib/i18n'
 import { GRADES, SUBJECTS } from '../lib/mockData'
 import type {
   Assessment,
+  AssessmentQuestion,
   AssessmentType,
   Difficulty,
   Lang,
@@ -54,6 +55,7 @@ export function Generate() {
   const [count, setCount] = useState(5)
   const [difficulty, setDifficulty] = useState<Difficulty>('medium')
   const [docLang, setDocLang] = useState<Lang>('kk')
+  const [variants, setVariants] = useState<'1' | '2'>('2')
 
   const [status, setStatus] = useState<Status>('idle')
   const [assessment, setAssessment] = useState<Assessment | null>(null)
@@ -63,9 +65,25 @@ export function Generate() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const [tab, setTab] = useState<PreviewTab>('document')
+  const [variant, setVariant] = useState<1 | 2>(1)
+
+  // A paper written in two variants is edited one variant at a time.
+  const hasTwo = (assessment?.variant2?.length ?? 0) > 0
+  const active: 1 | 2 = variant === 2 && hasTwo ? 2 : 1
+  const shown: AssessmentQuestion[] =
+    (active === 2 ? assessment?.variant2 : assessment?.questions) ?? []
 
   function currentInput(): GenerateInput {
-    return { subject, grade, topic: topic.trim(), type, difficulty, lang: docLang, count }
+    return {
+      subject,
+      grade,
+      topic: topic.trim(),
+      type,
+      difficulty,
+      lang: docLang,
+      count,
+      variants: Number(variants),
+    }
   }
 
   async function onGenerate(event: React.FormEvent) {
@@ -79,6 +97,7 @@ export function Generate() {
     setStatus('generating')
     try {
       const result = await generateAssessment(currentInput())
+      setVariant(1)
       setAssessment(result)
       setStatus('ready')
       toast(t('generate.saved'))
@@ -103,7 +122,7 @@ export function Generate() {
     try {
       // The server returns the whole paper: it is what changed, and taking
       // its word for the result avoids the two copies drifting.
-      setAssessment(await regenerateQuestion(assessment.id, questionId))
+      setAssessment(await regenerateQuestion(assessment.id, questionId, active))
       toast(t('generate.questionUpdated'))
     } catch (error) {
       setFailure(
@@ -120,15 +139,15 @@ export function Generate() {
 
   async function saveEdit(questionId: string) {
     if (!assessment) return
-    const edited = assessment.questions.map((question) =>
+    const edited = shown.map((question) =>
       question.id === questionId ? { ...question, text: editValue } : question,
     )
     // Shown at once, then written. A reworded question that only lived on
     // screen would be gone on the next visit, which is worse than slow.
-    setAssessment({ ...assessment, questions: edited })
+    setAssessment({ ...assessment, [active === 2 ? 'variant2' : 'questions']: edited })
     setEditingId(null)
     try {
-      setAssessment(await saveQuestions(assessment.id, edited))
+      setAssessment(await saveQuestions(assessment.id, edited, active))
       toast(t('generate.questionUpdated'))
     } catch {
       setFailure(t('auth.error.unknown'))
@@ -145,12 +164,58 @@ export function Generate() {
    */
   function onPrint() {
     setTab('document')
+    // Both variants go to the printer, 1-нұсқа first: the other one is laid
+    // out under the one on screen and shown only on paper.
+    setVariant(1)
     // The tab switch has to paint before the dialog blocks the page.
     window.setTimeout(() => window.print(), 0)
   }
 
-  const totalMarks =
-    assessment?.questions.reduce((sum, question) => sum + question.marks, 0) ?? 0
+  const totalMarks = shown.reduce((sum, question) => sum + question.marks, 0)
+  const other: 1 | 2 = active === 2 ? 1 : 2
+  const otherQuestions: AssessmentQuestion[] =
+    (other === 2 ? assessment?.variant2 : assessment?.questions) ?? []
+
+  /** The top of a student's sheet: what it is, the name line, the instructions. */
+  function sheetHead(paper: Assessment, sheetVariant: number | null, marks: number) {
+    return (
+      <>
+        <header className="document__header">
+          <div className="stack stack-sm">
+            <h3 className="document__title">
+              {t(`generate.type.${paper.type}`)} · {t(`subject.${paper.subject}`)}
+              {sheetVariant ? ` · ${t('generate.variantN', { n: sheetVariant })}` : null}
+            </h3>
+            <p className="text-sm text-secondary">
+              {paper.grade} {t('common.grade').toLowerCase()} · {paper.topic} ·{' '}
+              {formatDate(paper.createdAt, lang)}
+            </p>
+          </div>
+          <Badge tone="accent">{t('generate.totalMarks', { n: marks })}</Badge>
+        </header>
+
+        <dl className="document__fields">
+          <div>
+            <dt>{t('generate.docHeaderName')}</dt>
+            <dd />
+          </div>
+          <div>
+            <dt>{t('generate.docHeaderClass')}</dt>
+            <dd />
+          </div>
+          <div>
+            <dt>{t('generate.docHeaderDate')}</dt>
+            <dd />
+          </div>
+        </dl>
+
+        <section className="document__instructions">
+          <h4>{t('generate.instructions')}</h4>
+          <p className="text-sm text-secondary">{t('generate.instructionsBody')}</p>
+        </section>
+      </>
+    )
+  }
 
   return (
     <div className="page">
@@ -260,6 +325,20 @@ export function Generate() {
               />
             </div>
 
+            <div className="field">
+              <span className="field__label">{t('generate.variants')}</span>
+              <SegmentedControl
+                label={t('generate.variants')}
+                value={variants}
+                onChange={setVariants}
+                options={[
+                  { value: '1', label: t('generate.variants.one') },
+                  { value: '2', label: t('generate.variants.two') },
+                ]}
+              />
+              <p className="field__hint">{t('generate.variants.hint')}</p>
+            </div>
+
             <Button
               type="submit"
               variant="primary"
@@ -338,6 +417,23 @@ export function Generate() {
             <AiCheckNote report={{ kind: 'assessment', refId: assessment.id }} />
           ) : null}
 
+          {status === 'ready' && assessment && hasTwo ? (
+            <div className="generate__variants">
+              <SegmentedControl
+                label={t('generate.variantPick')}
+                value={String(active) as '1' | '2'}
+                onChange={(value) => {
+                  setEditingId(null)
+                  setVariant(value === '2' ? 2 : 1)
+                }}
+                options={[
+                  { value: '1', label: t('generate.variantN', { n: 1 }) },
+                  { value: '2', label: t('generate.variantN', { n: 2 }) },
+                ]}
+              />
+            </div>
+          ) : null}
+
           {status === 'ready' && assessment ? (
             <Tabs
               label={t('generate.preview')}
@@ -368,7 +464,7 @@ export function Generate() {
                       </tr>
                     </thead>
                     <tbody>
-                      {assessment.questions.flatMap((question, index) => {
+                      {shown.flatMap((question, index) => {
                         const levels = [
                           { key: 'full', marks: question.marks },
                           {
@@ -394,46 +490,10 @@ export function Generate() {
                 </Card>
               ) : (
                 <Card elevation="raised" className="document">
-                  <header className="document__header">
-                    <div className="stack stack-sm">
-                      <h3 className="document__title">
-                        {t(`generate.type.${assessment.type}`)} ·{' '}
-                        {t(`subject.${assessment.subject}`)}
-                      </h3>
-                      <p className="text-sm text-secondary">
-                        {assessment.grade} {t('common.grade').toLowerCase()} ·{' '}
-                        {assessment.topic} · {formatDate(assessment.createdAt, lang)}
-                      </p>
-                    </div>
-                    <Badge tone="accent">
-                      {t('generate.totalMarks', { n: totalMarks })}
-                    </Badge>
-                  </header>
-
-                  <dl className="document__fields">
-                    <div>
-                      <dt>{t('generate.docHeaderName')}</dt>
-                      <dd />
-                    </div>
-                    <div>
-                      <dt>{t('generate.docHeaderClass')}</dt>
-                      <dd />
-                    </div>
-                    <div>
-                      <dt>{t('generate.docHeaderDate')}</dt>
-                      <dd />
-                    </div>
-                  </dl>
-
-                  <section className="document__instructions">
-                    <h4>{t('generate.instructions')}</h4>
-                    <p className="text-sm text-secondary">
-                      {t('generate.instructionsBody')}
-                    </p>
-                  </section>
+                  {sheetHead(assessment, hasTwo ? active : null, totalMarks)}
 
                   <ol className="document__questions">
-                    {assessment.questions.map((question, index) => (
+                    {shown.map((question, index) => (
                       <li key={question.id} className="document__question">
                         <div className="document__question-head">
                           <span className="document__question-number">{index + 1}.</span>
@@ -501,6 +561,29 @@ export function Generate() {
                       </li>
                     ))}
                   </ol>
+
+                  {hasTwo ? (
+                    <div className="document--print-only">
+                      {sheetHead(
+                        assessment,
+                        other,
+                        otherQuestions.reduce((sum, question) => sum + question.marks, 0),
+                      )}
+                      <ol className="document__questions">
+                        {otherQuestions.map((question, index) => (
+                          <li key={question.id} className="document__question">
+                            <div className="document__question-head">
+                              <span className="document__question-number">{index + 1}.</span>
+                              <Badge tone="neutral">
+                                {t('generate.marks', { n: question.marks })}
+                              </Badge>
+                            </div>
+                            <MarkdownMessage content={question.text} />
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                  ) : null}
                 </Card>
               )}
             </Tabs>

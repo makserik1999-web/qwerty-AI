@@ -90,6 +90,9 @@ async def lifespan(app: FastAPI):
     await db.db.plan_reservations.create_index("ref", unique=True)
     await db.db.plan_reservations.create_index("expires_at", expireAfterSeconds=0)
     await db.db.users.create_index("subscription.expires_at", sparse=True)
+    # Running out of a plan, for the metrics: are the limits the right size.
+    await db.db.plan_limit_hits.create_index([("at", -1)])
+    await db.db.plan_limit_hits.create_index("expires_at", expireAfterSeconds=0)
     # Payments: looked up by the code a teacher reads out, listed per account
     # and per status for the admin panel. Kept for good - it is the money log.
     await db.db.payments.create_index("code", unique=True)

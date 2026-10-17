@@ -548,8 +548,52 @@ export function MetricsSection() {
           </tbody>
         </Table>
       ) : null}
+
+      <Table caption="Упёрлись в лимит тарифа">
+        <thead>
+          <tr>
+            <th>Что</th>
+            <th className="num">Отказов</th>
+            <th className="num">Учителей</th>
+            <th className="num">Сынақ</th>
+            <th className="num">Ұстаз</th>
+            <th className="num">Ұстаз до {data.early_period_day}-го дня</th>
+            <th className="num">Честное использование</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.limit_hits.length ? (
+            data.limit_hits.map((row) => (
+              <tr key={row.resource}>
+                <td>{RESOURCE_NAME[row.resource] ?? row.resource}</td>
+                <td className="num">{row.hits}</td>
+                <td className="num">{row.users}</td>
+                <td className="num">{row.trial_users}</td>
+                <td className="num">{row.ustaz_users}</td>
+                <td className="num">{row.early_users ? <span className="admin__bad">{row.early_users}</span> : 0}</td>
+                <td className="num">{row.fair_use_users}</td>
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td colSpan={7}>За период никто не упёрся в лимит.</td>
+            </tr>
+          )}
+        </tbody>
+      </Table>
+      <p className="caption">
+        Ұстаз до {data.early_period_day}-го дня — учителя, у которых лимит кончился в первой половине их месяца
+        подписки. Если таких много, лимит мал: поднимите его во вкладке «Тарифы».
+      </p>
     </div>
   )
+}
+
+const RESOURCE_NAME: Record<string, string> = {
+  videos: 'Видео',
+  assessments: 'БЖБ/ТЖБ',
+  quiz_drafts: 'Квизы (ИИ)',
+  lesson_plans: 'Планы уроков',
 }
 
 /* Reports -------------------------------------------------------------------- */

@@ -519,3 +519,249 @@ class TestDocx:
         paper = self._paper(owner)
         other = account()
         assert other.get(f"/api/assessments/{paper}/docx").status_code == 404
+
+
+# ------------------------------------------------- papers, quizzes, limits --
+
+
+def _staff(backend, account, role="admin"):
+    staff = account()
+    run_db(backend.db.db.users.update_one({"_id": ObjectId(staff.user["id"])},
+                                          {"$set": {"staff_role": role}}))
+    return staff
+
+
+class TestPaperCarryOver:
+    """БЖБ/ТЖБ come in a rush at the end of a term, so unused ones carry."""
+
+    def _month(self, backend, account, plans, months=3):
+        client = account()
+        user = run_db(plans.grant(doc(backend, client.user["id"]), plans.USTAZ_MONTH,
+                                  months=months, now=utc(2026, 10, 5, 9)))
+        return client, user
+
+    def test_a_month_has_twenty_papers_and_the_unused_carry(self, backend, account, plans):
+        _, user = self._month(backend, account, plans)
+        assert run_db(plans.resolve(user, now=utc(2026, 10, 6))).available("assessments") == 20
+        run_db(backend.db.db.users.update_one({"_id": user["_id"]}, {"$set": {"period.used.assessments": 15}}))
+
+        ent = run_db(plans.resolve(doc(backend, str(user["_id"])), now=utc(2026, 11, 6)))
+
+        assert ent.carry("assessments") == 5
+        assert ent.available("assessments") == 25
+        assert ent.carryover == 20  # videos carry as they always did
+
+    def test_the_paper_carry_over_is_capped(self, backend, account, plans):
+        _, user = self._month(backend, account, plans)
+        run_db(backend.db.db.users.update_one({"_id": user["_id"]}, {"$set": {"period.carried": {"assessments": 20}}}))
+        ent = run_db(plans.resolve(doc(backend, str(user["_id"])), now=utc(2026, 11, 6)))
+        assert ent.carry("assessments") == 20  # 20 + 20 unused, capped at 20
+
+    def test_carried_papers_can_be_spent_and_are_shown(self, backend, account, plans):
+        client = account()
+        user = run_db(plans.grant(doc(backend, client.user["id"]), plans.USTAZ_MONTH))
+        run_db(backend.db.db.users.update_one({"_id": user["_id"]}, {"$set": {
+            "period.carried": {"assessments": 5}, "period.used.assessments": 24}}))
+
+        run_db(plans.reserve(doc(backend, client.user["id"]), "assessments", "carry-25"))
+        with pytest.raises(plans.PlanRefusal):
+            run_db(plans.reserve(doc(backend, client.user["id"]), "assessments", "carry-26"))
+        assert client.get("/api/plan").json()["plan"]["carried"] == {"assessments": 5}
+
+    def test_the_pause_keeps_unused_papers_too(self, backend, account, plans):
+        client = account()
+        user = run_db(plans.grant(doc(backend, client.user["id"]), plans.USTAZ_MONTH, now=utc(2026, 6, 10)))
+        run_db(backend.db.db.users.update_one({"_id": user["_id"]}, {"$set": {"period.used.assessments": 12}}))
+        user = run_db(plans.pause(doc(backend, client.user["id"]), now=utc(2026, 6, 20)))
+        ent = run_db(plans.resolve(user, now=utc(2026, 9, 1, 12)))
+        assert ent.kind == plans.ON_USTAZ and ent.carry("assessments") == 8
+
+
+class TestQuizFairUse:
+    """Unlimited on the page; a ceiling no single teacher reaches."""
+
+    @pytest.fixture(autouse=True)
+    def _drafts(self, backend, monkeypatch):
+        from app.api.quiz_drafts import draft_limiter
+        from app.ws.manager import agent_manager
+
+        draft_limiter._attempts.clear()
+
+        async def write(spec, timeout):
+            return {"questions": [{"type": "choice", "text": "Q", "options": ["a", "b"], "answer": 0}],
+                    "requested": spec["count"]}
+
+        monkeypatch.setattr(agent_manager, "request_quiz", write)
+
+    BODY = {"subject": "physics", "grade": 8, "topic": "Күш", "lang": "kk", "count": 3}
+
+    def test_unlimited_until_the_ceiling(self, backend, account, plans):
+        client = account()
+        user = run_db(plans.grant(doc(backend, client.user["id"]), plans.USTAZ_MONTH))
+        shown = client.get("/api/plan").json()["plan"]
+        assert shown["available"]["quiz_drafts"] is None
+        assert shown["fair_use"] == {"quiz_drafts": 100}
+
+        run_db(backend.db.db.users.update_one({"_id": user["_id"]}, {"$set": {"period.used.quiz_drafts": 99}}))
+        assert client.post("/api/quiz-drafts", json=self.BODY).status_code == 200
+        refused = client.post("/api/quiz-drafts", json=self.BODY)
+
+        assert refused.status_code == 403
+        assert refused.json()["code"] == "fair_use_reached" and refused.json()["resource"] == "quiz_drafts"
+        # Still unlimited on the page: the ceiling is named there, not counted down.
+        assert client.get("/api/plan").json()["plan"]["available"]["quiz_drafts"] is None
+
+    def test_the_trial_keeps_its_three(self, account):
+        shown = account().get("/api/plan").json()["plan"]
+        assert shown["available"]["quiz_drafts"] == 3 and shown["fair_use"] == {}
+
+
+class TestLimitHits:
+    """Whether a limit is the right size is answered by who runs out, and when."""
+
+    def test_running_out_on_the_trial_is_counted(self, backend, account):
+        client = account()
+        for _ in range(3):
+            client.post("/api/assessments", json=SPEC)
+        hit = run_db(backend.db.db.plan_limit_hits.find_one({"user_id": client.user["id"]}))
+        assert (hit["kind"], hit["resource"], hit["code"]) == ("trial", "assessments", "plan_exhausted")
+        assert "period_day" not in hit
+
+    def test_running_out_on_ustaz_says_how_far_into_the_month(self, backend, account, plans):
+        client = account()
+        user = run_db(plans.grant(doc(backend, client.user["id"]), plans.USTAZ_MONTH))
+        run_db(backend.db.db.users.update_one({"_id": user["_id"]}, {"$set": {"period.used.lesson_plans": 40}}))
+        with pytest.raises(plans.PlanRefusal):
+            run_db(plans.reserve(doc(backend, client.user["id"]), "lesson_plans", "hit-1"))
+        hit = run_db(backend.db.db.plan_limit_hits.find_one({"user_id": client.user["id"]}))
+        assert hit["kind"] == "ustaz" and hit["period_day"] == 1
+
+    def test_the_metrics_page_counts_them(self, backend, account, plans):
+        admin = _staff(backend, account)
+        early, late = account(), account()
+        for client, day in ((early, 3), (late, 25)):
+            user = run_db(plans.grant(doc(backend, client.user["id"]), plans.USTAZ_MONTH))
+            start = datetime.now(timezone.utc) - timedelta(days=day - 1)
+            run_db(backend.db.db.users.update_one({"_id": user["_id"]}, {"$set": {
+                "period.used.lesson_plans": 40, "period.start": start}}))
+            with pytest.raises(plans.PlanRefusal):
+                run_db(plans.reserve(doc(backend, client.user["id"]), "lesson_plans", f"m-{day}"))
+
+        body = admin.get("/api/admin/metrics?days=7").json()
+        row = next(r for r in body["limit_hits"] if r["resource"] == "lesson_plans")
+        assert row["ustaz_users"] >= 2 and row["early_users"] >= 1
+        assert row["early_users"] < row["ustaz_users"]
+        assert body["early_period_day"] == 15
+
+
+class TestPlanSettings:
+    def test_a_stored_plan_gets_new_settings_but_keeps_its_numbers(self, backend, plans):
+        old = {"_id": plans.USTAZ_MONTH, "kind": "subscription", "title": "Ұстаз · ай", "price": 4990,
+               "period": "month",
+               "limits": {"videos": 20, "assessments": 40, "quiz_drafts": None, "lesson_plans": 40},
+               "carryover_cap": 20, "fair_use": {}, "max_effort": "high", "watermark": False,
+               "docx_signature": False}
+        try:
+            run_db(backend.db.db.plans.delete_one({"_id": plans.USTAZ_MONTH}))
+            run_db(backend.db.db.plans.insert_one(old))
+            run_db(plans.seed_plans())
+            stored = run_db(backend.db.db.plans.find_one({"_id": plans.USTAZ_MONTH}))
+            assert stored["limits"]["assessments"] == 40  # the admin's number stays
+            assert stored["carryover_caps"] == {"assessments": 20}  # a setting it never had arrives
+            assert stored["fair_use"] == {}  # one an admin emptied stays empty
+        finally:
+            run_db(backend.db.db.plans.delete_one({"_id": plans.USTAZ_MONTH}))
+
+    def test_carry_over_and_fair_use_are_edited_from_the_panel(self, backend, account):
+        admin = _staff(backend, account)
+        try:
+            response = admin.put("/api/admin/plans/ustaz_month", json={
+                "carryover_caps": {"assessments": 5}, "fair_use": {"quiz_drafts": None}, "reason": "Тест"})
+            assert response.status_code == 200, response.text
+            assert response.json()["carryover_caps"] == {"assessments": 5}
+            assert response.json()["fair_use"] == {}
+            refused = admin.put("/api/admin/plans/ustaz_month",
+                                json={"carryover_caps": {"videos": 5}, "reason": "Тест"})
+            assert refused.status_code == 400  # videos have their own field
+        finally:
+            run_db(backend.db.db.plans.delete_one({"_id": "ustaz_month"}))
+
+
+# ------------------------------------------------------- two variants --
+
+
+class TestTwoVariants:
+    """1-нұсқа and 2-нұсқа: one generation, one paper off the plan."""
+
+    @pytest.fixture(autouse=True)
+    def _two(self, backend, monkeypatch):
+        from app.ws.manager import agent_manager
+
+        self.asked = []
+
+        async def paper(spec, timeout):
+            self.asked.append(spec)
+            if spec["count"] == 3:  # a swap of one question
+                return {"questions": [{"text": "Жаңа сұрақ", "marks": 7}]}
+            out = {"questions": [{"text": "Бірінші нұсқа 1", "marks": 2},
+                                 {"text": "Бірінші нұсқа 2", "marks": 3}]}
+            if spec.get("variants") == 2:
+                out["variant2"] = [{"text": "Екінші нұсқа 1", "marks": 2},
+                                   {"text": "Екінші нұсқа 2", "marks": 3}]
+            return out
+
+        monkeypatch.setattr(agent_manager, "request_assessment", paper)
+
+    def test_two_variants_are_one_paper_off_the_plan(self, account):
+        client = account()
+        response = client.post("/api/assessments", json={**SPEC, "variants": 2})
+        assert response.status_code == 201, response.text
+        paper = response.json()
+        assert [q["text"] for q in paper["variant2"]] == ["Екінші нұсқа 1", "Екінші нұсқа 2"]
+        assert all(q["id"] for q in paper["variant2"])
+        assert self.asked[-1]["variants"] == 2
+        assert client.get("/api/plan").json()["plan"]["used"]["assessments"] == 1
+
+    def test_one_variant_unless_asked(self, account):
+        paper = account().post("/api/assessments", json=SPEC).json()
+        assert paper["variant2"] == [] and self.asked[-1]["variants"] == 1
+
+    def test_the_second_variant_is_edited_on_its_own(self, account):
+        client = account()
+        paper = client.post("/api/assessments", json={**SPEC, "variants": 2}).json()
+        edited = [{**q, "text": "Өзгертілген"} if i == 0 else q for i, q in enumerate(paper["variant2"])]
+
+        saved = client.put(f"/api/assessments/{paper['id']}/questions",
+                           json={"questions": edited, "variant": 2}).json()
+
+        assert saved["variant2"][0]["text"] == "Өзгертілген"
+        assert saved["questions"] == paper["questions"]
+
+    def test_a_one_variant_paper_has_no_second_to_edit(self, account):
+        client = account()
+        paper = client.post("/api/assessments", json=SPEC).json()
+        response = client.put(f"/api/assessments/{paper['id']}/questions",
+                              json={"questions": paper["questions"], "variant": 2})
+        assert response.status_code == 404
+
+    def test_a_swap_in_the_second_variant_keeps_the_marks(self, account):
+        client = account()
+        paper = client.post("/api/assessments", json={**SPEC, "variants": 2}).json()
+        target = paper["variant2"][1]
+
+        swapped = client.post(
+            f"/api/assessments/{paper['id']}/questions/{target['id']}/regenerate?variant=2").json()
+
+        assert swapped["variant2"][1] == {"id": target["id"], "text": "Жаңа сұрақ", "marks": 3}
+        assert swapped["questions"] == paper["questions"]
+
+    def test_the_docx_has_both_sheets(self, account):
+        from docx import Document
+
+        client = account()
+        paper = client.post("/api/assessments", json={**SPEC, "variants": 2}).json()
+        content = client.get(f"/api/assessments/{paper['id']}/docx").content
+        body = "\n".join(p.text for p in Document(io.BytesIO(content)).paragraphs)
+        assert "1-нұсқа" in body and "2-нұсқа" in body
+        assert body.index("Бірінші нұсқа 2") < body.index("2-нұсқа") < body.index("Екінші нұсқа 1")
+        assert body.count("Жалпы: 5 балл") == 2

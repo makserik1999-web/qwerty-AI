@@ -110,7 +110,11 @@ export function UserPlanPanel({
               </li>
             )
           })}
-          {plan.carryover ? <li>Перенос с прошлого месяца: {plan.carryover}</li> : null}
+          {plan.carryover ? <li>Перенос видео с прошлого месяца: {plan.carryover}</li> : null}
+          {plan.carried?.assessments ? <li>Перенос БЖБ/ТЖБ с прошлого месяца: {plan.carried.assessments}</li> : null}
+          {plan.fair_use?.quiz_drafts ? (
+            <li>Квизы: потолок честного использования — {plan.fair_use.quiz_drafts} в месяц</li>
+          ) : null}
           {plan.extra_videos ? <li>Докупленные видео: {plan.extra_videos}</li> : null}
         </ul>
       ) : null}
@@ -264,6 +268,8 @@ function PlanEditor({ plan, onSaved }: { plan: AdminPlan; onSaved: () => void })
     ),
   )
   const [carry, setCarry] = useState(String(plan.carryover_cap ?? ''))
+  const [carryPapers, setCarryPapers] = useState(String(plan.carryover_caps?.assessments ?? ''))
+  const [fairQuizzes, setFairQuizzes] = useState(String(plan.fair_use?.quiz_drafts ?? ''))
   const [effort, setEffort] = useState(plan.max_effort ?? 'high')
   const [videos, setVideos] = useState(String(plan.videos ?? ''))
   const [reason, setReason] = useState('')
@@ -281,6 +287,11 @@ function PlanEditor({ plan, onSaved }: { plan: AdminPlan; onSaved: () => void })
       changes.max_effort = effort
     }
     if (plan.kind === 'subscription' && carry.trim() !== '') changes.carryover_cap = Number(carry)
+    if (plan.kind === 'subscription') {
+      // Empty takes it away: no carry-over of papers, no ceiling on quizzes.
+      changes.carryover_caps = { assessments: carryPapers.trim() === '' ? null : Number(carryPapers) }
+      changes.fair_use = { quiz_drafts: fairQuizzes.trim() === '' ? null : Number(fairQuizzes) }
+    }
     if (plan.kind === 'addon') changes.videos = Number(videos) || 0
     try {
       await adminApi.editPlan(plan.id, changes)
@@ -357,6 +368,30 @@ function PlanEditor({ plan, onSaved }: { plan: AdminPlan; onSaved: () => void })
               <label className="field">
                 <span className="field__label">Потолок переноса видео</span>
                 <Input type="number" min={0} value={carry} onChange={(e) => setCarry(e.target.value)} />
+              </label>
+            ) : null}
+            {plan.kind === 'subscription' ? (
+              <label className="field">
+                <span className="field__label">Потолок переноса БЖБ/ТЖБ</span>
+                <Input
+                  type="number"
+                  min={0}
+                  value={carryPapers}
+                  placeholder="без переноса"
+                  onChange={(e) => setCarryPapers(e.target.value)}
+                />
+              </label>
+            ) : null}
+            {plan.kind === 'subscription' ? (
+              <label className="field">
+                <span className="field__label">Квизы: потолок честного использования в месяц</span>
+                <Input
+                  type="number"
+                  min={0}
+                  value={fairQuizzes}
+                  placeholder="без потолка"
+                  onChange={(e) => setFairQuizzes(e.target.value)}
+                />
               </label>
             ) : null}
           </div>

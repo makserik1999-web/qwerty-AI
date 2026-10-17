@@ -4,6 +4,10 @@ A paper is written once and then edited: a teacher rewords a question, swaps
 one out, and prints the result. So the questions live in the document rather
 than being regenerated on each read - what was printed and what is on screen
 have to be the same paper.
+
+A paper may come in two variants, 1-нұсқа and 2-нұсқа: `questions` is the
+first, as it always was, and `variant2` the second. Papers from before there
+were two simply have no `variant2`.
 """
 
 from datetime import datetime, timezone
@@ -30,12 +34,14 @@ def _public(doc: Dict[str, Any]) -> Dict[str, Any]:
         "difficulty": doc.get("difficulty", ""),
         "lang": doc.get("lang", ""),
         "questions": doc.get("questions", []),
+        "variant2": doc.get("variant2") or [],
         "createdAt": _iso(doc.get("created_at")),
     }
 
 
 async def create_assessment(user_id: str, spec: Dict[str, Any],
-                            questions: List[Dict[str, Any]]) -> Dict[str, Any]:
+                            questions: List[Dict[str, Any]],
+                            variant2: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
     doc = {
         "user_id": user_id,
         "subject": spec.get("subject", ""),
@@ -51,6 +57,8 @@ async def create_assessment(user_id: str, spec: Dict[str, Any],
         "created_at": datetime.now(timezone.utc),
         "updated_at": datetime.now(timezone.utc),
     }
+    if variant2:
+        doc["variant2"] = variant2
     result = await db.db.assessments.insert_one(doc)
     doc["_id"] = result.inserted_id
     return _public(doc)
@@ -76,12 +84,13 @@ async def get_assessment(assessment_id: str, user_id: str) -> Optional[Dict[str,
 
 
 async def replace_questions(assessment_id: str, user_id: str,
-                            questions: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+                            questions: List[Dict[str, Any]], variant: int = 1) -> Optional[Dict[str, Any]]:
     if not ObjectId.is_valid(assessment_id):
         return None
+    field = "variant2" if variant == 2 else "questions"
     result = await db.db.assessments.find_one_and_update(
         {"_id": ObjectId(assessment_id), "user_id": user_id},
-        {"$set": {"questions": questions, "updated_at": datetime.now(timezone.utc)}},
+        {"$set": {field: questions, "updated_at": datetime.now(timezone.utc)}},
         return_document=True,
     )
     return _public(result) if result else None

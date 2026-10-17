@@ -46,6 +46,8 @@ export interface GenerateInput {
   difficulty: string
   lang: string
   count: number
+  /** 2: the same paper twice, 1-нұсқа and 2-нұсқа, for one generation. */
+  variants: number
 }
 
 export async function generateAssessment(input: GenerateInput): Promise<Assessment> {
@@ -74,11 +76,13 @@ export async function loadAssessment(id: string): Promise<Assessment> {
 export async function saveQuestions(
   id: string,
   questions: AssessmentQuestion[],
+  variant: 1 | 2 = 1,
 ): Promise<Assessment> {
   return request<Assessment>(`/assessments/${id}/questions`, {
     method: 'PUT',
     body: JSON.stringify({
       questions: questions.map((q) => ({ id: q.id, text: q.text, marks: q.marks })),
+      variant,
     }),
   })
 }
@@ -87,10 +91,12 @@ export async function saveQuestions(
 export async function regenerateQuestion(
   id: string,
   questionId: string,
+  variant: 1 | 2 = 1,
 ): Promise<Assessment> {
-  return request<Assessment>(`/assessments/${id}/questions/${questionId}/regenerate`, {
-    method: 'POST',
-  })
+  return request<Assessment>(
+    `/assessments/${id}/questions/${questionId}/regenerate?variant=${variant}`,
+    { method: 'POST' },
+  )
 }
 
 export async function deleteAssessment(id: string): Promise<void> {

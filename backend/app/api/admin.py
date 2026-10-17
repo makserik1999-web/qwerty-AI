@@ -296,10 +296,28 @@ class PlanEdit(_Reasoned):
     price: Optional[int] = None
     limits: Optional[Dict[str, Optional[int]]] = None
     carryover_cap: Optional[int] = None
+    # Per resource; a null value takes that resource's carry-over or ceiling away.
+    carryover_caps: Optional[Dict[str, Optional[int]]] = None
+    fair_use: Optional[Dict[str, Optional[int]]] = None
     max_effort: Optional[str] = None
     watermark: Optional[bool] = None
     docx_signature: Optional[bool] = None
     videos: Optional[int] = None
+
+
+def _per_resource(current: Any, edits: Dict[str, Optional[int]], allowed, label: str) -> Dict[str, int]:
+    """`current` with `edits` applied: a number sets, a null removes."""
+    merged = dict(current or {})
+    for key, value in edits.items():
+        if key not in allowed:
+            raise HTTPExceptionJson(400, f"Unknown {label} {key!r}")
+        if value is None:
+            merged.pop(key, None)
+        elif not 0 <= value <= 10_000:
+            raise HTTPExceptionJson(400, f"{label} {key} out of range")
+        else:
+            merged[key] = value
+    return merged
 
 
 def _reason(body: _Reasoned) -> str:
@@ -475,6 +493,12 @@ async def edit_plan(plan_id: str, body: PlanEdit, actor=Depends(require_staff)):
         if not 0 <= body.carryover_cap <= 1000:
             raise HTTPExceptionJson(400, "carryover_cap out of range")
         changes["carryover_cap"] = body.carryover_cap
+    if body.carryover_caps is not None:
+        allowed = [r for r in plans.CARRY_RESOURCES if r != "videos"]
+        changes["carryover_caps"] = _per_resource(plan.get("carryover_caps"), body.carryover_caps,
+                                                  allowed, "carry-over")
+    if body.fair_use is not None:
+        changes["fair_use"] = _per_resource(plan.get("fair_use"), body.fair_use, plans.RESOURCES, "fair use")
     if body.max_effort is not None:
         if body.max_effort not in EFFORT_LEVELS:
             raise HTTPExceptionJson(400, "max_effort must be low, medium or high")

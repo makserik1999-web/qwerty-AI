@@ -5,6 +5,30 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### Plan limits sized to how teachers work, and two variants per paper
+
+**Changed**
+
+- Ұстаз gives 20 БЖБ/ТЖБ a month instead of 40, and the unused ones carry
+  into the next month (up to 20), the way videos already did: papers come in
+  a rush at the end of a term. The summer pause keeps them too.
+- Quizzes stay unlimited on the page, with a fair-use ceiling of 100 a month
+  on Ұстаз - named under the meter and on the plan card, and answered with
+  "opens again next month" rather than "used up".
+- A database seeded before these settings gets them on the next start;
+  numbers an admin set are left alone, so the 40 → 20 is set in the panel.
+
+**Added**
+
+- One generation can write the paper twice, 1-нұсқа and 2-нұсқа, for students
+  sitting side by side: the same skills for the same marks, different
+  numbers. It counts as one paper. Each variant is edited and swapped on its
+  own, and the DOCX and the printout put each on its own sheet.
+- Metrics count who ran out of what: refusals and teachers per resource, on
+  the trial and on Ұстаз, and how many Ұстаз teachers ran out before day 15
+  of their month - the sign that a limit is too small.
+- The admin panel edits the БЖБ carry-over cap and the quiz fair-use ceiling.
+
 ### Silent videos stop being served to people who asked for a voice
 
 **Fixed**

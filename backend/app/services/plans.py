@@ -9,11 +9,17 @@ An account is on one of three footings:
             for the moment a teacher actually needs a paper.
     ustaz   Ұстаз, the subscription: by the month or for the school year
             (September to May). Counted in monthly periods from the day it
-            started; unused videos carry into the next period.
+            started; unused videos and БЖБ/ТЖБ carry into the next period.
 
-The numbers - limits, prices, the carry-over cap - live in the `plans`
-collection, not here, so they can be changed from the admin panel without a
-deploy. DEFAULT_PLANS is only what an empty database starts with.
+The numbers - limits, prices, the carry-over caps, the fair-use ceilings -
+live in the `plans` collection, not here, so they can be changed from the
+admin panel without a deploy. DEFAULT_PLANS is only what an empty database
+starts with.
+
+A limit of None is unlimited, and the interface says so. A plan may still
+keep a fair-use ceiling on it (`fair_use`): far above what one teacher
+makes, there so that one paid account shared by a staff room is not
+unlimited for all of them. The plan page names it, so it is not a secret.
 
 Counting is a reservation: the unit is taken before the work starts, with an
 atomic conditional increment so two requests cannot both take the last one,
@@ -35,6 +41,11 @@ from app.config import EFFORT_LEVELS, USER_ROLE_DEFAULT
 from app.db import db
 
 RESOURCES = ("videos", "assessments", "quiz_drafts", "lesson_plans")
+# What a finished month may pass on. Videos carried first and keep their own
+# field for it (`carryover_cap`, `period.carryover`); the rest go by name in
+# `carryover_caps` and `period.carried`. БЖБ/ТЖБ carry because they come in
+# a rush at the end of a term, not evenly through it.
+CARRY_RESOURCES = ("videos", "assessments")
 
 TRIAL = "trial"
 USTAZ_MONTH = "ustaz_month"
@@ -54,14 +65,16 @@ DEFAULT_PLANS: List[Dict[str, Any]] = [
     {
         "_id": USTAZ_MONTH, "kind": "subscription", "title": "Ұстаз · ай", "price": 4990,
         "period": "month",
-        "limits": {"videos": 20, "assessments": 40, "quiz_drafts": None, "lesson_plans": 40},
-        "carryover_cap": 20, "max_effort": "high", "watermark": False, "docx_signature": False,
+        "limits": {"videos": 20, "assessments": 20, "quiz_drafts": None, "lesson_plans": 40},
+        "carryover_cap": 20, "carryover_caps": {"assessments": 20}, "fair_use": {"quiz_drafts": 100},
+        "max_effort": "high", "watermark": False, "docx_signature": False,
     },
     {
         "_id": USTAZ_YEAR, "kind": "subscription", "title": "Ұстаз · оқу жылы", "price": 29900,
         "period": "school_year",
-        "limits": {"videos": 20, "assessments": 40, "quiz_drafts": None, "lesson_plans": 40},
-        "carryover_cap": 20, "max_effort": "high", "watermark": False, "docx_signature": False,
+        "limits": {"videos": 20, "assessments": 20, "quiz_drafts": None, "lesson_plans": 40},
+        "carryover_cap": 20, "carryover_caps": {"assessments": 20}, "fair_use": {"quiz_drafts": 100},
+        "max_effort": "high", "watermark": False, "docx_signature": False,
     },
     {"_id": VIDEOS_10, "kind": "addon", "title": "+10 видео", "price": 990, "videos": 10},
 ]
@@ -137,10 +150,21 @@ def pause_allowed_now(moment: datetime) -> bool:
 
 
 async def seed_plans() -> None:
-    """Write the defaults that are missing. Never overwrites an edited plan."""
+    """Write the defaults that are missing. Never overwrites an edited plan.
+
+    A plan stored before a setting existed gets that setting's default - the
+    БЖБ carry-over and the quiz fair-use ceiling arrived on a running
+    database. Only settings it has no value for at all: one an admin has
+    edited, even to nothing, stays as they left it.
+    """
     for plan in DEFAULT_PLANS:
-        if not await db.db.plans.find_one({"_id": plan["_id"]}, {"_id": 1}):
+        stored = await db.db.plans.find_one({"_id": plan["_id"]})
+        if not stored:
             await db.db.plans.insert_one(dict(plan))
+            continue
+        missing = {k: v for k, v in plan.items() if k not in stored}
+        if missing:
+            await db.db.plans.update_one({"_id": plan["_id"]}, {"$set": missing})
 
 
 async def get_plan(plan_id: str) -> Optional[Dict[str, Any]]:
@@ -154,6 +178,38 @@ async def get_plan(plan_id: str) -> Optional[Dict[str, Any]]:
 
 async def list_plans() -> List[Dict[str, Any]]:
     return [await get_plan(p["_id"]) for p in DEFAULT_PLANS]
+
+
+def carry_cap(plan: Dict[str, Any], resource: str) -> int:
+    """How much of `resource` a finished month may pass on to the next."""
+    if resource == "videos":
+        return int(plan.get("carryover_cap", (plan.get("limits") or {}).get("videos")) or 0)
+    return int((plan.get("carryover_caps") or {}).get(resource) or 0)
+
+
+def fair_use_ceiling(plan: Optional[Dict[str, Any]], resource: str) -> Optional[int]:
+    """The quiet ceiling on an unlimited resource, or None if there is none."""
+    value = ((plan or {}).get("fair_use") or {}).get(resource)
+    return int(value) if value is not None else None
+
+
+def _period_carry(period: Dict[str, Any], resource: str) -> int:
+    if resource == "videos":
+        return int(period.get("carryover", 0) or 0)
+    return int((period.get("carried") or {}).get(resource, 0) or 0)
+
+
+def _unused_carry(plan: Dict[str, Any], period: Dict[str, Any]) -> Dict[str, int]:
+    """What this period would pass on if it ended now, per resource, capped."""
+    limits = plan.get("limits") or {}
+    out: Dict[str, int] = {}
+    for resource in CARRY_RESOURCES:
+        limit = limits.get(resource)
+        if limit is None:
+            continue
+        unused = limit + _period_carry(period, resource) - int((period.get("used") or {}).get(resource, 0))
+        out[resource] = max(0, min(carry_cap(plan, resource), unused))
+    return out
 
 
 def clamp_effort(requested: str, plan: Optional[Dict[str, Any]]) -> str:
@@ -229,10 +285,10 @@ def _period_bounds(anchor: datetime, now: datetime) -> tuple:
 async def _roll_period(user: Dict[str, Any], plan: Dict[str, Any], now: datetime) -> Dict[str, Any]:
     """Make sure `period` is the current month of the subscription.
 
-    The carry-over is worked out here, when a period ends: the videos the
-    finished period left unused, up to the plan's cap. Months nobody touched
-    still leave the previous month's allowance unused, so a returning teacher
-    gets the cap too.
+    The carry-over is worked out here, when a period ends: the videos and
+    БЖБ/ТЖБ the finished period left unused, each up to the plan's cap for
+    it. Months nobody touched still leave the previous month's allowance
+    unused, so a returning teacher gets the cap too.
     """
     sub = user["subscription"]
     anchor = _aware(sub["anchor"])
@@ -242,17 +298,18 @@ async def _roll_period(user: Dict[str, Any], plan: Dict[str, Any], now: datetime
     if period.get("key") == key:
         return user
 
-    limit = (plan.get("limits") or {}).get("videos")
-    cap = plan.get("carryover_cap", limit) or 0
-    carry = 0
-    if limit is not None and period.get("key"):
+    carried: Dict[str, int] = {}
+    if period.get("key"):
         previous_key = add_months(anchor, index - 1).isoformat() if index >= 1 else None
         if period.get("key") == previous_key:
-            unused = limit + int(period.get("carryover", 0)) - int((period.get("used") or {}).get("videos", 0))
-            carry = max(0, min(cap, unused))
+            carried = _unused_carry(plan, period)
         elif index >= 1:
-            carry = min(cap, limit)
-    new = {"key": key, "start": start, "end": end, "used": {}, "carryover": carry}
+            limits = plan.get("limits") or {}
+            carried = {r: min(carry_cap(plan, r), limits[r])
+                       for r in CARRY_RESOURCES if limits.get(r) is not None}
+    carry = carried.pop("videos", 0)
+    new = {"key": key, "start": start, "end": end, "used": {}, "carryover": carry,
+           "carried": {r: n for r, n in carried.items() if n}}
     result = await db.db.users.update_one(
         {"_id": user["_id"], "period.key": period.get("key")}, {"$set": {"period": new}})
     if result.modified_count:
@@ -280,6 +337,11 @@ class Entitlement:
     carryover: int = 0
     extra_videos: int = 0
     user: Dict[str, Any] = field(default_factory=dict)
+    # Carried from last month, for everything but videos (those are `carryover`).
+    carried: Dict[str, int] = field(default_factory=dict)
+
+    def carry(self, resource: str) -> int:
+        return self.carryover if resource == "videos" else int(self.carried.get(resource, 0))
 
     def available(self, resource: str) -> Optional[int]:
         """How many more may be made; None for unlimited."""
@@ -288,7 +350,7 @@ class Entitlement:
         limit = self.limits.get(resource)
         if limit is None:
             return None
-        allowance = (limit or 0) + (self.carryover if resource == "videos" else 0)
+        allowance = (limit or 0) + self.carry(resource)
         left = max(0, allowance - self.used.get(resource, 0))
         if resource == "videos":
             left += self.extra_videos
@@ -317,6 +379,7 @@ async def resolve(user: Dict[str, Any], now: Optional[datetime] = None,
             kind=ON_USTAZ, plan_id=sub["plan_id"], plan=plan,
             limits=dict(plan.get("limits") or {}), used=dict(period.get("used") or {}),
             carryover=int(period.get("carryover", 0)), extra_videos=extra, user=user,
+            carried={r: int(n) for r, n in (period.get("carried") or {}).items()},
         )
 
     if activate:
@@ -366,7 +429,11 @@ async def reserve(user: Dict[str, Any], resource: str, ref: str) -> Entitlement:
             taken = (path, 1)
     else:
         path = f"period.used.{resource}"
-        allowance = None if limit is None else limit + (ent.carryover if resource == "videos" else 0)
+        if limit is None:
+            # Unlimited, as the page says - up to the fair-use ceiling, if any.
+            allowance = fair_use_ceiling(ent.plan, resource)
+        else:
+            allowance = limit + ent.carry(resource)
         period_key = (ent.user.get("period") or {}).get("key")
         if await _take(user_id, path, allowance, {"period.key": period_key}):
             taken = (path, 1)
@@ -376,7 +443,9 @@ async def reserve(user: Dict[str, Any], resource: str, ref: str) -> Entitlement:
             if result.modified_count:
                 taken = ("extra_videos", -1)
     if not taken:
-        raise PlanRefusal("plan_exhausted", resource)
+        code = "fair_use_reached" if ent.kind == ON_USTAZ and limit is None else "plan_exhausted"
+        await _note_limit_hit(ent, resource, code)
+        raise PlanRefusal(code, resource)
 
     now = _now()
     await db.db.plan_reservations.insert_one({
@@ -384,6 +453,30 @@ async def reserve(user: Dict[str, Any], resource: str, ref: str) -> Entitlement:
         "path": taken[0], "delta": taken[1], "at": now, "expires_at": now + RESERVATION_KEEP,
     })
     return ent
+
+
+LIMIT_HITS_KEEP = timedelta(days=180)
+
+
+async def _note_limit_hit(ent: Entitlement, resource: str, code: str) -> None:
+    """Somebody wanted more than the plan gives. Kept for the metrics page.
+
+    Whether forty lesson plans a month is enough is answered by how many
+    teachers run out, and how far into their month: running out on day 28
+    is a plan that fits, on day 12 one that does not.
+    """
+    now = _now()
+    hit: Dict[str, Any] = {
+        "user_id": str(ent.user["_id"]), "resource": resource, "code": code,
+        "kind": ent.kind, "plan_id": ent.plan_id, "at": now, "expires_at": now + LIMIT_HITS_KEEP,
+    }
+    start = _aware((ent.user.get("period") or {}).get("start"))
+    if ent.kind == ON_USTAZ and start:
+        hit["period_day"] = (now - start).days + 1
+    try:
+        await db.db.plan_limit_hits.insert_one(hit)
+    except Exception as e:  # noqa: BLE001 - counting must never get in the way of the answer
+        print(f"plan limit hit not recorded: {type(e).__name__}: {e}")
 
 
 async def release(ref: str) -> bool:
@@ -513,14 +606,14 @@ async def pause(user: Dict[str, Any], now: Optional[datetime] = None) -> Dict[st
     if not pause_allowed_now(now):
         raise PlanRefusal("pause_summer_only", "")
     period = user.get("period") or {}
-    limit = (plan.get("limits") or {}).get("videos") or 0
-    unused = limit + int(period.get("carryover", 0)) - int((period.get("used") or {}).get("videos", 0))
-    carry = max(0, min(plan.get("carryover_cap", limit) or 0, unused))
+    carried = _unused_carry(plan, period)
+    carry = carried.pop("videos", 0)
     remaining = int((_aware(sub["expires_at"]) - now).total_seconds())
     await db.db.users.update_one({"_id": user["_id"]}, {"$set": {
         "subscription.status": "paused", "subscription.paused_at": now,
         "subscription.pause_until": next_september(now),
         "subscription.remaining_sec": remaining, "subscription.carry_on_resume": carry,
+        "subscription.carried_on_resume": {r: n for r, n in carried.items() if n},
     }})
     return await db.db.users.find_one({"_id": user["_id"]})
 
@@ -532,13 +625,15 @@ async def resume(user: Dict[str, Any], now: Optional[datetime] = None) -> Dict[s
         return user
     expires = now + timedelta(seconds=int(sub.get("remaining_sec", 0)))
     period = {"key": now.isoformat(), "start": now, "end": add_months(now, 1), "used": {},
-              "carryover": int(sub.get("carry_on_resume", 0))}
+              "carryover": int(sub.get("carry_on_resume", 0)),
+              "carried": dict(sub.get("carried_on_resume") or {})}
     result = await db.db.users.update_one(
         {"_id": user["_id"], "subscription.status": "paused"},
         {"$set": {"subscription.status": "active", "subscription.expires_at": expires,
                   "subscription.anchor": now, "period": period},
          "$unset": {"subscription.paused_at": "", "subscription.pause_until": "",
-                    "subscription.remaining_sec": "", "subscription.carry_on_resume": ""}})
+                    "subscription.remaining_sec": "", "subscription.carry_on_resume": "",
+                    "subscription.carried_on_resume": ""}})
     if result.modified_count:
         return await db.db.users.find_one({"_id": user["_id"]})
     return await db.db.users.find_one({"_id": user["_id"]}) or user
@@ -550,6 +645,18 @@ async def resume(user: Dict[str, Any], now: Optional[datetime] = None) -> Dict[s
 def _iso(value: Any) -> Optional[str]:
     moment = _aware(value)
     return moment.isoformat() if moment else None
+
+
+def _fair_use_shown(ent: Entitlement) -> Dict[str, int]:
+    """The ceilings on what the page calls unlimited, for the page to name."""
+    shown: Dict[str, int] = {}
+    if ent.kind != ON_USTAZ:
+        return shown
+    for resource in RESOURCES:
+        ceiling = fair_use_ceiling(ent.plan, resource)
+        if ent.limits.get(resource) is None and ceiling is not None:
+            shown[resource] = ceiling
+    return shown
 
 
 async def summary(user: Dict[str, Any], activate: bool = True) -> Dict[str, Any]:
@@ -567,6 +674,8 @@ async def summary(user: Dict[str, Any], activate: bool = True) -> Dict[str, Any]
         "used": {r: int(ent.used.get(r, 0)) for r in RESOURCES},
         "available": {r: ent.available(r) for r in RESOURCES},
         "carryover": ent.carryover,
+        "carried": {r: ent.carry(r) for r in CARRY_RESOURCES if r != "videos"},
+        "fair_use": _fair_use_shown(ent),
         "extra_videos": ent.extra_videos,
         "watermark": bool(ent.watermark),
         "max_effort": (ent.plan or {}).get("max_effort"),
