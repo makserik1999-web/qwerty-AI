@@ -107,7 +107,7 @@
 
 .footer__inner {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-xl);
 }
 
@@ -296,6 +296,14 @@
   background: var(--surface);
 }
 
+/* Only on the phone's tab bar: the short tab label, the "more" label, and the
+   tabs that moved into the menu. */
+.shell__tab-short,
+.shell__more-label,
+.shell__menu-item--moved {
+  display: none;
+}
+
 .shell__main {
   flex: 1;
   min-width: 0;
@@ -341,7 +349,7 @@
 
   .shell__nav {
     flex: 1;
-    overflow-x: auto;
+    min-width: 0;
   }
 
   .shell__nav-list {
@@ -349,25 +357,99 @@
     justify-content: space-around;
   }
 
+  /* Each tab an equal share of the bar, and a label that never wraps: a
+     two-line label pushed its icon up and out of line with the others. */
+  .shell__nav-list > li {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .shell__nav-list > li.shell__nav-moved {
+    display: none;
+  }
+
   .shell__tab {
     flex-direction: column;
     gap: 2px;
-    padding: var(--space-sm) var(--space-xs);
+    padding: var(--space-sm) 2px;
     font-size: var(--fs-caption);
-    min-width: 56px;
     justify-content: center;
     text-align: center;
   }
 
+  .shell__tab-label,
+  .shell__tab-short {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .shell__tab.has-short .shell__tab-label {
+    display: none;
+  }
+
+  .shell__tab-short {
+    display: block;
+  }
+
   .shell__user {
+    flex: none;
     border-top: 0;
     padding-top: 0;
+  }
+
+  /* The avatar becomes the last tab: "Тағы", holding what did not fit. */
+  .shell__user-button {
+    flex-direction: column;
+    gap: 2px;
+    width: auto;
+    padding: var(--space-xs) var(--space-sm);
+    color: var(--text-secondary);
+  }
+
+  .shell__user-button.is-active,
+  .shell__user-button[aria-expanded='true'] {
+    background: var(--primary-soft);
+    color: var(--primary-deep);
+  }
+
+  .shell__user-button .avatar {
+    width: 24px;
+    height: 24px;
+    font-size: 10px;
+  }
+
+  .shell__more-label {
+    display: block;
+    font-size: var(--fs-caption);
+    line-height: 1;
+  }
+
+  .shell__menu-item--moved {
+    display: flex;
   }
 
   .shell__menu {
     right: 0;
     left: auto;
-    width: 200px;
+    width: 220px;
+  }
+}
+
+/* The smallest phones (320 pixels): a little more room for the labels. */
+@media (max-width: 359px) {
+  .shell__sidebar {
+    padding-inline: 2px;
+  }
+
+  .shell__tab,
+  .shell__more-label {
+    font-size: 11px;
+  }
+
+  .shell__user-button {
+    padding-inline: var(--space-xs);
   }
 }
 
@@ -428,12 +510,23 @@
   align-items: start;
 }
 
+/* minmax(0, 1fr), not 1fr: a bare 1fr column is never narrower than its
+   widest unbreakable child, and on a phone one row of buttons made the whole
+   page 444 pixels wide - everything cut off on the right, sideways scrolling. */
 .split--history {
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .split--form {
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* On one column the question comes first and the history after it: it is
+   what a phone opens the page for. */
+@media (max-width: 1023px) {
+  .split--history > .history {
+    order: 2;
+  }
 }
 
 @media (min-width: 1024px) {

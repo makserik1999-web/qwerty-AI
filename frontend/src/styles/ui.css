@@ -398,14 +398,21 @@
 
 .segmented {
   display: inline-flex;
+  max-width: 100%;
   padding: 3px;
   gap: 2px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
+  /* Four languages do not fit a phone: the row scrolls inside itself rather
+     than widening the page. */
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
 .segmented__option {
+  flex: none;
+  white-space: nowrap;
   border: 0;
   background: transparent;
   color: var(--text-secondary);
@@ -997,4 +1004,60 @@
   font-size: var(--fs-caption, 11px);
   line-height: 1.1;
   opacity: 0.75;
+}
+
+/* On a phone each of these controls takes a whole row: the label above, the
+   choices sharing the width below. Side by side they were wider than the
+   screen and their hints ran out over whatever was next to them. */
+@media (max-width: 640px) {
+  .narration,
+  .length {
+    flex-wrap: wrap;
+    width: 100%;
+    gap: var(--space-xs);
+  }
+
+  .length__label {
+    width: 100%;
+  }
+
+  .length__options,
+  .narration__voices {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .length__option,
+  .narration__voice {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .length__name {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* A hint that does not fit goes onto a second line: "1080p, 60 к/с" cut to
+     "1080p, 6..." would hide the very thing it is there to say. */
+  .length__hint {
+    max-width: 100%;
+    text-align: center;
+  }
+
+  /* Wrapped onto a second line rather than scrolled: a choice hidden past
+     the edge ("Басқа" after four durations) is one nobody finds. */
+  .segmented {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .segmented__option {
+    flex: 1 0 auto;
+    padding: 6px;
+    font-size: 13px;
+  }
 }

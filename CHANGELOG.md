@@ -5,6 +5,31 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### The app fits a phone
+
+**Fixed**
+
+- Single-column layouts were `1fr`, which is never narrower than its widest
+  unbreakable child: on a phone one row of buttons made the Explain page 444
+  pixels wide, everything was cut off on the right and the page scrolled
+  sideways. Every single-column grid is now `minmax(0, 1fr)`.
+- The Explain history stuck to the top of the screen at every width, so on a
+  phone the question form scrolled underneath it and the choices' hints showed
+  through. It sticks only beside the answer on a wide screen, and on one
+  column it comes after the question.
+- The choices under the question (voice, length, format, quality, language)
+  take a whole row each on a phone, share its width, and wrap their hints
+  instead of running over the next control. A row of options too wide for the
+  screen wraps instead of scrolling, so "Басқа" after four lesson lengths is
+  no longer hidden past the edge.
+- On a 320-pixel phone the quality row was wider than the card and the
+  browser zoomed the page out to fit it, sliding the tab bar half off the
+  screen.
+- The phone's tab bar held eight tabs and an avatar: labels wrapped onto two
+  lines and the last tab was cut off. It now holds four, with a short label
+  where the full one does not fit ("Жоспар"), and the avatar becomes "Тағы",
+  a menu with the rest.
+
 ### Portrait videos, boxes that fit their text, and invites that expire
 
 **Added**

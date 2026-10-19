@@ -366,14 +366,36 @@
 
 /* Explain ------------------------------------------------------------------- */
 
+/* The choices under the question. Allowed to be narrower than its widest
+   row of buttons, so the buttons give way rather than the page: on a 320
+   pixel phone the quality row was 331 wide, and the browser zoomed the whole
+   page out to fit it - the tab bar slid half off the bottom of the screen. */
+.explain__options {
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .explain__options {
+    flex: 1 1 100%;
+  }
+}
+
 .history {
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
-  position: sticky;
-  top: var(--space-lg);
-  max-height: calc(100vh - var(--space-2xl));
-  overflow-y: auto;
+}
+
+/* Beside the answer on a wide screen it stays in view while the answer
+   scrolls. On one column it must not: it stuck to the top of a phone's screen
+   and the question form scrolled underneath it. */
+@media (min-width: 1024px) {
+  .history {
+    position: sticky;
+    top: var(--space-lg);
+    max-height: calc(100vh - var(--space-2xl));
+    overflow-y: auto;
+  }
 }
 
 .history__title {
@@ -965,7 +987,7 @@
 .plan__controls {
   display: grid;
   gap: var(--space-md);
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 @media (min-width: 768px) {
@@ -1027,7 +1049,7 @@
 .plan__pair {
   display: grid;
   gap: var(--space-md);
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 @media (min-width: 900px) {
@@ -1073,7 +1095,7 @@
 .plan__stage-grid {
   display: grid;
   gap: var(--space-md);
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 @media (min-width: 900px) {

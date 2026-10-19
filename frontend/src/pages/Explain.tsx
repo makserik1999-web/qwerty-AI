@@ -375,7 +375,7 @@ export function Explain() {
               </Field>
 
               <div className="row row-wrap row-between">
-                <div className="row row-wrap">
+                <div className="row row-wrap explain__options">
                   <SegmentedControl
                     label={t('explain.langLabel')}
                     value={outputLang}
