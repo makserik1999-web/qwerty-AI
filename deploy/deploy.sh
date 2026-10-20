@@ -89,6 +89,11 @@ if [ "$pull" = 1 ]; then
     git pull --ff-only
 fi
 
+# From here containers get replaced; the monitor would report each one as an
+# outage. Removed however this script ends.
+touch "$DEPLOY_MARK" 2>/dev/null || true
+trap 'rm -f "$DEPLOY_MARK"' EXIT
+
 say "Сборка ($(git rev-parse --short HEAD 2>/dev/null || echo '?'))"
 docker compose build
 
@@ -160,7 +165,11 @@ say "Снаружи, через Cloudflare (https://$domain)"
 report "$(public_status "https://$domain/")" 200 "сайт"
 report "$(public_status "https://$domain/api/auth/me")" 401 "API"
 report "$(public_status "https://$domain/ws/agent")" 403 "канал агента закрыт"
-report "$(public_status "http://$domain/")" 301 "http -> https (Always Use HTTPS)"
+redirect="$(public_status "http://$domain/")"
+report "$redirect" 301 "http -> https (Always Use HTTPS)"
+# Not the tunnel: a setting in the Cloudflare panel, and the hint below the
+# checks would send whoever reads it to the wrong place.
+[ "$redirect" = 301 ] || warn "включите в Cloudflare: SSL/TLS -> Edge Certificates -> Always Use HTTPS"
 report "$(ws_status "https://$domain/ws/quiz/play")" 101 "вебсокет через Cloudflare"
 hsts="$(curl -sI --max-time 20 "https://$domain/" | grep -ci '^strict-transport-security' || true)"
 [ "$hsts" -ge 1 ] && echo "  ok   HSTS" || { echo "  FAIL нет заголовка HSTS"; failed=1; }

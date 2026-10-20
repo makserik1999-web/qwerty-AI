@@ -5,6 +5,24 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### Monitoring stops crying wolf during deploys
+
+**Fixed**
+
+- Every deploy was reported as an outage: replacing containers looked like
+  services down. deploy.sh now leaves a marker while it builds and restarts,
+  and monitor.sh does not check while it is there (30 minutes at most, so a
+  deploy that died does not silence it for good).
+- While a container is being replaced, compose lists two for the service, and
+  the alert came out as "frontend: running" and a bare "created". The best of
+  the service's containers now speaks for it.
+- An alert Telegram did not take - the server's own internet down - was lost,
+  and only "back to normal" arrived, saying nothing. Undelivered alerts are
+  sent again on the next run, and "back to normal" lists what was wrong and
+  for how long.
+- A failed http -> https check in deploy.sh now names the Cloudflare setting
+  (Always Use HTTPS) instead of pointing at the tunnel.
+
 ### The app fits a phone
 
 **Fixed**

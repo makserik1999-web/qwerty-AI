@@ -10,6 +10,10 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 ENV_FILE=.env
 PROD_FILES="docker-compose.yml:docker-compose.prod.yml"
 
+# Present while deploy.sh builds and replaces containers. monitor.sh stays
+# quiet then: a container being replaced is the deploy, not an outage.
+DEPLOY_MARK="${ANYQ_DEPLOY_MARK:-/var/tmp/anyq-deploying}"
+
 # BuildKit attaches a provenance record with the build time to every image, so
 # on Docker's containerd image store (the default on new installs) even a
 # fully cached rebuild gets a new image ID - and `up -d` then recreates every
