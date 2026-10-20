@@ -1,0 +1,95 @@
+"""Session tokens: creation, lookup and the user payload they resolve to."""
+
+import hashlib
+import secrets
+from datetime import datetime, timezone
+from typing import Any, Dict, Optional
+
+from bson import ObjectId
+
+from app.config import PRIVACY_POLICY_VERSION, SESSION_TTL, STAFF_ROLES, USER_ROLE_DEFAULT
+from app.db import db
+from app.security.verified import may_generate
+
+
+def _hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _new_session_token() -> str:
+    return secrets.token_urlsafe(48)
+
+
+def _user_payload(user: Dict[str, Any]) -> Dict[str, Any]:
+    """What the client is told about itself.
+
+    `role` is read here and nowhere else on the way out, so the interface can
+    only learn a role that is stored on the account. Accounts created before
+    roles existed have no field, and they read as students - the same fallback
+    the signup path uses, and the safe direction to be wrong in.
+    """
+    payload = {
+        "id": str(user["_id"]),
+        "username": user.get("username", ""),
+        "email": user.get("email"),
+        "name": user.get("name") or user.get("username", ""),
+        "role": user.get("role") or USER_ROLE_DEFAULT,
+        "created_at": user.get("created_at").isoformat()
+        if isinstance(user.get("created_at"), datetime)
+        else None,
+        # The account's own contact details and whether each is confirmed,
+        # so the interface can ask for what is missing.
+        "email_verified": bool(user.get("email") and user.get("email_verified_at")),
+        "phone": user.get("phone") or None,
+        "phone_verified": bool(user.get("phone") and user.get("phone_verified_at")),
+        # False for an account made with Google that never set a password:
+        # "forgot password" is how it gets one.
+        "has_password": bool(user.get("password_hash")),
+        # Not agreed to the current privacy policy yet - an account from before
+        # it existed, one made through Google from the sign-in page, or a
+        # policy that has since changed. The app asks before anything else.
+        "consent_needed": (user.get("consent") or {}).get("version") != PRIVACY_POLICY_VERSION,
+        # The address must be confirmed before the app is used at all
+        # (REQUIRE_VERIFIED_EMAIL=1). The interface shows only the "check
+        # your inbox" page until it is; the server refuses generation anyway.
+        "verify_needed": not may_generate(user),
+    }
+    # Only for staff, and only so the interface can show the admin link. It
+    # grants nothing: every /api/admin route reads the role from the account.
+    if user.get("staff_role") in STAFF_ROLES:
+        payload["staff_role"] = user["staff_role"]
+    return payload
+
+
+async def _create_session(user_id: str) -> str:
+    token = _new_session_token()
+    now = datetime.now(timezone.utc)
+    await db.db.sessions.insert_one(
+        {
+            "token_hash": _hash_token(token),
+            "user_id": user_id,
+            "created_at": now,
+            "expires_at": now + SESSION_TTL,
+        }
+    )
+    return token
+
+
+async def _user_from_token(token: Optional[str]) -> Optional[Dict[str, Any]]:
+    if not token:
+        return None
+    session = await db.db.sessions.find_one({"token_hash": _hash_token(token)})
+    if not session:
+        return None
+    # Safety net for the TTL index (which can lag by up to 60s)
+    expires_at = session.get("expires_at")
+    if expires_at and expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at and expires_at < datetime.now(timezone.utc):
+        await db.db.sessions.delete_one({"_id": session["_id"]})
+        return None
+    user = await db.db.users.find_one({"_id": ObjectId(session["user_id"])})
+    # A blocked account is signed out everywhere, on its next request.
+    if user and user.get("blocked_at"):
+        return None
+    return user

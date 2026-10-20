@@ -1,0 +1,1 @@
+# minimal spoon_ai stub for running anyq checks on a Windows host

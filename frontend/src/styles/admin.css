@@ -1,0 +1,237 @@
+/* Admin panel. Loaded with its page only, so nobody else downloads it. */
+
+.admin {
+  min-height: 100vh;
+  background: var(--surface);
+}
+
+.admin__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm) var(--space-md);
+  padding: var(--space-sm) var(--space-lg);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-raised);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.admin__title {
+  font-weight: var(--fw-semibold);
+}
+
+.admin__spacer {
+  flex: 1;
+}
+
+.admin__page {
+  max-width: 1280px;
+}
+
+.admin__stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  margin-top: var(--space-md);
+}
+
+.admin__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--space-md);
+}
+
+.admin__figure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-md);
+}
+
+.admin__figure-value {
+  font-size: var(--fs-h3);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.admin__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.admin__search {
+  flex: 1 1 280px;
+  max-width: 420px;
+}
+
+.admin__pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+}
+
+.admin__link {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--link);
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.admin__roles {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  white-space: nowrap;
+}
+
+.admin__bad {
+  color: var(--text-error);
+  font-weight: var(--fw-semibold);
+}
+
+.admin__mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--fs-caption);
+  word-break: break-all;
+}
+
+.admin__facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-xs) var(--space-lg);
+  margin: 0;
+}
+
+.admin__facts dt {
+  color: var(--text-secondary);
+}
+
+.admin__facts dd {
+  margin: 0;
+}
+
+.admin__subhead {
+  font-size: var(--fs-body);
+  font-weight: var(--fw-semibold);
+}
+
+.admin__events {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.admin__loading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-lg) 0;
+}
+
+@media (max-width: 767px) {
+  .admin__bar {
+    padding: var(--space-sm) var(--space-md);
+  }
+
+  /* The logo already says where you are; the button needs the room. */
+  .admin__title {
+    display: none;
+  }
+
+  .admin__facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.admin__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-md);
+}
+
+.admin__action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-sm);
+  padding: var(--space-sm) 0;
+}
+
+.admin__grow {
+  flex: 1 1 260px;
+}
+
+.admin__videos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: var(--space-lg);
+}
+
+.admin__video {
+  padding: var(--space-md);
+}
+
+/* A question in the tasks table: one line, the rest on hover. */
+.admin__clip {
+  max-width: 28ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Ten sections do not fit a phone: the strip scrolls sideways, the page does not. */
+.admin .tabs {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 1px;
+  scrollbar-width: thin;
+}
+
+.admin .tabs__tab {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* A filter with long labels scrolls inside itself on a phone, like the tabs. */
+.admin .segmented {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.admin .segmented__option {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.admin__wrap {
+  flex-wrap: wrap;
+  white-space: normal;
+}
+
+/* A teacher's report, in full: it is the point of the row. */
+.admin__report-text {
+  min-width: 24ch;
+  max-width: 60ch;
+  white-space: pre-wrap;
+}
+
+/* A payment code is read against the Kaspi comment: one line, easy to compare. */
+.admin__code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+}

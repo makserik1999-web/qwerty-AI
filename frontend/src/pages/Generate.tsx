@@ -1,0 +1,595 @@
+import { useState } from 'react'
+import { AiCheckNote } from '../components/AiCheckNote'
+import {
+  Alert,
+  AnchorButton,
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  Field,
+  IconButton,
+  Input,
+  SegmentedControl,
+  Select,
+  Skeleton,
+  SkeletonText,
+  Stepper,
+  Table,
+  Tabs,
+  Textarea,
+  useToast,
+} from '../components/ui'
+import { MarkdownMessage } from '../components/MarkdownMessage'
+import { ApiError, assessmentDocxUrl, generationRefusal } from '../lib/api'
+import {
+  generateAssessment,
+  regenerateQuestion,
+  saveQuestions,
+  type GenerateInput,
+} from '../lib/assessments'
+import { describeAuthError } from '../lib/authErrors'
+import { useI18n } from '../lib/i18n'
+import { GRADES, SUBJECTS } from '../lib/mockData'
+import type {
+  Assessment,
+  AssessmentQuestion,
+  AssessmentType,
+  Difficulty,
+  Lang,
+  SubjectId,
+} from '../lib/types'
+import { formatDate } from '../lib/utils'
+
+type Status = 'idle' | 'generating' | 'ready' | 'error'
+type PreviewTab = 'document' | 'key'
+
+export function Generate() {
+  const { t, lang } = useI18n()
+  const { toast } = useToast()
+
+  const [subject, setSubject] = useState<SubjectId>('math')
+  const [grade, setGrade] = useState(8)
+  const [topic, setTopic] = useState('')
+  const [type, setType] = useState<AssessmentType>('sor')
+  const [count, setCount] = useState(5)
+  const [difficulty, setDifficulty] = useState<Difficulty>('medium')
+  const [docLang, setDocLang] = useState<Lang>('kk')
+  const [variants, setVariants] = useState<'1' | '2'>('2')
+
+  const [status, setStatus] = useState<Status>('idle')
+  const [assessment, setAssessment] = useState<Assessment | null>(null)
+  const [topicError, setTopicError] = useState<string | undefined>()
+  const [failure, setFailure] = useState<string | undefined>()
+  const [busyQuestion, setBusyQuestion] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editValue, setEditValue] = useState('')
+  const [tab, setTab] = useState<PreviewTab>('document')
+  const [variant, setVariant] = useState<1 | 2>(1)
+
+  // A paper written in two variants is edited one variant at a time.
+  const hasTwo = (assessment?.variant2?.length ?? 0) > 0
+  const active: 1 | 2 = variant === 2 && hasTwo ? 2 : 1
+  const shown: AssessmentQuestion[] =
+    (active === 2 ? assessment?.variant2 : assessment?.questions) ?? []
+
+  function currentInput(): GenerateInput {
+    return {
+      subject,
+      grade,
+      topic: topic.trim(),
+      type,
+      difficulty,
+      lang: docLang,
+      count,
+      variants: Number(variants),
+    }
+  }
+
+  async function onGenerate(event: React.FormEvent) {
+    event.preventDefault()
+    if (!topic.trim()) {
+      setTopicError(t('generate.topicRequired'))
+      return
+    }
+    setTopicError(undefined)
+    setFailure(undefined)
+    setStatus('generating')
+    try {
+      const result = await generateAssessment(currentInput())
+      setVariant(1)
+      setAssessment(result)
+      setStatus('ready')
+      toast(t('generate.saved'))
+    } catch (error) {
+      // The server's sentence when it has one: it says whether to wait, to
+      // shorten the topic, or that the hour's papers are spent.
+      const described = describeAuthError(error, 'auth.error.unknown')
+      setFailure(
+        generationRefusal(error)
+          ? t(generationRefusal(error)!)
+          : error instanceof ApiError && error.detail
+            ? error.detail
+            : t(described.key),
+      )
+      setStatus('error')
+    }
+  }
+
+  async function onRegenerateQuestion(questionId: string) {
+    if (!assessment) return
+    setBusyQuestion(questionId)
+    try {
+      // The server returns the whole paper: it is what changed, and taking
+      // its word for the result avoids the two copies drifting.
+      setAssessment(await regenerateQuestion(assessment.id, questionId, active))
+      toast(t('generate.questionUpdated'))
+    } catch (error) {
+      setFailure(
+        generationRefusal(error)
+          ? t(generationRefusal(error)!)
+          : error instanceof ApiError && error.detail
+            ? error.detail
+            : t('auth.error.unknown'),
+      )
+    } finally {
+      setBusyQuestion(null)
+    }
+  }
+
+  async function saveEdit(questionId: string) {
+    if (!assessment) return
+    const edited = shown.map((question) =>
+      question.id === questionId ? { ...question, text: editValue } : question,
+    )
+    // Shown at once, then written. A reworded question that only lived on
+    // screen would be gone on the next visit, which is worse than slow.
+    setAssessment({ ...assessment, [active === 2 ? 'variant2' : 'questions']: edited })
+    setEditingId(null)
+    try {
+      setAssessment(await saveQuestions(assessment.id, edited, active))
+      toast(t('generate.questionUpdated'))
+    } catch {
+      setFailure(t('auth.error.unknown'))
+    }
+  }
+
+  /**
+   * Printing, which is also how a teacher gets a PDF.
+   *
+   * The paper is already laid out on screen, and every browser's print dialog
+   * offers "save as PDF" - so this needs no server and works today. The
+   * .docx is built by the backend (GET /api/assessments/{id}/docx); a trial
+   * paper carries "Akron арқылы жасалды" in its footer.
+   */
+  function onPrint() {
+    setTab('document')
+    // Both variants go to the printer, 1-нұсқа first: the other one is laid
+    // out under the one on screen and shown only on paper.
+    setVariant(1)
+    // The tab switch has to paint before the dialog blocks the page.
+    window.setTimeout(() => window.print(), 0)
+  }
+
+  const totalMarks = shown.reduce((sum, question) => sum + question.marks, 0)
+  const other: 1 | 2 = active === 2 ? 1 : 2
+  const otherQuestions: AssessmentQuestion[] =
+    (other === 2 ? assessment?.variant2 : assessment?.questions) ?? []
+
+  /** The top of a student's sheet: what it is, the name line, the instructions. */
+  function sheetHead(paper: Assessment, sheetVariant: number | null, marks: number) {
+    return (
+      <>
+        <header className="document__header">
+          <div className="stack stack-sm">
+            <h3 className="document__title">
+              {t(`generate.type.${paper.type}`)} · {t(`subject.${paper.subject}`)}
+              {sheetVariant ? ` · ${t('generate.variantN', { n: sheetVariant })}` : null}
+            </h3>
+            <p className="text-sm text-secondary">
+              {paper.grade} {t('common.grade').toLowerCase()} · {paper.topic} ·{' '}
+              {formatDate(paper.createdAt, lang)}
+            </p>
+          </div>
+          <Badge tone="accent">{t('generate.totalMarks', { n: marks })}</Badge>
+        </header>
+
+        <dl className="document__fields">
+          <div>
+            <dt>{t('generate.docHeaderName')}</dt>
+            <dd />
+          </div>
+          <div>
+            <dt>{t('generate.docHeaderClass')}</dt>
+            <dd />
+          </div>
+          <div>
+            <dt>{t('generate.docHeaderDate')}</dt>
+            <dd />
+          </div>
+        </dl>
+
+        <section className="document__instructions">
+          <h4>{t('generate.instructions')}</h4>
+          <p className="text-sm text-secondary">{t('generate.instructionsBody')}</p>
+        </section>
+      </>
+    )
+  }
+
+  return (
+    <div className="page">
+      <header className="page__header">
+        <div className="page__heading">
+          <h1 className="page__title">{t('generate.title')}</h1>
+          <p className="page__subtitle">{t('generate.subtitle')}</p>
+        </div>
+      </header>
+
+      <div className="split split--form">
+        {/* Form ------------------------------------------------------------- */}
+        <Card as="section" elevation="raised">
+          <h2 className="card__title">{t('generate.form')}</h2>
+          <form className="stack stack-md generate__form" onSubmit={onGenerate}>
+            <Field label={t('common.subject')}>
+              {(props) => (
+                <Select
+                  {...props}
+                  value={subject}
+                  onChange={(event) => setSubject(event.target.value as SubjectId)}
+                  options={SUBJECTS.map((item) => ({
+                    value: item,
+                    label: t(`subject.${item}`),
+                  }))}
+                />
+              )}
+            </Field>
+
+            <Field label={t('common.grade')}>
+              {(props) => (
+                <Select
+                  {...props}
+                  value={String(grade)}
+                  onChange={(event) => setGrade(Number(event.target.value))}
+                  options={GRADES.map((item) => ({
+                    value: String(item),
+                    label: String(item),
+                  }))}
+                />
+              )}
+            </Field>
+
+            <Field label={t('common.topic')} error={topicError}>
+              {(props) => (
+                <Input
+                  {...props}
+                  value={topic}
+                  placeholder={t('generate.topicPlaceholder')}
+                  onChange={(event) => setTopic(event.target.value)}
+                />
+              )}
+            </Field>
+
+            <Field label={t('generate.type')}>
+              {(props) => (
+                <Select
+                  {...props}
+                  value={type}
+                  onChange={(event) => setType(event.target.value as AssessmentType)}
+                  options={[
+                    { value: 'sor', label: t('generate.type.sor') },
+                    { value: 'soch', label: t('generate.type.soch') },
+                    { value: 'quiz', label: t('generate.type.quiz') },
+                  ]}
+                />
+              )}
+            </Field>
+
+            <div className="field">
+              <span className="field__label">{t('generate.count')}</span>
+              <Stepper
+                value={count}
+                min={3}
+                max={15}
+                onChange={setCount}
+                label={t('generate.count')}
+                decreaseLabel="−1"
+                increaseLabel="+1"
+              />
+            </div>
+
+            <div className="field">
+              <span className="field__label">{t('generate.difficulty')}</span>
+              <SegmentedControl
+                label={t('generate.difficulty')}
+                value={difficulty}
+                onChange={setDifficulty}
+                options={[
+                  { value: 'easy', label: t('generate.difficulty.easy') },
+                  { value: 'medium', label: t('generate.difficulty.medium') },
+                  { value: 'hard', label: t('generate.difficulty.hard') },
+                ]}
+              />
+            </div>
+
+            <div className="field">
+              <span className="field__label">{t('common.language')}</span>
+              <SegmentedControl
+                label={t('common.language')}
+                value={docLang}
+                onChange={setDocLang}
+                options={[
+                  { value: 'kk', label: t('common.kazakh') },
+                  { value: 'ru', label: t('common.russian') },
+                ]}
+              />
+            </div>
+
+            <div className="field">
+              <span className="field__label">{t('generate.variants')}</span>
+              <SegmentedControl
+                label={t('generate.variants')}
+                value={variants}
+                onChange={setVariants}
+                options={[
+                  { value: '1', label: t('generate.variants.one') },
+                  { value: '2', label: t('generate.variants.two') },
+                ]}
+              />
+              <p className="field__hint">{t('generate.variants.hint')}</p>
+            </div>
+
+            <Button
+              type="submit"
+              variant="primary"
+              icon="sparkle"
+              block
+              loading={status === 'generating'}
+            >
+              {assessment ? t('generate.regenerate') : t('generate.submit')}
+            </Button>
+          </form>
+        </Card>
+
+        {/* Preview ---------------------------------------------------------- */}
+        <section
+          className="stack stack-md"
+          aria-live="polite"
+          aria-busy={status === 'generating'}
+        >
+          <div className="row row-between row-wrap">
+            <h2 className="card__title">{t('generate.preview')}</h2>
+            <div className="row row--actions">
+              <Button icon="download" disabled={!assessment} onClick={onPrint}>
+                {t('generate.print')}
+              </Button>
+              {assessment ? (
+                <AnchorButton icon="download" href={assessmentDocxUrl(assessment.id)} download>
+                  {t('generate.exportDocx')}
+                </AnchorButton>
+              ) : (
+                <Button icon="download" disabled>
+                  {t('generate.exportDocx')}
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {status === 'idle' ? (
+            <EmptyState
+              icon="file"
+              title={t('generate.previewEmptyTitle')}
+              body={t('generate.previewEmptyBody')}
+            />
+          ) : null}
+
+          {status === 'error' ? (
+            <Alert
+              tone="error"
+              title={failure ?? t('generate.errorTitle')}
+              action={
+                <Button
+                  icon="refresh"
+                  onClick={() => {
+                    setFailure(undefined)
+                    setStatus('idle')
+                  }}
+                >
+                  {t('common.retry')}
+                </Button>
+              }
+            >
+              {t('generate.errorBody')}
+            </Alert>
+          ) : null}
+
+          {status === 'generating' ? (
+            <Card elevation="flat" className="stack stack-md">
+              <Skeleton width="50%" height="24px" />
+              <Skeleton width="80%" height="14px" />
+              {Array.from({ length: count }, (_, index) => (
+                <SkeletonText key={index} lines={2} />
+              ))}
+            </Card>
+          ) : null}
+
+          {status === 'ready' && assessment ? (
+            <AiCheckNote report={{ kind: 'assessment', refId: assessment.id }} />
+          ) : null}
+
+          {status === 'ready' && assessment && hasTwo ? (
+            <div className="generate__variants">
+              <SegmentedControl
+                label={t('generate.variantPick')}
+                value={String(active) as '1' | '2'}
+                onChange={(value) => {
+                  setEditingId(null)
+                  setVariant(value === '2' ? 2 : 1)
+                }}
+                options={[
+                  { value: '1', label: t('generate.variantN', { n: 1 }) },
+                  { value: '2', label: t('generate.variantN', { n: 2 }) },
+                ]}
+              />
+            </div>
+          ) : null}
+
+          {status === 'ready' && assessment ? (
+            <Tabs
+              label={t('generate.preview')}
+              value={tab}
+              onChange={setTab}
+              items={[
+                { value: 'document', label: t('generate.tab.document') },
+                { value: 'key', label: t('generate.tab.key') },
+              ]}
+            >
+              {tab === 'key' ? (
+                <Card elevation="raised" className="document">
+                  <header className="document__header">
+                    <h3 className="document__title">{t('generate.tab.key')}</h3>
+                    <Badge tone="accent">
+                      {t('generate.totalMarks', { n: totalMarks })}
+                    </Badge>
+                  </header>
+                  <p className="text-sm text-secondary">{t('generate.criteria.note')}</p>
+                  <Table caption={t('generate.tab.key')}>
+                    <thead>
+                      <tr>
+                        <th scope="col">{t('generate.criteria.question')}</th>
+                        <th scope="col">{t('generate.criteria.level')}</th>
+                        <th scope="col" className="num">
+                          {t('generate.criteria.marks')}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {shown.flatMap((question, index) => {
+                        const levels = [
+                          { key: 'full', marks: question.marks },
+                          {
+                            key: 'partial',
+                            marks: Math.max(1, Math.round(question.marks / 2)),
+                          },
+                          { key: 'start', marks: 1 },
+                        ] as const
+                        return levels.map((level, levelIndex) => (
+                          <tr key={`${question.id}-${level.key}`}>
+                            {levelIndex === 0 ? (
+                              <th scope="row" rowSpan={3} className="table__rowhead">
+                                {index + 1}
+                              </th>
+                            ) : null}
+                            <td>{t(`generate.criteria.${level.key}`)}</td>
+                            <td className="num">{level.marks}</td>
+                          </tr>
+                        ))
+                      })}
+                    </tbody>
+                  </Table>
+                </Card>
+              ) : (
+                <Card elevation="raised" className="document">
+                  {sheetHead(assessment, hasTwo ? active : null, totalMarks)}
+
+                  <ol className="document__questions">
+                    {shown.map((question, index) => (
+                      <li key={question.id} className="document__question">
+                        <div className="document__question-head">
+                          <span className="document__question-number">{index + 1}.</span>
+                          <Badge tone="neutral">
+                            {t('generate.marks', { n: question.marks })}
+                          </Badge>
+                          <span className="grow" />
+                          <IconButton
+                            icon="pencil"
+                            label={t('generate.editQuestion', { n: index + 1 })}
+                            onClick={() => {
+                              setEditingId(question.id)
+                              setEditValue(question.text)
+                            }}
+                          />
+                          <IconButton
+                            icon="refresh"
+                            label={t('generate.regenerateQuestion', {
+                              n: index + 1,
+                            })}
+                            disabled={busyQuestion === question.id}
+                            onClick={() => void onRegenerateQuestion(question.id)}
+                          />
+                        </div>
+
+                        {busyQuestion === question.id ? (
+                          <Skeleton height="14px" />
+                        ) : editingId === question.id ? (
+                          <div className="stack stack-sm">
+                            <label
+                              className="visually-hidden"
+                              htmlFor={`edit-${question.id}`}
+                            >
+                              {t('generate.editQuestion', { n: index + 1 })}
+                            </label>
+                            <Textarea
+                              id={`edit-${question.id}`}
+                              value={editValue}
+                              rows={3}
+                              onChange={(event) => setEditValue(event.target.value)}
+                            />
+                            <div className="row row--actions">
+                              <Button size="sm" onClick={() => setEditingId(null)}>
+                                {t('common.cancel')}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="primary"
+                                onClick={() => saveEdit(question.id)}
+                              >
+                                {t('common.save')}
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          /* The model writes formulas in LaTeX, so they are
+                             typeset rather than printed. Without this a
+                             question reads "$y = rac{2x - 5}{x + 3}$" -
+                             the dollars and braces on the page, which is not
+                             something a student can be handed. Editing still
+                             shows the source, because that is what a teacher
+                             has to change to fix a formula. */
+                          <MarkdownMessage content={question.text} />
+                        )}
+                      </li>
+                    ))}
+                  </ol>
+
+                  {hasTwo ? (
+                    <div className="document--print-only">
+                      {sheetHead(
+                        assessment,
+                        other,
+                        otherQuestions.reduce((sum, question) => sum + question.marks, 0),
+                      )}
+                      <ol className="document__questions">
+                        {otherQuestions.map((question, index) => (
+                          <li key={question.id} className="document__question">
+                            <div className="document__question-head">
+                              <span className="document__question-number">{index + 1}.</span>
+                              <Badge tone="neutral">
+                                {t('generate.marks', { n: question.marks })}
+                              </Badge>
+                            </div>
+                            <MarkdownMessage content={question.text} />
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                  ) : null}
+                </Card>
+              )}
+            </Tabs>
+          ) : null}
+        </section>
+      </div>
+    </div>
+  )
+}
