@@ -311,6 +311,7 @@ try:
         "render_attempt", "render_ok", "render_error_tail", "duration_ms",
         "items_requested", "items_produced", "status", "error_type",
         "motion_layer", "transitions_morphed", "fade_clears_left",
+        "render_seconds", "static_seconds", "static_share",
     }
     check_true("telemetry line has the full documented key set",
                set(_entry.keys()) == _expected_keys, repr(sorted(_entry.keys())))

@@ -98,6 +98,13 @@ def new_run(request_id: Any, user_message: str, kind: str = "video") -> None:
         # the fades to an empty frame the guard could not turn into one.
         "transitions_morphed": 0,
         "fade_clears_left": 0,
+        # Seconds the successful render took, and how much of the video it
+        # made stands still (anyq/motion_metric.py): the seconds of 0.3 s or
+        # longer stretches where the frame did not change, and their share of
+        # the video. None when not measured - MOTION_LAYER or MOTION_METRIC.
+        "render_seconds": None,
+        "static_seconds": None,
+        "static_share": None,
         "_started": time.monotonic(),
     })
 
@@ -155,6 +162,9 @@ def write() -> None:
             "motion_layer": run["motion_layer"],
             "transitions_morphed": run["transitions_morphed"],
             "fade_clears_left": run["fade_clears_left"],
+            "render_seconds": run["render_seconds"],
+            "static_seconds": run["static_seconds"],
+            "static_share": run["static_share"],
             "status": run["status"],
             "error_type": run["error_type"],
         }

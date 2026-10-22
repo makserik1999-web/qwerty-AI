@@ -51,6 +51,12 @@ PIPELINE_VERSION in the same deploy.
   when each word is said, and the manifest carries them. The same voice,
   SSML and mp3 format as before; if the SDK fails, that line goes through
   REST exactly as it always did and its formula's terms take turns evenly.
+- Stillness in telemetry: after a render, ffmpeg's freezedetect
+  (`n=-66dB:d=0.3`) runs over the video and the run records
+  `static_seconds` and `static_share` - how much of it stands still; the
+  layer aims for under 5%. Always with the layer on, and with
+  MOTION_METRIC=1 without it, for a baseline. Every run also records
+  `render_seconds`, the time of the render itself.
 
 Measured on a 32-second test scene at 720p30: the share of 0.3 s windows in
 which the frame stands still went from 86% to 0%; rendering took 28 s

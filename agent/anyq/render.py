@@ -14,12 +14,14 @@ repair it into something worse).
 
 from __future__ import annotations
 
+import asyncio
+import time
 from typing import Any, Dict
 
 from spoon_ai.schema import Message
 from spoon_ai.tools.mcp_tool import MCPTool
 
-from anyq import narration
+from anyq import motion_metric, narration, telemetry
 from anyq.config import (  # noqa: F401 - _RENDER_REPAIR_ATTEMPTS re-exported
     _RENDER_REPAIR_ATTEMPTS,
     EFFORT_DEFAULT,
@@ -29,6 +31,7 @@ from anyq.config import (  # noqa: F401 - _RENDER_REPAIR_ATTEMPTS re-exported
     MANIM_MCP_PYTHON,
     MANIM_MCP_SERVER_SCRIPT,
     MOTION_LAYER,
+    MOTION_METRIC,
 )
 from anyq.llm_client import _llm_chat
 from anyq.prompts import RENDER_REPAIR_SYSTEM_PROMPT
@@ -41,6 +44,22 @@ from anyq.script_guard import (
     _strip_code_fences,
     validate_manim_script,
 )
+
+
+async def _measure_stillness(video_path: str) -> None:
+    """Record how much of the video stands still (see motion_metric).
+
+    With the motion layer on, and with MOTION_METRIC=1 for a baseline without
+    it. Off the event loop: it decodes the whole file. Never fails the render.
+    """
+    if not (MOTION_LAYER or MOTION_METRIC) or not video_path:
+        return
+    still = await asyncio.to_thread(motion_metric.measure, video_path)
+    if still:
+        telemetry.record(static_seconds=still["static_seconds"],
+                         static_share=still["static_share"])
+        print(f"[motion] still {still['static_seconds']}s of {still['duration']}s "
+              f"({still['static_share']:.1%})", flush=True)
 
 
 def _error_tail(text: str, limit: int = 400) -> str:
@@ -125,6 +144,7 @@ async def render_video(state: ScienceVideoState) -> Dict[str, Any]:
                 if manifest:
                     manifests.append(manifest)
 
+            started = time.monotonic()
             raw = await tool.call_mcp_tool(
                 "execute_manim_code", manim_code=script,
                 narration_manifest=manifest, quality=quality,
@@ -133,6 +153,10 @@ async def render_video(state: ScienceVideoState) -> Dict[str, Any]:
             payload = _safe_json_loads(raw)
 
             if payload.get("status") == "ok":
+                # How long the render itself took - the cost the motion layer
+                # adds is paid here, and only here.
+                telemetry.record(render_seconds=round(time.monotonic() - started, 1))
+                await _measure_stillness(str(payload.get("video_path") or ""))
                 return {
                     "video_path": str(payload.get("video_path") or ""),
                     "mcp_raw_result": raw,

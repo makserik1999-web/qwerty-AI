@@ -272,6 +272,9 @@ services:
       # it is, raise PIPELINE_VERSION in the same deploy so videos made
       # without it stop being served from the cache.
       - MOTION_LAYER=${MOTION_LAYER:-0}
+      # How much of each video stands still, measured without the layer too
+      # (telemetry static_share) - for a baseline before switching it on.
+      - MOTION_METRIC=${MOTION_METRIC:-0}
       # Test mode: render a stub Manim video without calling any LLM
       # (used for sandbox/render regression checks; a real LLM key is
       # otherwise required for AI features).

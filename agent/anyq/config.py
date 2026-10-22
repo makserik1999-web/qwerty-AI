@@ -270,6 +270,14 @@ ANIM_EXIT_RUN_TIME = _get_float("ANIM_EXIT_RUN_TIME", 0.35)
 # should go with it: raise PIPELINE_VERSION in the same deploy.
 MOTION_LAYER = (os.getenv("MOTION_LAYER", "0") or "0").strip() == "1"
 
+# How much of each finished video stands still (anyq/motion_metric.py:
+# ffmpeg's freezedetect over the file, recorded as static_seconds and
+# static_share). Always measured with the layer on - it is what the layer is
+# for - and with MOTION_METRIC=1 without it too, for the baseline to compare
+# against. Off otherwise: it decodes the whole video, a few seconds on the
+# production box, and nothing else needs it.
+MOTION_METRIC = (os.getenv("MOTION_METRIC", "0") or "0").strip() == "1"
+
 # ============== Fonts ==============
 MANIM_TEXT_FONT = os.getenv("MANIM_TEXT_FONT", "").strip()
 
