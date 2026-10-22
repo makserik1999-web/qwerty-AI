@@ -310,7 +310,7 @@ try:
         "educator_text_len", "script_len", "guard_rewrites",
         "render_attempt", "render_ok", "render_error_tail", "duration_ms",
         "items_requested", "items_produced", "status", "error_type",
-        "motion_layer",
+        "motion_layer", "transitions_morphed", "fade_clears_left",
     }
     check_true("telemetry line has the full documented key set",
                set(_entry.keys()) == _expected_keys, repr(sorted(_entry.keys())))

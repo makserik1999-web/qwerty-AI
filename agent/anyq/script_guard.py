@@ -360,6 +360,239 @@ def _pace_animations(script: str, cap: float, exit_run_time: float) -> Tuple[str
     return out, True
 
 
+# What a name was made as, for _morph_transitions: the class at the root of
+# the expression it was last assigned from - MathTex(...).next_to(x) is a
+# formula. Only these two kinds are ever morphed; Text is a caption and L2
+# forbids morphing one sentence into another.
+_FORMULA_CLASSES = frozenset({"MathTex", "Tex"})
+_SHAPE_CLASSES = frozenset({
+    "Circle", "Square", "Rectangle", "RoundedRectangle", "Triangle", "Polygon",
+    "RegularPolygon", "Ellipse", "Dot", "Star", "Annulus", "Sector",
+    "AnnularSector", "Arc", "Line", "Arrow", "DashedLine", "DoubleArrow",
+    "Vector",
+})
+
+
+def _root_class(node: ast.AST) -> str:
+    """`MathTex` for MathTex("a").scale(2).next_to(b): the call a chain starts from."""
+    while isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+        node = node.func.value
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+        return node.func.id
+    return ""
+
+
+def _kind_of(class_name: str) -> str:
+    if class_name in _FORMULA_CLASSES:
+        return "formula"
+    if class_name in _SHAPE_CLASSES:
+        return "shape"
+    return ""
+
+
+def _is_self_call(stmt: ast.stmt, *methods: str) -> bool:
+    if not (isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Call)):
+        return False
+    func = stmt.value.func
+    return (isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name)
+            and func.value.id == "self" and (not methods or func.attr in methods))
+
+
+def _anim_on_name(node: ast.AST) -> Tuple[str, str]:
+    """("exit"|"enter", name) for FadeOut(x) / Write(x), else ("", "")."""
+    kind = _anim_kind(node)
+    if kind and isinstance(node, ast.Call) and len(node.args) == 1 \
+            and isinstance(node.args[0], ast.Name):
+        return kind, node.args[0].id
+    return "", ""
+
+
+def _statement_lists(tree: ast.AST):
+    """Every block of statements: function bodies, with/for/if bodies."""
+    for node in ast.walk(tree):
+        for field in ("body", "orelse", "finalbody"):
+            stmts = getattr(node, field, None)
+            if isinstance(stmts, list) and stmts and isinstance(stmts[0], ast.stmt):
+                yield stmts
+
+
+def _is_exit_arg(node: ast.AST) -> bool:
+    """FadeOut(x), or *[FadeOut(m) for m in self.mobjects]."""
+    if isinstance(node, ast.Starred) and isinstance(node.value, (ast.ListComp, ast.GeneratorExp)):
+        return _anim_kind(node.value.elt) == "exit"
+    return _anim_kind(node) == "exit"
+
+
+def _exit_then_enter(stmts):
+    """(exit play, enter play) pairs: a play that only removes things,
+    then - past nothing but plain statements such as the assignment that
+    builds the next object - a play that brings something in."""
+    for i, stmt in enumerate(stmts):
+        if not _is_self_call(stmt, "play"):
+            continue
+        call = stmt.value
+        if not call.args or not all(_is_exit_arg(a) for a in call.args):
+            continue
+        for later in stmts[i + 1:]:
+            if _is_self_call(later, "play"):
+                if any(_anim_kind(a) == "enter" for a in later.value.args):
+                    yield stmt, later
+                break
+            if _is_self_call(later) or not isinstance(
+                    later, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.Expr)):
+                break
+
+
+def _morph_transitions(script: str) -> Tuple[str, int, int]:
+    """Turn "fade the old one out, write the new one in" into a morph.
+
+    Under the motion layer, L8 asks for formulas to change with
+    TransformMatchingTex and shapes with ReplacementTransform rather than a
+    fade to an empty frame and a fade back in. The model still writes the
+    old pattern often - _pace_animations even produces it, by splitting a
+    play that faded and wrote at once - so the plain cases are rewritten
+    here:
+
+        self.play(FadeOut(eq1), run_time=0.35)      self.play(TransformMatchingTex(eq1, eq2),
+        eq2 = MathTex("a", "=", "F", "/", "m")  ->            run_time=0.8)
+        self.play(Write(eq2), run_time=0.8)
+
+    Only when it is certain to be the same thing as before plus motion: the
+    old and the new object are plain names in the same block, both were last
+    assigned from a formula (MathTex/Tex) or both from a shape, and the old
+    one is not used again later - after a morph it is gone, and fading it in
+    again would bring back a broken copy. Captions (Text) are never touched.
+
+    Returns (script, morphs made, fade-to-empty changes left): the second
+    count is how often the script still clears and redraws - several things
+    faded out, then something new brought in - which this cannot fix without
+    knowing what corresponds to what.
+    """
+    if not script.strip():
+        return script, 0, 0
+    try:
+        tree = ast.parse(script)
+    except SyntaxError:
+        return script, 0, 0
+
+    lines = script.splitlines(keepends=True)
+    starts, running = [], 0
+    for line in lines:
+        starts.append(running)
+        running += len(line)
+
+    def offset(lineno: int, col: int) -> int:
+        return starts[lineno - 1] + col
+
+    def src(node: ast.AST) -> str:
+        return ast.get_source_segment(script, node) or ""
+
+    # Assignments in source order, for "what was this name last made as".
+    assignments = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and len(node.targets) == 1 \
+                and isinstance(node.targets[0], ast.Name):
+            assignments.append((node.lineno, node.targets[0].id, _kind_of(_root_class(node.value))))
+    assignments.sort()
+
+    def kind_at(name: str, lineno: int) -> str:
+        kind = ""
+        for line_no, target, k in assignments:
+            if line_no >= lineno:
+                break
+            if target == name:
+                kind = k
+        return kind
+
+    # Every use of every name, to know whether the old object comes back.
+    uses = sorted(
+        (node.lineno, node.col_offset, node.id, isinstance(node.ctx, ast.Store))
+        for node in ast.walk(tree) if isinstance(node, ast.Name)
+    )
+
+    def used_again(name: str, after: Tuple[int, int]) -> bool:
+        for line_no, col, n, is_store in uses:
+            if (line_no, col) <= after or n != name:
+                continue
+            return not is_store  # the next mention: a read brings it back
+        return False
+
+    edits = []  # (start, end, replacement)
+    morphs = 0
+    for stmts in _statement_lists(tree):
+        for exit_stmt, enter_stmt in _exit_then_enter(stmts):
+            enter_call = enter_stmt.value
+            enters = []
+            for arg in enter_call.args:
+                kind, name = _anim_on_name(arg)
+                if kind == "enter":
+                    enters.append((arg, name, kind_at(name, enter_stmt.lineno)))
+            end_of_enter = (enter_stmt.end_lineno, enter_stmt.end_col_offset)
+
+            kept_exits, paired = [], {}
+            for arg in exit_stmt.value.args:
+                kind, old = _anim_on_name(arg)
+                old_kind = kind_at(old, exit_stmt.lineno) if old else ""
+                match = None
+                if old_kind and not used_again(old, end_of_enter):
+                    for enter_arg, new, new_kind in enters:
+                        if id(enter_arg) not in paired and new_kind == old_kind and new != old:
+                            match = (enter_arg, new)
+                            break
+                if match is None:
+                    kept_exits.append(src(arg))
+                    continue
+                enter_arg, new = match
+                verb = "TransformMatchingTex" if old_kind == "formula" else "ReplacementTransform"
+                paired[id(enter_arg)] = (enter_arg, f"{verb}({old}, {new})")
+
+            if not paired:
+                continue
+            morphs += len(paired)
+            for enter_arg, replacement in paired.values():
+                edits.append((offset(enter_arg.lineno, enter_arg.col_offset),
+                              offset(enter_arg.end_lineno, enter_arg.end_col_offset),
+                              replacement))
+            start = offset(exit_stmt.lineno, exit_stmt.col_offset)
+            end = offset(exit_stmt.end_lineno, exit_stmt.end_col_offset)
+            if kept_exits:
+                keywords = [f"{kw.arg}={src(kw.value)}" if kw.arg else f"**{src(kw.value)}"
+                            for kw in exit_stmt.value.keywords]
+                edits.append((start, end, f"self.play({', '.join(kept_exits + keywords)})"))
+            else:
+                # The whole departure became the morph: nothing is left to
+                # play. `pass` keeps the line a statement whatever surrounds it.
+                edits.append((start, end, "pass"))
+
+    out = script
+    for start, end, replacement in sorted(edits, reverse=True):
+        out = out[:start] + replacement + out[end:]
+    try:
+        ast.parse(out)
+    except SyntaxError as e:
+        print(f"[morph] rewrite produced invalid syntax, keeping the original: {e}",
+              flush=True)
+        out, morphs = script, 0
+
+    return out, morphs, _count_fade_clears(out)
+
+
+def _count_fade_clears(script: str) -> int:
+    """How often the script fades several things out and then brings new
+    ones in - the "clear the screen, draw the next one" L8 forbids."""
+    try:
+        tree = ast.parse(script)
+    except SyntaxError:
+        return 0
+    count = 0
+    for stmts in _statement_lists(tree):
+        for exit_stmt, _ in _exit_then_enter(stmts):
+            args = exit_stmt.value.args
+            if len(args) >= 2 or any(isinstance(a, ast.Starred) for a in args):
+                count += 1
+    return count
+
+
 def _contains_latex_objects(script: str) -> bool:
     s = script or ""
     return ("Tex(" in s) or ("MathTex(" in s)

@@ -94,6 +94,10 @@ def new_run(request_id: Any, user_message: str, kind: str = "video") -> None:
         # Whether the video was made with the motion layer (MOTION_LAYER=1),
         # so runs with and without it can be told apart in the same log.
         "motion_layer": False,
+        # Motion layer only: fade-out/fade-in pairs rewritten into morphs, and
+        # the fades to an empty frame the guard could not turn into one.
+        "transitions_morphed": 0,
+        "fade_clears_left": 0,
         "_started": time.monotonic(),
     })
 
@@ -149,6 +153,8 @@ def write() -> None:
             "items_requested": run["items_requested"],
             "items_produced": run["items_produced"],
             "motion_layer": run["motion_layer"],
+            "transitions_morphed": run["transitions_morphed"],
+            "fade_clears_left": run["fade_clears_left"],
             "status": run["status"],
             "error_type": run["error_type"],
         }

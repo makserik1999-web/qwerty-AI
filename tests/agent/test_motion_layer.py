@@ -28,7 +28,12 @@ for _path in (REPO_ROOT / "agent",
 
 import anyq_motion  # noqa: E402
 from anyq.nodes import script as nodes_script  # noqa: E402
-from anyq.prompts import _MOTION_RULES, build_manim_system_prompt  # noqa: E402
+from anyq.prompts import (  # noqa: E402
+    _L8_CLEAR_THEN_DRAW,
+    _L8_MORPH,
+    _MOTION_RULES,
+    build_manim_system_prompt,
+)
 from anyq.script_guard import (  # noqa: E402
     _ensure_motion_base,
     _ensure_narration_base,
@@ -58,14 +63,15 @@ class TestThePrompt:
         assert "MotionScene" not in prompt
         assert "=== MOTION" not in prompt
 
-    def test_with_it_only_the_base_class_and_the_motion_rules_change(self):
+    def test_with_it_only_the_base_class_l8_and_the_motion_rules_change(self):
         """Everything else the prompt says - the layout rules, the narration
         rules, the length budget - is the same text either way."""
         plain = build_manim_system_prompt(True, "Kazakh", "19. budget", portrait=True)
         motion = build_manim_system_prompt(True, "Kazakh", "19. budget", portrait=True,
                                            motion=True)
 
-        expected = plain.replace("VoiceoverScene", "MotionScene") + _MOTION_RULES
+        expected = (plain.replace("VoiceoverScene", "MotionScene")
+                    .replace(_L8_CLEAR_THEN_DRAW, _L8_MORPH) + _MOTION_RULES)
         assert motion == expected
 
     def test_it_says_the_background_is_already_drawn(self):

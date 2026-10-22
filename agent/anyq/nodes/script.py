@@ -42,6 +42,7 @@ from anyq.script_guard import (
     _ensure_unicode_font,
     _inherits_motion_scene,
     _latex_toolchain_healthy,
+    _morph_transitions,
     _pace_animations,
     _strip_code_fences,
     _tex_contains_cyrillic,
@@ -424,6 +425,15 @@ class Demo(Scene):
     script, paced = _pace_animations(script, ANIM_RUN_TIME_CAP, ANIM_EXIT_RUN_TIME)
     if paced:
         telemetry.note_guard_rewrite("pacing", True)
+
+    # Under the motion layer a change of step morphs instead of fading to an
+    # empty frame (rule L8). After pacing, because pacing is what turns
+    # `self.play(FadeOut(a), Write(b))` into the two plays this looks for.
+    if MOTION_LAYER:
+        script, morphs, clears = _morph_transitions(script)
+        telemetry.record(transitions_morphed=morphs, fade_clears_left=clears)
+        if morphs:
+            print(f"[morph] {morphs} fade-out/fade-in pairs became morphs", flush=True)
 
     # Speech that cannot be read ahead of the render.
     #

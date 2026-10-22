@@ -289,6 +289,40 @@ _MOTION_RULES = (
 )
 
 
+# L8 as it always was: clear first, then bring in.
+_L8_CLEAR_THEN_DRAW = (
+    "L8. When the diagram itself changes, the same order applies: first a\n"
+    "    self.play(FadeOut(...)) of everything that is no longer needed, then a\n"
+    "    separate self.play(...) that brings in what comes next. Never overlap the\n"
+    "    two - a shape dissolving underneath a shape being drawn is the single\n"
+    "    thing that makes these videos look broken.\n"
+)
+
+# L8 under the motion layer. Fading everything out and the next picture in
+# makes every change of step a cut to an empty frame; a formula that turns
+# into its next form shows the step itself. guard _morph_transitions does the
+# same to the plain fade-out-then-write pairs the model still writes.
+_L8_MORPH = (
+    "L8. CHANGE THINGS BY MORPHING THEM - NEVER CLEAR THE SCREEN. Do not fade\n"
+    "    everything out and then fade the next picture in. A formula turns into\n"
+    "    its next form with TransformMatchingTex; a shape turns into the next\n"
+    "    shape with ReplacementTransform; what is still relevant stays where it\n"
+    "    is. Write formulas in parts, one part per symbol or term, so the parts\n"
+    "    that are the same in both can travel to their new place:\n"
+    "\n"
+    "        eq1 = MathTex(\"F\", \"=\", \"m\", \"a\").move_to(UP)\n"
+    "        eq2 = MathTex(\"a\", \"=\", \"F\", \"/\", \"m\").move_to(UP)\n"
+    "        self.play(TransformMatchingTex(eq1, eq2), run_time=0.8)\n"
+    "\n"
+    "        self.play(ReplacementTransform(square, circle), run_time=0.8)\n"
+    "\n"
+    "    After ReplacementTransform(old, new) or TransformMatchingTex(old, new)\n"
+    "    use `new` from then on; `old` is gone. FadeOut is only for an object\n"
+    "    that has no successor, played on its own before anything new appears.\n"
+    "    Captions are Text, not shapes or formulas: they still follow L1 and L2.\n"
+)
+
+
 def build_manim_system_prompt(allow_latex: bool, language_name: str,
                               narration_budget: str = "", portrait: bool = False,
                               motion: bool = False) -> str:
@@ -302,6 +336,7 @@ def build_manim_system_prompt(allow_latex: bool, language_name: str,
     frame_rules = _FRAME_PORTRAIT if portrait else _FRAME_LANDSCAPE
     base = "MotionScene" if motion else "VoiceoverScene"
     motion_rules = _MOTION_RULES if motion else ""
+    l8 = _L8_MORPH if motion else _L8_CLEAR_THEN_DRAW
     return f"""{MANIM_API_REFERENCE}
 
 You are an expert Manim Community script writer.
@@ -393,12 +428,7 @@ L4. NEVER leave multiple objects at the default centre position. Every
 L5. LABELS GO OUTSIDE THEIR SHAPE. Attach a label with
     .next_to(shape, DIRECTION, buff=0.25) - do not stack two labels on the
     same shape, and do not place a formula box on top of a filled shape.
-{frame_rules}L8. When the diagram itself changes, the same order applies: first a
-    self.play(FadeOut(...)) of everything that is no longer needed, then a
-    separate self.play(...) that brings in what comes next. Never overlap the
-    two - a shape dissolving underneath a shape being drawn is the single
-    thing that makes these videos look broken.
-L9. A FRAME FITS WHAT IS IN IT. To put a box around text or a formula, make
+{frame_rules}{l8}L9. A FRAME FITS WHAT IS IN IT. To put a box around text or a formula, make
     the text first and draw the box around it:
         label = Text("From 192.168.1.5 to 10.0.0.8", font_size=26)
         box = SurroundingRectangle(label, color=YELLOW, buff=0.25)

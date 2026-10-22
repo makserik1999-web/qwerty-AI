@@ -30,6 +30,15 @@ PIPELINE_VERSION in the same deploy.
   from wherever an animation of the shape left it. Text, formulas, lines,
   arrows, axes and graphs never move, nor does a group with a label in it,
   a shape the script moves itself, or one wider than 60% of the frame.
+- Changes of step morph instead of fading to an empty frame. Under the flag
+  rule L8 asks for TransformMatchingTex between two forms of a formula and
+  ReplacementTransform between two shapes, with formulas written in parts so
+  the matching parts travel. A guard rewrites the plain "fade the old one
+  out, write the new one in" pairs the model still writes - only for two
+  formulas or two shapes, in the same block, when the old one is not used
+  again; captions are never morphed. Telemetry counts the morphs made
+  (`transitions_morphed`) and the fades to an empty frame left
+  (`fade_clears_left`).
 
 Measured on a 32-second test scene at 720p30: the share of 0.3 s windows in
 which the frame stands still went from 86% to 0%; rendering took 28 s
