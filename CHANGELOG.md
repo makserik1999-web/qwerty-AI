@@ -63,9 +63,14 @@ PIPELINE_VERSION in the same deploy.
   MOTION_METRIC=1 without it, for a baseline. Every run also records
   `render_seconds`, the time of the render itself.
 
-Measured on a 32-second test scene at 720p30: the share of 0.3 s windows in
-which the frame stands still went from 86% to 0%; rendering took 28 s
-instead of 17 s, because every frame of every pause is now drawn.
+Measured on the ten most recent topics, whole pipeline, production profile
+(480p15, medium length; docs/MOTION_BENCH.md): the share of each video in
+which the frame stands still went from 84% on average to 0% in all ten;
+rendering took 29 s instead of 19 s on average (0.56 instead of 0.36
+seconds per second of video), because every frame of every pause is now
+drawn; files are 2.0 MB instead of 1.1 MB. Cuts from everything to an
+empty frame went from 17 to 5. `agent/scripts/motion_bench.py` repeats the
+measurement.
 
 ### Monitoring stops crying wolf during deploys
 
