@@ -28,12 +28,15 @@ from anyq.config import (  # noqa: F401 - _RENDER_REPAIR_ATTEMPTS re-exported
     MANIM_EXECUTABLE,
     MANIM_MCP_PYTHON,
     MANIM_MCP_SERVER_SCRIPT,
+    MOTION_LAYER,
 )
 from anyq.llm_client import _llm_chat
 from anyq.prompts import RENDER_REPAIR_SYSTEM_PROMPT
 from anyq.script_guard import (
+    _ensure_motion_base,
     _ensure_narration_base,
     _ensure_unicode_font,
+    _inherits_motion_scene,
     _safe_json_loads,
     _strip_code_fences,
     validate_manim_script,
@@ -110,6 +113,11 @@ async def render_video(state: ScienceVideoState) -> Dict[str, Any]:
                 # NEVER render a script that fails validation - not even for repair.
                 last_error = f"Safety validator rejected the script: {reason}"
                 break
+            if MOTION_LAYER and not _inherits_motion_scene(script):
+                # A repair that came back without the layer's base class and
+                # could not be given one: the same gate as generate_manim_script.
+                last_error = "The script does not subclass MotionScene"
+                break
 
             manifest = ""
             if want_narration:
@@ -169,6 +177,8 @@ async def render_video(state: ScienceVideoState) -> Dict[str, Any]:
             if fixed.split("\n")[0].strip() != "from manim import *":
                 fixed = "from manim import *\n\n" + fixed
             script = _ensure_narration_base(_ensure_unicode_font(fixed))
+            if MOTION_LAYER:
+                script = _ensure_motion_base(script)
     finally:
         for path in manifests:
             narration.cleanup(path)

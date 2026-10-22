@@ -91,6 +91,9 @@ def new_run(request_id: Any, user_message: str, kind: str = "video") -> None:
         # invisible - nobody could count how often it happened.
         "items_requested": 0,
         "items_produced": 0,
+        # Whether the video was made with the motion layer (MOTION_LAYER=1),
+        # so runs with and without it can be told apart in the same log.
+        "motion_layer": False,
         "_started": time.monotonic(),
     })
 
@@ -145,6 +148,7 @@ def write() -> None:
             "duration_ms": int((time.monotonic() - run["_started"]) * 1000),
             "items_requested": run["items_requested"],
             "items_produced": run["items_produced"],
+            "motion_layer": run["motion_layer"],
             "status": run["status"],
             "error_type": run["error_type"],
         }

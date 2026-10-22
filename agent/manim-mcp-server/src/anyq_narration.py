@@ -210,9 +210,35 @@ def _apply_orientation() -> None:
     config.frame_height = 8.0 * config.pixel_height / config.pixel_width
 
 
+def _apply_motion_config() -> None:
+    """What the motion layer needs set before the scene exists.
+
+    The background colour is the camera's, fixed when the scene is built - the
+    same moment _apply_orientation uses. And manim's per-animation cache is
+    turned off: the render directory is unique to each run, so it never hits,
+    and with the layer on every play would hash sixty particles for nothing.
+    """
+    from anyq_motion import BACKGROUND
+    from manim import config
+
+    config.background_color = BACKGROUND
+    config.disable_caching = True
+
+
 def __getattr__(name: str) -> Any:
-    """`from anyq_narration import VoiceoverScene`, resolved on demand."""
+    """`from anyq_narration import VoiceoverScene`, resolved on demand.
+
+    `MotionScene` is the same scene with the motion layer on top - what a
+    script subclasses under MOTION_LAYER=1 (see anyq_motion).
+    """
     if name == "VoiceoverScene":
         _apply_orientation()
         return _build_narrated_scene() if _MANIFEST_PATH else _build_silent_scene()
+    if name == "MotionScene":
+        _apply_orientation()
+        _apply_motion_config()
+        from anyq_motion import build_motion_scene
+
+        base = _build_narrated_scene() if _MANIFEST_PATH else _build_silent_scene()
+        return build_motion_scene(base, _MANIFEST_PATH)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -17,6 +17,7 @@ from anyq.config import (
     ANIM_EXIT_RUN_TIME,
     ANIM_RUN_TIME_CAP,
     DOC_SNIPPET_MODE,
+    MOTION_LAYER,
     VIDEO_LENGTH_BUDGETS,
     VIDEO_LENGTH_DEFAULT,
     VIDEO_LENGTHS,
@@ -36,8 +37,10 @@ from anyq.prompts import (
 from anyq.script_guard import (
     _contains_forbidden_manim,
     _contains_latex_objects,
+    _ensure_motion_base,
     _ensure_narration_base,
     _ensure_unicode_font,
+    _inherits_motion_scene,
     _latex_toolchain_healthy,
     _pace_animations,
     _strip_code_fences,
@@ -102,6 +105,8 @@ async def _one_length_rewrite(script: str, total: int, low: int, high: int,
         candidate = "from manim import *\n\n" + candidate
     if candidate:
         candidate = _ensure_narration_base(candidate)
+        if MOTION_LAYER:
+            candidate = _ensure_motion_base(candidate)
 
     # Safe AND actually closer to the budget. A model that "fixed" the length
     # by deleting the animation, or that moved further away, has made the
@@ -159,6 +164,8 @@ async def _ensure_spoken_lines_are_literal(script: str) -> str:
         candidate = "from manim import *\n\n" + candidate
     if candidate:
         candidate = _ensure_narration_base(candidate)
+        if MOTION_LAYER:
+            candidate = _ensure_motion_base(candidate)
 
     # Accepted only if it is safe AND now actually says something. A rewrite
     # that came back just as unreadable has changed the script for nothing.
@@ -268,6 +275,7 @@ class Demo(Scene):
     system_prompt = build_manim_system_prompt(
         allow_latex, language_name, narration_budget_rule(low, high),
         portrait=state.get("orientation") == "portrait",
+        motion=MOTION_LAYER,
     )
 
     resp = await _llm_chat(
@@ -394,6 +402,13 @@ class Demo(Scene):
     # we already know. The same script renders silently when narration is off.
     script = _ensure_narration_base(script)
 
+    # The motion layer, when it is on: the same scene with a moving backdrop
+    # (manim-mcp-server/src/anyq_motion.py). Supplied here like the narrated
+    # base above, and checked at the final gate below.
+    if MOTION_LAYER:
+        script = _ensure_motion_base(script)
+        telemetry.record(motion_layer=True)
+
     # One thing at a time, at a readable speed.
     #
     # Done mechanically rather than left to the prompt because the prompt is a
@@ -441,6 +456,16 @@ class Demo(Scene):
         raise RuntimeError(
             "The generated animation script was rejected by the safety "
             f"validator and will not be run: {reason}"
+        )
+
+    # The layer stands on the scene inheriting it. _ensure_motion_base makes
+    # that so for every base a model writes; a script it could not fix is
+    # stopped here rather than shipped as a video without the layer.
+    if MOTION_LAYER and not _inherits_motion_scene(script):
+        telemetry.record(script_len=len(script))
+        raise RuntimeError(
+            "The generated animation script does not subclass MotionScene "
+            "and will not be run with the motion layer on"
         )
 
     telemetry.record(script_len=len(script))

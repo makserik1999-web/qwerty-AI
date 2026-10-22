@@ -249,7 +249,7 @@ def run_manim_script(code: str, quality: str = "l",
         # Find the Scene class name
         scene_match = re.search(
             r'class\s+(\w+)\s*\(\s*(?:Scene|ThreeDScene|MovingCameraScene'
-            r'|ZoomedScene|VoiceoverScene)\s*\)',
+            r'|ZoomedScene|VoiceoverScene|MotionScene)\s*\)',
             code,
         )
         if not scene_match:

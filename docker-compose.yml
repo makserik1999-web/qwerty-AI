@@ -268,6 +268,10 @@ services:
       # a fade is a fade rather than five seconds of slow motion.
       - ANIM_RUN_TIME_CAP=${ANIM_RUN_TIME_CAP:-1.0}
       - ANIM_EXIT_RUN_TIME=${ANIM_EXIT_RUN_TIME:-0.35}
+      # The motion layer (agent/anyq/config.py). Off until switched on; when
+      # it is, raise PIPELINE_VERSION in the same deploy so videos made
+      # without it stop being served from the cache.
+      - MOTION_LAYER=${MOTION_LAYER:-0}
       # Test mode: render a stub Manim video without calling any LLM
       # (used for sandbox/render regression checks; a real LLM key is
       # otherwise required for AI features).

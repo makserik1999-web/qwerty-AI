@@ -251,6 +251,21 @@ ANIM_RUN_TIME_CAP = _get_float("ANIM_RUN_TIME_CAP", 1.0)
 # information, it is the room being cleared for the next thing.
 ANIM_EXIT_RUN_TIME = _get_float("ANIM_EXIT_RUN_TIME", 0.35)
 
+# ============== Motion layer ==============
+# MOTION_LAYER=1 puts a layer of motion under every generated video: a moving
+# backdrop with a progress bar. The script subclasses MotionScene instead of
+# VoiceoverScene (manim-mcp-server/src/anyq_motion.py), the prompt says how to
+# use it, and the guards in script_guard make sure it does.
+#
+# Off by default: it changes how every video looks and costs render time (a
+# still frame used to be written once per pause, and now every frame of the
+# pause is drawn). With it off, the prompt, the guards and the renderer are
+# exactly what they were.
+#
+# Turning it on changes the videos the pipeline makes, so the cached ones
+# should go with it: raise PIPELINE_VERSION in the same deploy.
+MOTION_LAYER = (os.getenv("MOTION_LAYER", "0") or "0").strip() == "1"
+
 # ============== Fonts ==============
 MANIM_TEXT_FONT = os.getenv("MANIM_TEXT_FONT", "").strip()
 

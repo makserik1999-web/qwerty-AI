@@ -133,6 +133,76 @@ def _ensure_narration_base(script: str) -> str:
             "from anyq_narration import VoiceoverScene\n\n" + script)
 
 
+# Every scene base a model has been seen to write, and VoiceoverScene, which
+# _ensure_narration_base turns a plain Scene into.
+_ANY_SCENE_BASE_RE = re.compile(
+    r"^(class\s+\w+\s*\(\s*)"
+    r"(?:Scene|VoiceoverScene|MovingCameraScene|ThreeDScene|ZoomedScene)"
+    r"(\s*\)\s*:)",
+    re.MULTILINE,
+)
+_NARRATION_IMPORT_RE = re.compile(r"^from anyq_narration import [^\n]*$", re.MULTILINE)
+
+
+def _ensure_motion_base(script: str) -> str:
+    """Make the scene inherit MotionScene - the motion layer (MOTION_LAYER=1).
+
+    Applied after _ensure_narration_base and to every rewrite of the script,
+    for the same reason that one is: forgetting the base class is the most
+    likely thing for the model to do, and the fix is known. MotionScene is
+    the narrated scene with the layer added, so a script written for
+    VoiceoverScene runs unchanged on it.
+
+    A MovingCameraScene or ThreeDScene becomes one too. If the script then
+    reaches for a camera MotionScene does not have, the render fails and the
+    repair loop shows the model the error - a known way back, where leaving
+    the base alone would quietly ship a video without the layer.
+    """
+    if not script.strip():
+        return script
+
+    script = _ANY_SCENE_BASE_RE.sub(r"\1MotionScene\2", script)
+
+    if re.search(r"^from anyq_narration import [^\n]*\bMotionScene\b", script, re.MULTILINE):
+        return script
+    if _NARRATION_IMPORT_RE.search(script):
+        return _NARRATION_IMPORT_RE.sub("from anyq_narration import MotionScene", script, count=1)
+
+    lines = script.splitlines()
+    for idx, line in enumerate(lines):
+        if line.strip().startswith("from manim import"):
+            lines.insert(idx + 1, "from anyq_narration import MotionScene")
+            return "\n".join(lines)
+    return "from manim import *\nfrom anyq_narration import MotionScene\n\n" + script
+
+
+def _inherits_motion_scene(script: str) -> bool:
+    """Whether the scene the renderer will run is a MotionScene.
+
+    The check the motion layer stands on: every scene class in the script
+    subclasses MotionScene, there is at least one, and MotionScene is
+    imported where the renderer provides it.
+    """
+    try:
+        tree = ast.parse(script or "")
+    except SyntaxError:
+        return False
+
+    imported = any(
+        isinstance(node, ast.ImportFrom) and node.module == "anyq_narration"
+        and any(alias.name == "MotionScene" and not alias.asname for alias in node.names)
+        for node in tree.body
+    )
+    scenes = []
+    for node in tree.body:
+        if not isinstance(node, ast.ClassDef):
+            continue
+        bases = [b.id for b in node.bases if isinstance(b, ast.Name)]
+        if any(b.endswith("Scene") for b in bases):
+            scenes.append(bases)
+    return imported and bool(scenes) and all(bases == ["MotionScene"] for bases in scenes)
+
+
 # Animations that take something off the screen, and animations that put
 # something on it. Names only - the guard never needs to know what they do,
 # only which direction they go.

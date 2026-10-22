@@ -5,6 +5,30 @@ All notable changes to Anyq are recorded here. The format follows
 
 ## [Unreleased]
 
+### Motion layer, behind MOTION_LAYER=1
+
+Off by default; with it off, the prompt, the guards and the renderer are
+exactly what they were. Turning it on changes every new video, so raise
+PIPELINE_VERSION in the same deploy.
+
+**Added**
+
+- MotionScene (agent/manim-mcp-server/src/anyq_motion.py): the narrated scene
+  with a background layer - a dark blue backdrop that slowly breathes,
+  drifting particles and a progress bar along the top, all computed from the
+  scene clock on every frame. Colours taken from the reference videos. The
+  camera draws the layer under everything and it is not one of the scene's
+  mobjects, so a script that fades out or clears self.mobjects cannot take it
+  away.
+- With the flag on, the prompt names MotionScene as the base class, and a
+  guard rewrites any scene base the model writes to it - after every rewrite
+  and repair too. A script that still does not subclass it is not rendered.
+- Telemetry records whether a run had the layer (`motion_layer`).
+
+Measured on a 32-second test scene at 720p30: the share of 0.3 s windows in
+which the frame stands still went from 86% to 0%; rendering took 28 s
+instead of 17 s, because every frame of every pause is now drawn.
+
 ### Monitoring stops crying wolf during deploys
 
 **Fixed**

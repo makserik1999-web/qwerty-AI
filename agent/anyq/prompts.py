@@ -270,14 +270,33 @@ _FRAME_PORTRAIT = (
 )
 
 
+# Under MOTION_LAYER=1 only: what MotionScene does by itself, so the model
+# neither duplicates it nor fights it. Appended after rule 20; without the
+# flag the prompt has no motion section at all.
+_MOTION_RULES = (
+    "\n=== MOTION (THE RUNTIME ANIMATES PART OF EVERY FRAME) ===\n"
+    "M1. MotionScene draws the background itself: a dark blue backdrop with\n"
+    "    slowly drifting particles, and a thin progress bar along the top edge.\n"
+    "    Do NOT draw a background, a full-screen rectangle or particles of your\n"
+    "    own, and do not change the background colour. Keep the top 0.3 units\n"
+    "    of the frame free for the progress bar - a title placed with\n"
+    "    .to_edge(UP) already is.\n"
+)
+
+
 def build_manim_system_prompt(allow_latex: bool, language_name: str,
-                              narration_budget: str = "", portrait: bool = False) -> str:
+                              narration_budget: str = "", portrait: bool = False,
+                              motion: bool = False) -> str:
     """System prompt of generate_manim_script - the exact text the model sees.
 
     `portrait` swaps the two frame rules, L6 and L7, for a 9:16 video; the
-    rest is the same prompt.
+    rest is the same prompt. `motion` (MOTION_LAYER=1) names MotionScene as
+    the base class and adds the motion rules at the end; without it the
+    prompt is byte for byte what it was before the layer existed.
     """
     frame_rules = _FRAME_PORTRAIT if portrait else _FRAME_LANDSCAPE
+    base = "MotionScene" if motion else "VoiceoverScene"
+    motion_rules = _MOTION_RULES if motion else ""
     return f"""{MANIM_API_REFERENCE}
 
 You are an expert Manim Community script writer.
@@ -285,9 +304,9 @@ You are an expert Manim Community script writer.
 INSTRUCTIONS:
 1. Return ONLY valid Python code. No markdown, no explanations.
 2. Must start with: from manim import *
-   followed by: from anyq_narration import VoiceoverScene
-3. Must define exactly ONE Scene class, and it MUST subclass VoiceoverScene:
-       class Demo(VoiceoverScene):
+   followed by: from anyq_narration import {base}
+3. Must define exactly ONE Scene class, and it MUST subclass {base}:
+       class Demo({base}):
 4. Keep it under 150 lines.
 5. Use ONLY the patterns shown in the API reference above.
 6. Always use reliable patterns - avoid deprecated or obscure methods.
@@ -445,7 +464,7 @@ L9. A FRAME FITS WHAT IS IN IT. To put a box around text or a formula, make
 {narration_budget or _DEFAULT_NARRATION_BUDGET}
 20. NEVER call self.set_speech_service(...). The voice is configured by the
     runtime; a script that sets its own will be rejected.
-"""
+{motion_rules}"""
 
 
 # System prompt of the "forbidden helpers" rewrite pass.
