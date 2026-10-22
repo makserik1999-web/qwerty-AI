@@ -286,6 +286,22 @@ _MOTION_RULES = (
     "    narrator talks. Text, formulas, lines, arrows and axes stay perfectly\n"
     "    still. Do not add wobbling, pulsing or 'breathing' animations of your\n"
     "    own, and do not add self.wait() calls to keep the picture alive.\n"
+    "M3. FORMULAS ARE READ ALONG WITH THE NARRATION. Write every formula in\n"
+    "    parts, one part per symbol or term: MathTex(\"F\", \"=\", \"m\", \"a\"),\n"
+    "    never MathTex(\"F = ma\"). In the voiceover block whose sentence\n"
+    "    explains the formula, once it is on screen, call\n"
+    "    self.read_formula(formula, word, word, ...) with the word of that\n"
+    "    sentence that names each term, left to right, skipping = + and the\n"
+    "    other operators. Copy the words exactly as they are in the sentence:\n"
+    "\n"
+    "        with self.voiceover(text=\"Күш массаның үдеуге көбейтіндісіне тең.\") as tracker:\n"
+    "            formula = MathTex(\"F\", \"=\", \"m\", \"a\").move_to(UP)\n"
+    "            self.play(Write(formula), run_time=0.8)\n"
+    "            self.read_formula(formula, \"Күш\", \"массаның\", \"үдеуге\")\n"
+    "\n"
+    "    The runtime then lights up each term as its word is spoken and draws\n"
+    "    an underline beneath the formula. The call returns at once and adds\n"
+    "    no time to the video.\n"
 )
 
 

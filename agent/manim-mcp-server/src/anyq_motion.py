@@ -4,7 +4,7 @@ Behind MOTION_LAYER=1. With it on, a generated script subclasses MotionScene
 (`from anyq_narration import MotionScene`) instead of VoiceoverScene, and the
 guard in anyq/script_guard.py makes sure it does. MotionScene IS the narrated
 or the silent VoiceoverScene - whichever anyq_narration would have handed out -
-with two things added:
+with three things added:
 
 1. A background layer: drifting particles, a slow "breath" of the backdrop, a
    progress bar along the top.
@@ -12,6 +12,11 @@ with two things added:
    of its size) and, if it is round, pulses. Text and formulas never move -
    they have to be read - and neither does anything whose place means
    something next to another object: a line, an arrow, an axis, a graph.
+3. Active hold: while a sentence is spoken about a formula, the term being
+   said lights up and an underline is drawn beneath the formula up to it.
+   Word timings come from Azure's word boundaries, which the agent leaves in
+   the manifest; without them the terms light up in turn, evenly across the
+   rest of the sentence.
 
 The layer is drawn by the camera before the scene's own mobjects on every
 frame, and is never one of them. So nothing a script does to self.mobjects -
@@ -42,8 +47,10 @@ import ast
 import json
 import math
 import random
+import re
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, List, Sequence, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple
 
 # Colours sampled from the reference frames (reference/manim_showcase).
 BACKGROUND = "#131E39"
@@ -83,6 +90,14 @@ IDLE_RAMP = 1.0                        # seconds to reach full amplitude
 # A shape wider or taller than this share of the frame is a floor, a wall or a
 # container, and a floor that bobs looks broken rather than alive.
 IDLE_MAX_FRAME_SHARE = 0.6
+
+# Active hold.
+HOLD_MIN_SECONDS = 0.6     # less than this left of the sentence: not worth it
+HOLD_FADE = 0.18           # seconds for a term to light up or go out
+HOLD_MIN_TERM = 0.25       # a term lit for less than this is not lit at all
+HOLD_SWEEP = 0.35          # seconds for the underline to reach the next term
+HOLD_TAIL = 0.3            # the end of the sentence, spent fading back
+UNDERLINE_GAP = 0.14       # below the formula
 
 
 # ---------------------------------------------------------------- pure helpers
@@ -155,6 +170,101 @@ def idle_amplitude(size: float) -> float:
     return min(IDLE_MAX, max(IDLE_MIN, IDLE_SHARE * size))
 
 
+def norm_word(word: str) -> str:
+    """Lower case, letters and digits only - how two words are compared."""
+    return "".join(ch for ch in (word or "").casefold() if ch.isalnum())
+
+
+def words_match(term_word: str, spoken: str) -> bool:
+    """Whether a spoken word is the word a term was announced with.
+
+    Kazakh and Russian inflect: the script names the term "масса" and the
+    narrator says "массаның", or "сила" and then "силу". So beyond an exact
+    match, two words of three letters or more match when they share all but
+    the last letter of the shorter one. Shorter words - a letter like "F" -
+    must match exactly, or every "a" in a sentence would be the acceleration.
+    """
+    a, b = norm_word(term_word), norm_word(spoken)
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    shorter = min(len(a), len(b))
+    if shorter < 3:
+        return False
+    common = 0
+    for x, y in zip(a, b, strict=False):
+        if x != y:
+            break
+        common += 1
+    return common >= max(3, shorter - 1)
+
+
+def match_terms(term_words: Sequence[str],
+                spoken: Sequence[Tuple[float, float, str]]) -> List[Optional[float]]:
+    """When each term's word is said - its start time - or None if it is not.
+
+    Searched in order, each term after the previous one's word, because a
+    formula is read left to right and the "m" at the end of a sentence is not
+    the "m" at its start.
+    """
+    times: List[Optional[float]] = []
+    cursor = 0
+    for wanted in term_words:
+        found = None
+        if wanted:
+            for i in range(cursor, len(spoken)):
+                if words_match(wanted, spoken[i][2]):
+                    found, cursor = spoken[i][0], i + 1
+                    break
+        times.append(found)
+    return times
+
+
+def schedule(matched: Sequence[Optional[float]], start: float, end: float) -> List[float]:
+    """When each term lights up, given the ones whose word was found.
+
+    No word found: the terms take turns, evenly from `start` to `end`. Some
+    found: those keep their word's moment and the rest are spread evenly
+    between their neighbours. Never before `start` - a word said while the
+    formula was still being written lights its term the moment the hold
+    begins - never after `end`, and always in order.
+    """
+    n = len(matched)
+    if n == 0:
+        return []
+    anchors = [(i, min(max(t, start), end)) for i, t in enumerate(matched) if t is not None]
+    if not anchors:
+        return [start + (end - start) * i / n for i in range(n)]
+
+    # Fixed points: the start (as term -1), every anchor, the end (as term n).
+    points = [(-1, start)] + anchors + [(n, end)]
+    out = [start] * n
+    for (i0, t0), (i1, t1) in zip(points, points[1:], strict=False):
+        if 0 <= i0 < n:
+            out[i0] = t0
+        for k in range(i0 + 1, i1):
+            out[k] = t0 + (t1 - t0) * (k - i0) / (i1 - i0)
+    for k in range(1, n):
+        out[k] = max(out[k], out[k - 1])
+    return out
+
+
+# Parts of a formula that are its punctuation rather than one of its terms.
+_OPERATORS = frozenset({
+    "=", "+", "-", "/", "\\cdot", "\\times", "\\div", "\\pm", "\\mp", "(", ")",
+    "[", "]", ",", ".", ":", ";", "<", ">", "\\le", "\\ge", "\\leq", "\\geq",
+    "\\neq", "\\approx", "\\sim", "\\equiv", "\\Rightarrow", "\\rightarrow",
+    "\\to", "\\implies", "\\Leftrightarrow", "\\quad", "\\qquad", "\\,",
+    "\\;", "\\!", "&", "\\\\", "\\left(", "\\right)", "\\left[", "\\right]",
+    "",
+})
+
+
+def is_operator(tex: str) -> bool:
+    return re.sub(r"[\s{}]", "", tex or "") in _OPERATORS
+
+
 def estimate_total(durations: Sequence[float]) -> float:
     """The video's length from its sentences, before it is rendered.
 
@@ -190,6 +300,7 @@ def build_motion_scene(base: type, manifest_path: str) -> type:
         VMobject,
         config,
     )
+    from manim.utils.color import ManimColor
 
     import anyq_narration as narration_shim
 
@@ -200,6 +311,7 @@ def build_motion_scene(base: type, manifest_path: str) -> type:
         except (OSError, ValueError):
             manifest = {}
     audio_root = Path(manifest_path).parent if manifest_path else None
+    amber = ManimColor(AMBER).to_rgba()
 
     def line_duration(text: str) -> float:
         """How long one sentence will be spoken: its audio, or the silent pace."""
@@ -214,6 +326,52 @@ def build_motion_scene(base: type, manifest_path: str) -> type:
                 pass
         seconds = len(narration_shim.normalise_line(text)) / narration_shim._SILENT_CHARS_PER_SEC
         return min(narration_shim._SILENT_MAX_SEC, max(narration_shim._SILENT_MIN_SEC, seconds))
+
+    def line_words(text: str) -> List[Tuple[float, float, str]]:
+        """When each word of a line is said, from the manifest; [] if unknown."""
+        raw = (manifest.get("words") or {}).get(narration_shim.narration_key(text)) or []
+        out = []
+        for item in raw:
+            try:
+                out.append((float(item[0]), float(item[1]), str(item[2])))
+            except (TypeError, ValueError, IndexError):
+                continue
+        return out
+
+    def formula_terms(formula: Any) -> List[Any]:
+        """The parts of a formula that are terms, left to right.
+
+        MathTex("F", "=", "m", "a") has one part per string, and = is not a
+        term. A formula written as one string has one part; it is then
+        followed as a whole.
+        """
+        parts = list(formula.submobjects)
+        if len(parts) > 1 and all(hasattr(p, "tex_string") for p in parts):
+            terms = [p for p in parts if not is_operator(p.tex_string)
+                     and any(m.has_points() for m in p.get_family())]
+            if terms:
+                return terms
+        return [formula]
+
+    class _Block:
+        """One voiceover block, while it plays."""
+
+        def __init__(self, text: str, tracker: Any, on_screen: set) -> None:
+            self.text = text
+            self.tracker = tracker
+            self.seen = on_screen
+            self.new_formulas: List[Any] = []
+            self.explicit: Optional[Tuple[Any, List[str]]] = None
+
+    def formulas_on_screen(mobjects: Sequence[Any]) -> List[Any]:
+        """Formulas at the top level, or directly inside a top-level group."""
+        found = []
+        for mob in mobjects:
+            if isinstance(mob, SingleStringMathTex):
+                found.append(mob)
+            elif type(mob) is VGroup:
+                found.extend(m for m in mob.submobjects if isinstance(m, SingleStringMathTex))
+        return found
 
     # Anything with words or numbers in it: it has to be read, so it stays put.
     text_like = (Text, MarkupText, Paragraph, SingleStringMathTex, DecimalNumber)
@@ -348,6 +506,9 @@ def build_motion_scene(base: type, manifest_path: str) -> type:
             x = left + (right - left) * progress(t, self._anyq_total)
             bar.set_points_as_corners([[left, y, 0], [max(x, left + 1e-3), y, 0]])
 
+            if getattr(self, "_anyq_hold", None) is not None:
+                self._anyq_hold_tick(t)
+
         # ------------------------------------------------------------ idle
         def play(self, *args: Any, **kwargs: Any) -> None:
             super().play(*args, **kwargs)
@@ -359,6 +520,12 @@ def build_motion_scene(base: type, manifest_path: str) -> type:
             for mob in list(self.mobjects):
                 if getattr(mob, "_anyq_idle", None) is None and may_float(mob, fw, fh):
                     self._anyq_start_idle(mob)
+            block = getattr(self, "_anyq_block", None)
+            if block is not None:
+                for formula in formulas_on_screen(self.mobjects):
+                    if id(formula) not in block.seen:
+                        block.seen.add(id(formula))
+                        block.new_formulas.append(formula)
 
         def _anyq_start_idle(self, mob: Any) -> None:
             now = self._anyq_time()
@@ -399,6 +566,126 @@ def build_motion_scene(base: type, manifest_path: str) -> type:
                 st["applied"], st["scale"], st["last"] = offset, scale, t
 
             mob.add_updater(idle)
+
+        # ------------------------------------------------------------ hold
+        @contextmanager
+        def voiceover(self, text: Any = None, **kwargs: Any) -> Iterator[Any]:
+            with super().voiceover(text=text, **kwargs) as tracker:
+                on_screen = {id(f) for f in formulas_on_screen(self.mobjects)}
+                self._anyq_block = _Block(str(text or ""), tracker, on_screen)
+                self._anyq_hold = None
+                yield tracker
+                # Still inside the block: the rest of the sentence is about to
+                # be waited out, after every animation of the block - which is
+                # when the hold runs, with nothing else moving the formula.
+                self._anyq_begin_hold()
+            self._anyq_end_hold()
+            self._anyq_block = None
+
+        def read_formula(self, formula: Any, *words: Any) -> None:
+            """Light up `formula`'s terms as the narrator says them.
+
+            Called inside a voiceover block, once the formula is on screen.
+            `words` are the sentence's words for its terms, left to right -
+            operators such as = and + are not terms. It returns at once and
+            takes effect in the rest of the sentence, after the block's
+            animations. Without it, a formula the block puts on screen is
+            followed anyway, with the terms taking turns.
+            """
+            block = getattr(self, "_anyq_block", None)
+            if block is not None:
+                block.explicit = (formula, [str(w) for w in words])
+
+        def _anyq_begin_hold(self) -> None:
+            block = self._anyq_block
+            if block is None:
+                return
+            if block.explicit is not None:
+                formula, words = block.explicit
+            elif block.new_formulas:
+                formula, words = block.new_formulas[-1], []
+            else:
+                return
+            if not any(formula in m.get_family() for m in self.mobjects):
+                return  # gone again before the sentence ended
+            now = self._anyq_time()
+            end = float(getattr(block.tracker, "end_t", now)) - HOLD_TAIL
+            if end - now < HOLD_MIN_SECONDS:
+                return
+
+            terms = formula_terms(formula)
+            start_t = float(getattr(block.tracker, "start_t", now))
+            spoken = [(start_t + a, start_t + b, w) for a, b, w in line_words(block.text)]
+            if words:
+                wanted = (list(words) + [""] * len(terms))[:len(terms)]
+            else:
+                # Without words from the script a term can still match when
+                # the sentence says it as written - "F", "v" - which is rare
+                # in speech, so this mostly falls back to taking turns.
+                wanted = [re.sub(r"[^A-Za-z0-9]", "", getattr(p, "tex_string", ""))
+                          for p in terms]
+            matched = match_terms(wanted, spoken) if spoken else [None] * len(terms)
+            ons = schedule(matched, now, end)
+
+            saved = []
+            for term in terms:
+                saved.append([(m, np.array(m.fill_rgbas, copy=True),
+                               np.array(m.stroke_rgbas, copy=True))
+                              for m in term.get_family() if m.has_points()])
+            y = formula.get_bottom()[1] - UNDERLINE_GAP
+            x0 = formula.get_left()[0]
+            underline = VMobject(stroke_color=AMBER, stroke_width=4)
+            underline.set_points_as_corners([[x0, y, 0], [x0 + 1e-3, y, 0]])
+            underline._anyq_idle = False  # it marks the formula; it does not float
+            self.add(underline)
+            self._anyq_hold = {
+                "ons": ons, "end": end, "saved": saved, "underline": underline,
+                "x0": x0, "y": y, "rights": [term.get_right()[0] for term in terms],
+            }
+            self._anyq_hold_tick(now)
+
+        def _anyq_hold_tick(self, t: float) -> None:
+            hold = self._anyq_hold
+            ons, end = hold["ons"], hold["end"]
+            n = len(ons)
+            for i in range(n):
+                off = ons[i + 1] if i + 1 < n else end
+                if off - ons[i] < HOLD_MIN_TERM:
+                    # Its word was said while the formula was still being
+                    # written; a flash of a few frames would only flicker.
+                    # The underline passes under it all the same.
+                    continue
+                w = smooth((t - ons[i]) / HOLD_FADE) * (1.0 - smooth((t - off) / HOLD_FADE))
+                for m, fill, stroke in hold["saved"][i]:
+                    # Colour only, alpha kept: the formula never moves.
+                    if len(fill):
+                        target = np.tile(amber, (len(fill), 1))
+                        target[:, 3] = fill[:, 3]
+                        m.fill_rgbas = fill + (target - fill) * w
+                    if len(stroke):
+                        target = np.tile(amber, (len(stroke), 1))
+                        target[:, 3] = stroke[:, 3]
+                        m.stroke_rgbas = stroke + (target - stroke) * w
+
+            # The underline reaches the right edge of the term being said.
+            current = max((i for i in range(n) if ons[i] <= t), default=-1)
+            x0, y = hold["x0"], hold["y"]
+            x = x0 + 1e-3
+            if current >= 0:
+                prev = hold["rights"][current - 1] if current > 0 else x0
+                x = prev + (hold["rights"][current] - prev) * smooth((t - ons[current]) / HOLD_SWEEP)
+            hold["underline"].set_points_as_corners([[x0, y, 0], [max(x, x0 + 1e-3), y, 0]])
+            hold["underline"].set_stroke(opacity=1.0 - smooth((t - end) / HOLD_TAIL))
+
+        def _anyq_end_hold(self) -> None:
+            hold, self._anyq_hold = getattr(self, "_anyq_hold", None), None
+            if hold is None:
+                return
+            for members in hold["saved"]:
+                for m, fill, stroke in members:
+                    m.fill_rgbas = fill
+                    m.stroke_rgbas = stroke
+            self.remove(hold["underline"])
 
     MotionScene.__name__ = "MotionScene"
     MotionScene.__qualname__ = "MotionScene"

@@ -39,6 +39,18 @@ PIPELINE_VERSION in the same deploy.
   again; captions are never morphed. Telemetry counts the morphs made
   (`transitions_morphed`) and the fades to an empty frame left
   (`fade_clears_left`).
+- Active hold: while a sentence is spoken about a formula, the term being
+  said turns amber and an underline grows beneath the formula up to it; both
+  go back as the sentence ends. Formulas never move - only their colour
+  changes. The script names each term's word with
+  `self.read_formula(formula, "Күш", "массаның", ...)` (rule M3, which also
+  asks for formulas in parts); a formula a block puts on screen without it
+  is followed anyway. Matching tolerates Kazakh and Russian endings.
+- Word timings: under the flag each line is synthesised through the Azure
+  Speech SDK - already installed with manim-voiceover[azure] - which reports
+  when each word is said, and the manifest carries them. The same voice,
+  SSML and mp3 format as before; if the SDK fails, that line goes through
+  REST exactly as it always did and its formula's terms take turns evenly.
 
 Measured on a 32-second test scene at 720p30: the share of 0.3 s windows in
 which the frame stands still went from 86% to 0%; rendering took 28 s

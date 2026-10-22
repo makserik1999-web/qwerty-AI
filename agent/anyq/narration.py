@@ -24,7 +24,7 @@ import shutil
 import tempfile
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 
@@ -33,6 +33,7 @@ from anyq.config import (
     _LLM_RETRY_BASE_DELAY,
     AZURE_SPEECH_KEY,
     AZURE_SPEECH_REGION,
+    MOTION_LAYER,
     NARRATION_ENABLED,
     NARRATION_RATE,
     NARRATION_VOICE,
@@ -165,6 +166,65 @@ def _synthesise_sync(text: str, voice: str, locale: str) -> bytes:
     raise last if last else RuntimeError("unreachable")
 
 
+# Azure reports word boundaries in ticks of 100 ns.
+_TICKS_PER_SECOND = 10_000_000
+
+
+def _synthesise_with_words_sync(text: str, voice: str,
+                                locale: str) -> Tuple[bytes, List[List[Any]]]:
+    """The same audio as _synthesise_sync, plus when each word is said.
+
+    The motion layer lights up a formula's terms as the narrator says them,
+    and only the speech engine knows when that is. The REST endpoint returns
+    audio and nothing else; the Speech SDK - already installed, it comes with
+    manim-voiceover[azure] - raises a word-boundary event per word as it
+    synthesises. Same voice, same SSML, same mp3 format, so the audio is the
+    audio REST would have returned.
+
+    Returns (mp3 bytes, [[start_s, end_s, word], ...]). Raises on anything
+    short of a finished synthesis; the caller falls back to REST.
+    """
+    import azure.cognitiveservices.speech as speechsdk
+
+    config = speechsdk.SpeechConfig(subscription=AZURE_SPEECH_KEY, region=AZURE_SPEECH_REGION)
+    config.set_speech_synthesis_output_format(
+        speechsdk.SpeechSynthesisOutputFormat.Audio24Khz48KBitRateMonoMp3)
+    # audio_config=None: keep the audio in memory - there is no speaker here.
+    synthesizer = speechsdk.SpeechSynthesizer(speech_config=config, audio_config=None)
+    words: List[List[Any]] = []
+
+    def on_word(evt: Any) -> None:
+        if evt.boundary_type != speechsdk.SpeechSynthesisBoundaryType.Word:
+            return  # punctuation and sentence boundaries are not words
+        start = evt.audio_offset / _TICKS_PER_SECOND
+        words.append([round(start, 3), round(start + evt.duration.total_seconds(), 3),
+                      str(evt.text)])
+
+    synthesizer.synthesis_word_boundary.connect(on_word)
+    result = synthesizer.speak_ssml_async(_ssml(text, voice, locale)).get()
+    if result.reason != speechsdk.ResultReason.SynthesizingAudioCompleted:
+        details = getattr(result, "cancellation_details", None)
+        raise RuntimeError(f"azure sdk {result.reason}: "
+                           f"{str(getattr(details, 'error_details', ''))[:160]}")
+    return bytes(result.audio_data), words
+
+
+def _synthesise_line(text: str, voice: str, locale: str) -> Tuple[bytes, List[List[Any]]]:
+    """One line's audio, with word timings when the motion layer wants them.
+
+    Timings are a nicety and the audio is not: if the SDK fails, the line is
+    synthesised over REST exactly as it always was, and the formula it talks
+    about is lit up term by term evenly instead of word by word.
+    """
+    if MOTION_LAYER:
+        try:
+            return _synthesise_with_words_sync(text, voice, locale)
+        except Exception as exc:  # noqa: BLE001 - REST below is the fallback
+            print(f"[narration] word timings unavailable, plain synthesis: "
+                  f"{type(exc).__name__}: {str(exc)[-160:]}", flush=True)
+    return _synthesise_sync(text, voice, locale), []
+
+
 async def prepare(script: str, language: str, voice_choice: str = "") -> str:
     """Synthesise the script's lines. Returns a manifest path, or "".
 
@@ -213,7 +273,7 @@ async def prepare(script: str, language: str, voice_choice: str = "") -> str:
         # Concurrently: the lines are independent and a dozen sequential round
         # trips to Sweden is most of a minute the student spends waiting.
         audio = await asyncio.gather(*[
-            asyncio.to_thread(_synthesise_sync, line, voice, locale) for line in lines
+            asyncio.to_thread(_synthesise_line, line, voice, locale) for line in lines
         ])
     except Exception as exc:  # noqa: BLE001 - narration is never fatal
         shutil.rmtree(work, ignore_errors=True)
@@ -225,19 +285,23 @@ async def prepare(script: str, language: str, voice_choice: str = "") -> str:
     _spent_chars += total
 
     shim = _shim()
-    for i, (line, data) in enumerate(zip(lines, audio, strict=True)):
+    timings: Dict[str, List[List[Any]]] = {}
+    for i, (line, (data, words)) in enumerate(zip(lines, audio, strict=True)):
         name = f"line{i:02d}.mp3"
         (work / name).write_bytes(data)
         index[shim.narration_key(line)] = name
+        if words:
+            timings[shim.narration_key(line)] = words
 
+    content: Dict[str, Any] = {"voice": voice, "language": language, "lines": index}
+    if timings:
+        # When each word is said, for the motion layer (anyq_motion reads it).
+        content["words"] = timings
     manifest = work / "manifest.json"
-    manifest.write_text(
-        json.dumps({"voice": voice, "language": language, "lines": index},
-                   ensure_ascii=False),
-        encoding="utf-8",
-    )
+    manifest.write_text(json.dumps(content, ensure_ascii=False), encoding="utf-8")
     print(f"[narration] {len(lines)} lines, {total} chars, {voice} "
-          f"in {time.monotonic() - started:.1f}s", flush=True)
+          f"in {time.monotonic() - started:.1f}s"
+          + (f", word timings for {len(timings)}" if MOTION_LAYER else ""), flush=True)
     return str(manifest)
 
 

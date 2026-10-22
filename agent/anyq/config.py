@@ -253,8 +253,11 @@ ANIM_EXIT_RUN_TIME = _get_float("ANIM_EXIT_RUN_TIME", 0.35)
 
 # ============== Motion layer ==============
 # MOTION_LAYER=1 puts a layer of motion under every generated video: a moving
-# backdrop with a progress bar, and shapes that drift gently once they are on
-# screen. The script subclasses MotionScene instead of
+# backdrop with a progress bar, shapes that drift gently once they are on
+# screen, changes of step that morph instead of fading to an empty frame, and
+# formulas whose terms light up as the narrator says them (word timings from
+# Azure, see narration._synthesise_with_words_sync). The script subclasses
+# MotionScene instead of
 # VoiceoverScene (manim-mcp-server/src/anyq_motion.py), the prompt says how to
 # use it, and the guards in script_guard make sure it does.
 #
