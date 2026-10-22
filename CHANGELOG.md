@@ -25,11 +25,14 @@ PIPELINE_VERSION in the same deploy.
   and repair too. A script that still does not subclass it is not rendered.
 - Telemetry records whether a run had the layer (`motion_layer`).
 - Idle motion: once a shape is on screen it floats on a small circle - 1.5%
-  of its size, 0.02 to 0.07 units - and a round one also pulses. A circle,
-  not a bob, so it never stands still mid-cycle; it eases in, and picks up
-  from wherever an animation of the shape left it. Text, formulas, lines,
-  arrows, axes and graphs never move, nor does a group with a label in it,
-  a shape the script moves itself, or one wider than 60% of the frame.
+  of its size, 0.02 to 0.05 units - and a round one also pulses. A circle,
+  not a bob, so it never stands still mid-cycle; every shape floats in step,
+  one phase from the scene clock, so a diagram built from several shapes
+  moves as one piece. It eases in, and picks up from wherever an animation
+  of the shape left it. Text, formulas, lines, arrows, axes and graphs never
+  move, nor does a group with a label in it, a shape the script moves
+  itself, or one wider than 60% of the frame; a Dot marks a point, so it
+  only pulses in place.
 - Changes of step morph instead of fading to an empty frame. Under the flag
   rule L8 asks for TransformMatchingTex between two forms of a formula and
   ReplacementTransform between two shapes, with formulas written in parts so
@@ -45,7 +48,9 @@ PIPELINE_VERSION in the same deploy.
   changes. The script names each term's word with
   `self.read_formula(formula, "Күш", "массаның", ...)` (rule M3, which also
   asks for formulas in parts); a formula a block puts on screen without it
-  is followed anyway. Matching tolerates Kazakh and Russian endings.
+  is followed anyway if it states something (=, <, \approx ...) - a side
+  label such as "a + b" is left alone. Matching tolerates Kazakh and
+  Russian endings.
 - Word timings: under the flag each line is synthesised through the Azure
   Speech SDK - already installed with manim-voiceover[azure] - which reports
   when each word is said, and the manifest carries them. The same voice,

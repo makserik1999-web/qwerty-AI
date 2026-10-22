@@ -423,24 +423,42 @@ def _is_exit_arg(node: ast.AST) -> bool:
     return _anim_kind(node) == "exit"
 
 
+def _is_exit_play(stmt: ast.stmt) -> bool:
+    return (_is_self_call(stmt, "play") and bool(stmt.value.args)
+            and all(_is_exit_arg(a) for a in stmt.value.args))
+
+
 def _exit_then_enter(stmts):
-    """(exit play, enter play) pairs: a play that only removes things,
-    then - past nothing but plain statements such as the assignment that
-    builds the next object - a play that brings something in."""
-    for i, stmt in enumerate(stmts):
-        if not _is_self_call(stmt, "play"):
+    """([exit plays], enter play): a departure, then an arrival.
+
+    The departure is one play that only removes things, or several in a row
+    - models clear the diagram, then the caption, in two calls, which is the
+    same empty frame. Then, past nothing but plain statements such as the
+    assignment that builds the next object, a play that brings something in.
+    """
+    i = 0
+    while i < len(stmts):
+        if not _is_exit_play(stmts[i]):
+            i += 1
             continue
-        call = stmt.value
-        if not call.args or not all(_is_exit_arg(a) for a in call.args):
-            continue
-        for later in stmts[i + 1:]:
+        exits, enter, j = [stmts[i]], None, i + 1
+        while j < len(stmts):
+            later = stmts[j]
             if _is_self_call(later, "play"):
+                if _is_exit_play(later):
+                    exits.append(later)
+                    j += 1
+                    continue
                 if any(_anim_kind(a) == "enter" for a in later.value.args):
-                    yield stmt, later
+                    enter = later
                 break
             if _is_self_call(later) or not isinstance(
-                    later, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.Expr)):
+                    later, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.Expr, ast.Pass)):
                 break
+            j += 1
+        if enter is not None:
+            yield exits, enter
+        i = j
 
 
 def _morph_transitions(script: str) -> Tuple[str, int, int]:
@@ -520,7 +538,7 @@ def _morph_transitions(script: str) -> Tuple[str, int, int]:
     edits = []  # (start, end, replacement)
     morphs = 0
     for stmts in _statement_lists(tree):
-        for exit_stmt, enter_stmt in _exit_then_enter(stmts):
+        for exit_stmts, enter_stmt in _exit_then_enter(stmts):
             enter_call = enter_stmt.value
             enters = []
             for arg in enter_call.args:
@@ -529,40 +547,44 @@ def _morph_transitions(script: str) -> Tuple[str, int, int]:
                     enters.append((arg, name, kind_at(name, enter_stmt.lineno)))
             end_of_enter = (enter_stmt.end_lineno, enter_stmt.end_col_offset)
 
-            kept_exits, paired = [], {}
-            for arg in exit_stmt.value.args:
-                kind, old = _anim_on_name(arg)
-                old_kind = kind_at(old, exit_stmt.lineno) if old else ""
-                match = None
-                if old_kind and not used_again(old, end_of_enter):
-                    for enter_arg, new, new_kind in enters:
-                        if id(enter_arg) not in paired and new_kind == old_kind and new != old:
-                            match = (enter_arg, new)
-                            break
-                if match is None:
-                    kept_exits.append(src(arg))
-                    continue
-                enter_arg, new = match
-                verb = "TransformMatchingTex" if old_kind == "formula" else "ReplacementTransform"
-                paired[id(enter_arg)] = (enter_arg, f"{verb}({old}, {new})")
+            paired = {}
+            for exit_stmt in exit_stmts:
+                kept_exits = []
+                for arg in exit_stmt.value.args:
+                    kind, old = _anim_on_name(arg)
+                    old_kind = kind_at(old, exit_stmt.lineno) if old else ""
+                    match = None
+                    if old_kind and not used_again(old, end_of_enter):
+                        for enter_arg, new, new_kind in enters:
+                            if id(enter_arg) not in paired and new_kind == old_kind \
+                                    and new != old:
+                                match = (enter_arg, new)
+                                break
+                    if match is None:
+                        kept_exits.append(src(arg))
+                        continue
+                    enter_arg, new = match
+                    verb = "TransformMatchingTex" if old_kind == "formula" else "ReplacementTransform"
+                    paired[id(enter_arg)] = (enter_arg, f"{verb}({old}, {new})")
 
-            if not paired:
-                continue
+                if len(kept_exits) == len(exit_stmt.value.args):
+                    continue  # nothing of this play became a morph
+                start = offset(exit_stmt.lineno, exit_stmt.col_offset)
+                end = offset(exit_stmt.end_lineno, exit_stmt.end_col_offset)
+                if kept_exits:
+                    keywords = [f"{kw.arg}={src(kw.value)}" if kw.arg else f"**{src(kw.value)}"
+                                for kw in exit_stmt.value.keywords]
+                    edits.append((start, end, f"self.play({', '.join(kept_exits + keywords)})"))
+                else:
+                    # The whole play became the morph: nothing is left of it.
+                    # `pass` keeps the line a statement whatever surrounds it.
+                    edits.append((start, end, "pass"))
+
             morphs += len(paired)
             for enter_arg, replacement in paired.values():
                 edits.append((offset(enter_arg.lineno, enter_arg.col_offset),
                               offset(enter_arg.end_lineno, enter_arg.end_col_offset),
                               replacement))
-            start = offset(exit_stmt.lineno, exit_stmt.col_offset)
-            end = offset(exit_stmt.end_lineno, exit_stmt.end_col_offset)
-            if kept_exits:
-                keywords = [f"{kw.arg}={src(kw.value)}" if kw.arg else f"**{src(kw.value)}"
-                            for kw in exit_stmt.value.keywords]
-                edits.append((start, end, f"self.play({', '.join(kept_exits + keywords)})"))
-            else:
-                # The whole departure became the morph: nothing is left to
-                # play. `pass` keeps the line a statement whatever surrounds it.
-                edits.append((start, end, "pass"))
 
     out = script
     for start, end, replacement in sorted(edits, reverse=True):
@@ -577,18 +599,32 @@ def _morph_transitions(script: str) -> Tuple[str, int, int]:
     return out, morphs, _count_fade_clears(out)
 
 
+_MORPH_ANIMS = frozenset({
+    "Transform", "ReplacementTransform", "TransformMatchingTex",
+    "TransformMatchingShapes", "TransformFromCopy", "FadeTransform",
+    "FadeTransformPieces",
+})
+
+
 def _count_fade_clears(script: str) -> int:
     """How often the script fades several things out and then brings new
-    ones in - the "clear the screen, draw the next one" L8 forbids."""
+    ones in with nothing carried over - "everything out, everything in", the
+    cut to an empty frame L8 forbids. A change of scene in which something
+    morphs into its successor is not one, even if the rest fades."""
     try:
         tree = ast.parse(script)
     except SyntaxError:
         return 0
     count = 0
     for stmts in _statement_lists(tree):
-        for exit_stmt, _ in _exit_then_enter(stmts):
-            args = exit_stmt.value.args
-            if len(args) >= 2 or any(isinstance(a, ast.Starred) for a in args):
+        for exit_stmts, enter_stmt in _exit_then_enter(stmts):
+            args = [a for stmt in exit_stmts for a in stmt.value.args]
+            if not (len(args) >= 2 or any(isinstance(a, ast.Starred) for a in args)):
+                continue
+            carried = any(
+                isinstance(a, ast.Call) and isinstance(a.func, ast.Name)
+                and a.func.id in _MORPH_ANIMS for a in enter_stmt.value.args)
+            if not carried:
                 count += 1
     return count
 

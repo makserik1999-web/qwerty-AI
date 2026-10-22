@@ -121,6 +121,28 @@ class TestWhatItMorphs:
         assert "TransformMatchingTex(eq1, eq2)" in out
         assert validate_manim_script(out) == (True, "")
 
+    def test_a_departure_in_several_plays_is_one_departure(self):
+        """Seen in real scripts: the diagram leaves in one play, the caption
+        in the next, then the new picture arrives. Same empty frame."""
+        script = wrap(
+            "sq = Square()\n"
+            'cap = Text("Бір")\n'
+            "self.play(Create(sq), FadeIn(cap))\n"
+            "self.play(FadeOut(sq), run_time=0.5)\n"
+            "self.play(FadeOut(cap), run_time=0.3)\n"
+            "c = Circle()\n"
+            'cap2 = Text("Екі")\n'
+            "self.play(Create(c), FadeIn(cap2))\n"
+        )
+        out, morphs, clears = _morph_transitions(script)
+
+        assert morphs == 1
+        assert "self.play(ReplacementTransform(sq, c), FadeIn(cap2))" in out
+        assert "self.play(FadeOut(cap), run_time=0.3)" in out
+        assert "FadeOut(sq)" not in out
+        assert clears == 0, "one caption leaving alone is not a clear"
+        assert validate_manim_script(out) == (True, "")
+
     def test_running_it_twice_changes_nothing_more(self):
         once, _, _ = _morph_transitions(wrap(FORMULAS))
         twice, morphs, _ = _morph_transitions(once)
@@ -196,6 +218,24 @@ class TestClearsAreCounted:
             "self.play(FadeIn(c))\n"
         )
         assert _morph_transitions(script)[2] == 1
+
+    def test_a_clear_spread_over_several_plays(self):
+        script = wrap(
+            "self.play(FadeOut(group), FadeOut(t1), FadeOut(t2))\n"
+            "self.play(FadeOut(cap))\n"
+            'eq = MathTex("v", "=", "s", "/", "t")\n'
+            "self.play(Write(eq))\n"
+        )
+        assert _morph_transitions(script)[2] == 1
+
+    def test_a_change_of_scene_that_carries_something_over_is_not_one(self):
+        """The book and the table leave, the velocity label becomes the
+        "v = const" of the next scene: a morph, not a cut to empty."""
+        script = wrap(
+            "self.play(FadeOut(book), FadeOut(table))\n"
+            "self.play(Create(probe), TransformMatchingTex(lbl_v, v_const))\n"
+        )
+        assert _morph_transitions(script)[2] == 0
 
     def test_fading_out_everything_on_screen(self):
         script = wrap(
