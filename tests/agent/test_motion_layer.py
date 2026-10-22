@@ -259,13 +259,23 @@ class TestTheNarrationItIsMeasuredFrom:
 
 class TestIdleMotion:
     def test_it_starts_where_the_shape_is(self):
-        assert anyq_motion.idle_offset(0.0, 0.05) == (0.0, 0.0)
+        """Whatever the scene clock says, a shape that has just appeared is
+        where the script put it."""
+        for t in (0.0, 3.3, 17.0):
+            assert anyq_motion.idle_offset(t, 0.0, 0.05) == (0.0, 0.0)
 
     def test_it_stays_within_its_amplitude(self):
         amp = 0.05
         for i in range(400):
-            x, y = anyq_motion.idle_offset(i / 30, amp)
-            assert (x * x + (y / 0.8 + amp) ** 2) ** 0.5 <= amp + 1e-9
+            x, y = anyq_motion.idle_offset(i / 30, i / 30, amp)
+            assert (x * x + (y / 0.8) ** 2) ** 0.5 <= amp + 1e-9
+
+    def test_shapes_that_appeared_at_different_times_float_in_step(self):
+        """A square drawn inside another, a play later, stays inside it."""
+        t = 20.0
+        first = anyq_motion.idle_offset(t, t - 2.0, 0.04)
+        later = anyq_motion.idle_offset(t, t - 9.0, 0.04)
+        assert first == pytest.approx(later)
 
     def test_once_going_it_never_stands_still(self):
         """A bob up and down stops twice a cycle; a circle never does - and a
@@ -275,8 +285,8 @@ class TestIdleMotion:
         speeds = []
         for i in range(300):
             t = start + i * dt
-            a = anyq_motion.idle_offset(t, amp)
-            b = anyq_motion.idle_offset(t + dt, amp)
+            a = anyq_motion.idle_offset(t, t, amp)
+            b = anyq_motion.idle_offset(t + dt, t + dt, amp)
             speeds.append(((b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2) ** 0.5 / dt)
         assert min(speeds) > 0.5 * max(speeds)
 

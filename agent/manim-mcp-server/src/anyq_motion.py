@@ -9,9 +9,12 @@ with three things added:
 1. A background layer: drifting particles, a slow "breath" of the backdrop, a
    progress bar along the top.
 2. Idle motion: once a shape is on screen it floats on a small circle (1-2%
-   of its size) and, if it is round, pulses. Text and formulas never move -
+   of its size) and, if it is round, pulses. Every shape floats in step with
+   every other - one phase, taken from the scene clock - so a diagram built
+   from several shapes moves as one piece. Text and formulas never move -
    they have to be read - and neither does anything whose place means
-   something next to another object: a line, an arrow, an axis, a graph.
+   something next to another object: a line, an arrow, an axis, a graph, a
+   dot marking a point (a dot only pulses, in place).
 3. Active hold: while a sentence is spoken about a formula, the term being
    said lights up and an underline is drawn beneath the formula up to it.
    Word timings come from Azure's word boundaries, which the agent leaves in
@@ -80,9 +83,11 @@ BREATH = "#1B2B55"
 BREATH_OPACITY = 0.6
 BREATH_PERIOD = 10.0                  # seconds
 
-# Idle motion of shapes.
+# Idle motion of shapes. A narrow range on purpose: shapes that fit together -
+# a square inside a square - float in step, and only the difference between
+# their amplitudes can pull them apart.
 IDLE_SHARE = 0.015                     # of the shape's larger side
-IDLE_MIN, IDLE_MAX = 0.02, 0.07        # units
+IDLE_MIN, IDLE_MAX = 0.02, 0.05        # units
 IDLE_PERIOD = 4.2                      # seconds per circle
 PULSE_SHARE = 0.018                    # of the size, for round shapes
 PULSE_PERIOD = 2.6                     # seconds
@@ -151,18 +156,21 @@ def smooth(x: float) -> float:
     return x * x * (3.0 - 2.0 * x)
 
 
-def idle_offset(tau: float, amp: float) -> Tuple[float, float]:
-    """Where a floating shape is, `tau` seconds after it started floating.
+def idle_offset(t: float, tau: float, amp: float) -> Tuple[float, float]:
+    """Where a floating shape is at scene time `t`, `tau` seconds after it
+    started floating.
 
     A circle rather than a bob: the speed never drops to zero, so there is no
-    moment in each cycle where the shape stands still. It starts at the
-    shape's own place and eases out to full size over IDLE_RAMP, so nothing
+    moment in each cycle where the shape stands still. The phase is the scene
+    clock's, not the shape's own, so two shapes that appeared at different
+    moments still float in step - a square drawn inside another stays inside
+    it. It eases out from the shape's own place over IDLE_RAMP, so nothing
     jumps when the motion begins.
     """
     ramp = smooth(tau / IDLE_RAMP)
     w = math.tau / IDLE_PERIOD
-    return (amp * ramp * math.sin(w * tau),
-            amp * ramp * (math.cos(w * tau) - 1.0) * 0.8)
+    return (amp * ramp * math.sin(w * t),
+            amp * ramp * math.cos(w * t) * 0.8)
 
 
 def idle_amplitude(size: float) -> float:
@@ -263,6 +271,19 @@ _OPERATORS = frozenset({
 
 def is_operator(tex: str) -> bool:
     return re.sub(r"[\s{}]", "", tex or "") in _OPERATORS
+
+
+_RELATION_RE = re.compile(r"=|<|>|\\(?:le|ge|leq|geq|neq|approx|equiv|sim|propto)(?![A-Za-z])")
+
+
+def states_something(tex: str) -> bool:
+    """Whether a formula says something - has an = or another relation.
+
+    What a sentence is "about" when a block shows a formula. A bare "c", an
+    "a + b" under a side or a "c^2" inside a square is a label, and a label
+    lit up and underlined would draw the eye to the wrong place.
+    """
+    return bool(_RELATION_RE.search(tex or ""))
 
 
 def estimate_total(durations: Sequence[float]) -> float:
@@ -525,7 +546,10 @@ def build_motion_scene(base: type, manifest_path: str) -> type:
                 for formula in formulas_on_screen(self.mobjects):
                     if id(formula) not in block.seen:
                         block.seen.add(id(formula))
-                        block.new_formulas.append(formula)
+                        tex = " ".join(getattr(formula, "tex_strings", None)
+                                       or [getattr(formula, "tex_string", "")])
+                        if states_something(tex):
+                            block.new_formulas.append(formula)
 
         def _anyq_start_idle(self, mob: Any) -> None:
             now = self._anyq_time()
@@ -535,7 +559,8 @@ def build_motion_scene(base: type, manifest_path: str) -> type:
             mob._anyq_idle = {
                 "t0": now,
                 "last": now,
-                "amp": idle_amplitude(max(mob.width, mob.height)),
+                # A dot marks a point; it pulses where it is.
+                "amp": 0.0 if isinstance(mob, Dot) else idle_amplitude(max(mob.width, mob.height)),
                 "pulse": PULSE_SHARE if isinstance(mob, round_shapes) else 0.0,
                 "applied": np.zeros(3),
                 "scale": 1.0,
@@ -549,7 +574,7 @@ def build_motion_scene(base: type, manifest_path: str) -> type:
                     return
                 t = scene._anyq_time()
                 tau = t - st["t0"]
-                ox, oy = idle_offset(tau, st["amp"])
+                ox, oy = idle_offset(t, tau, st["amp"])
                 offset = np.array([ox, oy, 0.0])
                 scale = 1.0 + st["pulse"] * smooth(tau / IDLE_RAMP) \
                     * math.sin(math.tau * tau / PULSE_PERIOD)

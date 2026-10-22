@@ -96,6 +96,20 @@ class TestSchedule:
         assert anyq_motion.schedule([], 0, 1) == []
 
 
+class TestWhatIsFollowedUnasked:
+    """A formula a block shows is followed without read_formula - if it
+    states something. Labels are formulas too, and must be left alone."""
+
+    @pytest.mark.parametrize("tex", ["F = m a", "a^2 + b^2 = c^2", "x < 3", r"v \approx 3",
+                                     r"a \leq b", "S = c^2 + 2ab"])
+    def test_a_relation_is_followed(self, tex):
+        assert anyq_motion.states_something(tex)
+
+    @pytest.mark.parametrize("tex", ["c", "a + b", "c^2", r"\frac{F}{m}", "2ab", r"\left(x\right)"])
+    def test_a_label_is_not(self, tex):
+        assert not anyq_motion.states_something(tex)
+
+
 class TestOperators:
     @pytest.mark.parametrize("tex", ["=", "+", "-", "/", r"\cdot", r"\times", "{=}", " = ", r"\\"])
     def test_punctuation_of_a_formula_is_not_a_term(self, tex):
