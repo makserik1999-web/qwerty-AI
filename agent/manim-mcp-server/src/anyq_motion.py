@@ -4,8 +4,14 @@ Behind MOTION_LAYER=1. With it on, a generated script subclasses MotionScene
 (`from anyq_narration import MotionScene`) instead of VoiceoverScene, and the
 guard in anyq/script_guard.py makes sure it does. MotionScene IS the narrated
 or the silent VoiceoverScene - whichever anyq_narration would have handed out -
-with a background layer added: drifting particles, a slow "breath" of the
-backdrop, a progress bar along the top.
+with two things added:
+
+1. A background layer: drifting particles, a slow "breath" of the backdrop, a
+   progress bar along the top.
+2. Idle motion: once a shape is on screen it floats on a small circle (1-2%
+   of its size) and, if it is round, pulses. Text and formulas never move -
+   they have to be read - and neither does anything whose place means
+   something next to another object: a line, an arrow, an axis, a graph.
 
 The layer is drawn by the camera before the scene's own mobjects on every
 frame, and is never one of them. So nothing a script does to self.mobjects -
@@ -37,7 +43,7 @@ import json
 import math
 import random
 from pathlib import Path
-from typing import Any, Dict, List, Sequence
+from typing import Any, Dict, List, Sequence, Tuple
 
 # Colours sampled from the reference frames (reference/manim_showcase).
 BACKGROUND = "#131E39"
@@ -66,6 +72,17 @@ PARTICLE_TWINKLE_PERIOD = (2.5, 5.5)  # seconds
 BREATH = "#1B2B55"
 BREATH_OPACITY = 0.6
 BREATH_PERIOD = 10.0                  # seconds
+
+# Idle motion of shapes.
+IDLE_SHARE = 0.015                     # of the shape's larger side
+IDLE_MIN, IDLE_MAX = 0.02, 0.07        # units
+IDLE_PERIOD = 4.2                      # seconds per circle
+PULSE_SHARE = 0.018                    # of the size, for round shapes
+PULSE_PERIOD = 2.6                     # seconds
+IDLE_RAMP = 1.0                        # seconds to reach full amplitude
+# A shape wider or taller than this share of the frame is a floor, a wall or a
+# container, and a floor that bobs looks broken rather than alive.
+IDLE_MAX_FRAME_SHARE = 0.6
 
 
 # ---------------------------------------------------------------- pure helpers
@@ -113,6 +130,31 @@ def spoken_lines(source: str) -> List[str]:
     return [text for _, _, text in sorted(calls)]
 
 
+def smooth(x: float) -> float:
+    """0 to 1 with no jolt at either end (smoothstep)."""
+    x = min(max(x, 0.0), 1.0)
+    return x * x * (3.0 - 2.0 * x)
+
+
+def idle_offset(tau: float, amp: float) -> Tuple[float, float]:
+    """Where a floating shape is, `tau` seconds after it started floating.
+
+    A circle rather than a bob: the speed never drops to zero, so there is no
+    moment in each cycle where the shape stands still. It starts at the
+    shape's own place and eases out to full size over IDLE_RAMP, so nothing
+    jumps when the motion begins.
+    """
+    ramp = smooth(tau / IDLE_RAMP)
+    w = math.tau / IDLE_PERIOD
+    return (amp * ramp * math.sin(w * tau),
+            amp * ramp * (math.cos(w * tau) - 1.0) * 0.8)
+
+
+def idle_amplitude(size: float) -> float:
+    """1.5% of a shape's size, kept between a visible and a calm amount."""
+    return min(IDLE_MAX, max(IDLE_MIN, IDLE_SHARE * size))
+
+
 def estimate_total(durations: Sequence[float]) -> float:
     """The video's length from its sentences, before it is rendered.
 
@@ -127,7 +169,27 @@ def estimate_total(durations: Sequence[float]) -> float:
 
 def build_motion_scene(base: type, manifest_path: str) -> type:
     """MotionScene on top of `base` (the narrated or the silent scene)."""
-    from manim import Dot, Line, Rectangle, VGroup, VMobject, config
+    import numpy as np
+    from manim import (
+        AnnularSector,
+        Arc,
+        Circle,
+        CoordinateSystem,
+        DecimalNumber,
+        Dot,
+        Ellipse,
+        Line,
+        MarkupText,
+        NumberLine,
+        Paragraph,
+        ParametricFunction,
+        Rectangle,
+        SingleStringMathTex,
+        Text,
+        VGroup,
+        VMobject,
+        config,
+    )
 
     import anyq_narration as narration_shim
 
@@ -152,6 +214,33 @@ def build_motion_scene(base: type, manifest_path: str) -> type:
                 pass
         seconds = len(narration_shim.normalise_line(text)) / narration_shim._SILENT_CHARS_PER_SEC
         return min(narration_shim._SILENT_MAX_SEC, max(narration_shim._SILENT_MIN_SEC, seconds))
+
+    # Anything with words or numbers in it: it has to be read, so it stays put.
+    text_like = (Text, MarkupText, Paragraph, SingleStringMathTex, DecimalNumber)
+    # Things whose place means something next to another object: an axis and
+    # what is plotted on it.
+    anchored = (CoordinateSystem, NumberLine, ParametricFunction)
+    round_shapes = (Circle, Ellipse, Dot)
+
+    def may_float(mob: Any, frame_w: float, frame_h: float) -> bool:
+        """Whether a top-level mobject may float. Conservative on purpose:
+        a label left behind by its shape looks worse than a shape at rest."""
+        if not isinstance(mob, VMobject):
+            return False
+        if isinstance(mob, Line):
+            return False  # lines and arrows connect things
+        if isinstance(mob, Arc) and not isinstance(mob, (Circle, AnnularSector)):
+            return False  # an angle mark belongs to its vertex
+        family = mob.get_family()
+        if not any(m.has_points() for m in family):
+            return False
+        if any(isinstance(m, text_like) or isinstance(m, anchored) for m in family):
+            return False
+        if mob.get_family_updaters():
+            return False  # the script moves it itself
+        if mob.width > IDLE_MAX_FRAME_SHARE * frame_w or mob.height > IDLE_MAX_FRAME_SHARE * frame_h:
+            return False
+        return True
 
     class MotionScene(base):  # type: ignore[misc, valid-type]
         """What a generated script inherits from under MOTION_LAYER=1."""
@@ -258,6 +347,58 @@ def build_motion_scene(base: type, manifest_path: str) -> type:
             bar, left, right, y = self._anyq_bar
             x = left + (right - left) * progress(t, self._anyq_total)
             bar.set_points_as_corners([[left, y, 0], [max(x, left + 1e-3), y, 0]])
+
+        # ------------------------------------------------------------ idle
+        def play(self, *args: Any, **kwargs: Any) -> None:
+            super().play(*args, **kwargs)
+            self._anyq_after_play()
+
+        def _anyq_after_play(self) -> None:
+            """Whatever a play put on screen, and may float, starts to."""
+            fw, fh = self._anyq_frame
+            for mob in list(self.mobjects):
+                if getattr(mob, "_anyq_idle", None) is None and may_float(mob, fw, fh):
+                    self._anyq_start_idle(mob)
+
+        def _anyq_start_idle(self, mob: Any) -> None:
+            now = self._anyq_time()
+            # The state lives on the mobject, not in the updater: a .copy() of
+            # a floating shape copies the updater function by reference, and
+            # must carry its own state with it.
+            mob._anyq_idle = {
+                "t0": now,
+                "last": now,
+                "amp": idle_amplitude(max(mob.width, mob.height)),
+                "pulse": PULSE_SHARE if isinstance(mob, round_shapes) else 0.0,
+                "applied": np.zeros(3),
+                "scale": 1.0,
+            }
+            scene = self
+            frame_dt = 1.0 / float(config.frame_rate)
+
+            def idle(m: Any, dt: float) -> None:
+                st = getattr(m, "_anyq_idle", None)
+                if st is None:
+                    return
+                t = scene._anyq_time()
+                tau = t - st["t0"]
+                ox, oy = idle_offset(tau, st["amp"])
+                offset = np.array([ox, oy, 0.0])
+                scale = 1.0 + st["pulse"] * smooth(tau / IDLE_RAMP) \
+                    * math.sin(math.tau * tau / PULSE_PERIOD)
+                if t - st["last"] > 2.5 * frame_dt:
+                    # Back from an animation of this shape - manim suspends a
+                    # mobject's updaters while it is being animated - so its
+                    # place is now the animation's. Carry on from there rather
+                    # than jump back to where the circle has got to.
+                    st["applied"], st["scale"], st["last"] = offset, scale, t
+                    return
+                m.shift(offset - st["applied"])
+                if st["pulse"]:
+                    m.scale(scale / st["scale"])
+                st["applied"], st["scale"], st["last"] = offset, scale, t
+
+            mob.add_updater(idle)
 
     MotionScene.__name__ = "MotionScene"
     MotionScene.__qualname__ = "MotionScene"

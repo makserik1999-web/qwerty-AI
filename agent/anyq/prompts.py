@@ -281,6 +281,11 @@ _MOTION_RULES = (
     "    own, and do not change the background colour. Keep the top 0.3 units\n"
     "    of the frame free for the progress bar - a title placed with\n"
     "    .to_edge(UP) already is.\n"
+    "M2. Once a SHAPE is on screen the runtime keeps it gently floating - a\n"
+    "    few hundredths of a unit, so the picture is never frozen while the\n"
+    "    narrator talks. Text, formulas, lines, arrows and axes stay perfectly\n"
+    "    still. Do not add wobbling, pulsing or 'breathing' animations of your\n"
+    "    own, and do not add self.wait() calls to keep the picture alive.\n"
 )
 
 

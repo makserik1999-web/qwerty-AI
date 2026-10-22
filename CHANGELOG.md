@@ -24,6 +24,12 @@ PIPELINE_VERSION in the same deploy.
   guard rewrites any scene base the model writes to it - after every rewrite
   and repair too. A script that still does not subclass it is not rendered.
 - Telemetry records whether a run had the layer (`motion_layer`).
+- Idle motion: once a shape is on screen it floats on a small circle - 1.5%
+  of its size, 0.02 to 0.07 units - and a round one also pulses. A circle,
+  not a bob, so it never stands still mid-cycle; it eases in, and picks up
+  from wherever an animation of the shape left it. Text, formulas, lines,
+  arrows, axes and graphs never move, nor does a group with a label in it,
+  a shape the script moves itself, or one wider than 60% of the frame.
 
 Measured on a 32-second test scene at 720p30: the share of 0.3 s windows in
 which the frame stands still went from 86% to 0%; rendering took 28 s

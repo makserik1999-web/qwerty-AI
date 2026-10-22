@@ -246,3 +246,39 @@ class TestTheNarrationItIsMeasuredFrom:
     def test_the_total_is_the_sentences_plus_a_margin(self):
         assert anyq_motion.estimate_total([10.0, 20.0]) == pytest.approx(30 * 1.04 + 0.8)
         assert anyq_motion.estimate_total([]) > 0
+
+
+# ------------------------------------------------------------- idle motion
+
+
+class TestIdleMotion:
+    def test_it_starts_where_the_shape_is(self):
+        assert anyq_motion.idle_offset(0.0, 0.05) == (0.0, 0.0)
+
+    def test_it_stays_within_its_amplitude(self):
+        amp = 0.05
+        for i in range(400):
+            x, y = anyq_motion.idle_offset(i / 30, amp)
+            assert (x * x + (y / 0.8 + amp) ** 2) ** 0.5 <= amp + 1e-9
+
+    def test_once_going_it_never_stands_still(self):
+        """A bob up and down stops twice a cycle; a circle never does - and a
+        stop is exactly what freezedetect would find."""
+        amp, dt = 0.05, 1 / 30
+        start = anyq_motion.IDLE_RAMP
+        speeds = []
+        for i in range(300):
+            t = start + i * dt
+            a = anyq_motion.idle_offset(t, amp)
+            b = anyq_motion.idle_offset(t + dt, amp)
+            speeds.append(((b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2) ** 0.5 / dt)
+        assert min(speeds) > 0.5 * max(speeds)
+
+    def test_its_size_follows_the_shape_within_bounds(self):
+        assert anyq_motion.idle_amplitude(2.0) == pytest.approx(0.03)
+        assert anyq_motion.idle_amplitude(0.1) == anyq_motion.IDLE_MIN
+        assert anyq_motion.idle_amplitude(50.0) == anyq_motion.IDLE_MAX
+
+    def test_the_prompt_says_not_to_animate_it_by_hand(self):
+        motion = build_manim_system_prompt(True, "Kazakh", motion=True)
+        assert "M2." in motion and "stay perfectly" in motion
